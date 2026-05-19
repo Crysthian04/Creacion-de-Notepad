@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Manager · Almacén de Repuestos</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0e1117; --surface:#161b27; --surface2:#1e2535; --border:#252d3d;
+  --text:#e8ecf4; --muted:#5a6478; --muted2:#8a95aa;
+  --f1:#e85d3a; --f1-dim:rgba(232,93,58,0.15);
+  --f2:#3a8fe8; --f2-dim:rgba(58,143,232,0.15);
+  --f3:#3ae87a; --f3-dim:rgba(58,232,122,0.15);
+  --win:#f0c040; --win-dim:rgba(240,192,64,0.12);
+  --done:#5a6478; --blocked:#e83a3a;
+  --radius:4px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+input,textarea,select{font-family:'Barlow',sans-serif;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:0.5rem 0.75rem;font-size:0.85rem;width:100%;outline:none;transition:border-color .2s;}
+input:focus,textarea:focus,select:focus{border-color:var(--f2);}
+button{font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;font-size:0.8rem;cursor:pointer;border:none;border-radius:var(--radius);padding:0.5rem 1.25rem;transition:opacity .2s;}
+button:hover{opacity:0.85;}
+label{font-size:0.72rem;color:var(--muted2);letter-spacing:0.08em;text-transform:uppercase;display:block;margin-bottom:0.3rem;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem;}
+.modal-overlay.hidden{display:none;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:2rem;width:100%;max-width:520px;}
+.modal-title{font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;margin-bottom:0.4rem;}
+.modal-sub{font-size:0.8rem;color:var(--muted2);margin-bottom:1.5rem;line-height:1.5;}
+.form-group{margin-bottom:1rem;}
+.btn-primary{background:var(--f2);color:#fff;}
+.btn-green{background:var(--f3);color:#0e1117;}
+.btn-red{background:var(--f1);color:#fff;}
+.btn-muted{background:var(--surface2);color:var(--muted2);border:1px solid var(--border);}
+.btn-win{background:var(--win);color:#0e1117;}
+.hint{font-size:0.7rem;color:var(--muted);margin-top:0.3rem;}
+.badge{font-family:'Barlow Condensed',sans-serif;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:2px 8px;border-radius:2px;border:1px solid;}
+.badge-f1{color:var(--f1);border-color:var(--f1);background:var(--f1-dim);}
+.badge-f2{color:var(--f2);border-color:var(--f2);background:var(--f2-dim);}
+.badge-f3{color:var(--f3);border-color:var(--f3);background:var(--f3-dim);}
+.badge-win{color:var(--win);border-color:var(--win);background:var(--win-dim);}
+.badge-done{color:var(--muted2);border-color:var(--border);background:rgba(90,100,120,0.15);}
+
+/* HEADER */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:0.9rem 2rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.header-left{display:flex;align-items:center;gap:1rem;}
+.header-title{font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;letter-spacing:-0.01em;}
+.header-title em{font-style:normal;color:var(--f2);}
+.auth-btn{font-family:'Barlow Condensed',sans-serif;font-size:0.75rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:0.4rem 1rem;border-radius:var(--radius);cursor:pointer;border:1px solid;}
+.auth-btn.signed-in{color:var(--f3);border-color:var(--f3);background:var(--f3-dim);}
+.auth-btn.signed-out{color:var(--f2);border-color:var(--f2);background:var(--f2-dim);}
+.header-actions{display:flex;gap:0.5rem;align-items:center;}
+
+/* TABS */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 2rem;background:var(--surface);}
+.tab{font-family:'Barlow Condensed',sans-serif;font-size:0.8rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:0.7rem 1.2rem;cursor:pointer;color:var(--muted2);border-bottom:2px solid transparent;transition:all .2s;margin-bottom:-1px;}
+.tab.active{color:var(--f2);border-bottom-color:var(--f2);}
+.tab:hover:not(.active){color:var(--text);}
+.tab-panel{display:none;padding:1.5rem 2rem;}
+.tab-panel.active{display:block;}
+
+/* TASKS */
+.task-form-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1.5rem;}
+.form-title{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:1rem;color:var(--f2);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:0.75rem;}
+.form-actions{display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;}
+.tasks-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;}
+.tasks-header h2{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;}
+.filter-row{display:flex;gap:0.5rem;flex-wrap:wrap;}
+.filter-btn{font-family:'Barlow Condensed',sans-serif;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;padding:3px 10px;border-radius:2px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted2);transition:all .2s;}
+.filter-btn.active{background:var(--surface2);color:var(--text);border-color:var(--muted);}
+.task-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:0.5rem;overflow:hidden;transition:border-color .2s;}
+.task-card:hover{border-color:var(--muted);}
+.task-card.phase-1{border-left:3px solid var(--f1);}
+.task-card.phase-2{border-left:3px solid var(--f2);}
+.task-card.phase-3{border-left:3px solid var(--f3);}
+.task-card.personal{border-left:3px solid var(--win);}
+.task-card.done{opacity:0.55;}
+.task-row{display:flex;align-items:center;gap:0.75rem;padding:0.75rem 1rem;}
+.task-check{width:16px;height:16px;border:1.5px solid var(--border);border-radius:3px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.task-check.checked{background:var(--f3);border-color:var(--f3);}
+.task-check.checked::after{content:'✓';color:#0e1117;font-size:10px;font-weight:900;}
+.task-name{flex:1;font-size:0.85rem;line-height:1.3;}
+.task-name.done-text{text-decoration:line-through;color:var(--muted2);}
+.task-meta{display:flex;gap:0.5rem;align-items:center;flex-shrink:0;flex-wrap:wrap;}
+.task-date{font-size:0.68rem;color:var(--muted2);}
+.task-expand{font-size:0.7rem;color:var(--muted);cursor:pointer;padding:0.2rem;}
+.task-detail{display:none;padding:0.6rem 1rem 0.9rem;border-top:1px solid rgba(37,45,61,0.6);}
+.task-detail.open{display:block;}
+.task-detail-row{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.5rem;}
+.td-item{font-size:0.72rem;color:var(--muted2);}
+.td-item strong{color:var(--text);display:block;margin-bottom:1px;}
+.completion-row{display:flex;gap:0.5rem;align-items:flex-end;margin-top:0.5rem;}
+.completion-row input{max-width:160px;}
+.update-chips{display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem;}
+.update-chip{font-size:0.65rem;padding:2px 7px;border-radius:10px;border:1px solid var(--border);color:var(--muted2);}
+.update-chip.past{color:var(--f1);border-color:var(--f1);background:var(--f1-dim);}
+.update-chip.today{color:var(--win);border-color:var(--win);background:var(--win-dim);}
+.update-chip.future{color:var(--muted);border-color:var(--border);}
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--muted2);}
+.empty-state p{font-size:0.85rem;margin-top:0.5rem;}
+
+/* GANTT */
+.gantt-controls{display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;}
+.gantt-controls label{margin:0;font-size:0.72rem;color:var(--muted2);}
+.gantt-controls input{width:140px;}
+.gantt-wrapper{overflow-x:auto;overflow-y:auto;max-height:70vh;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);}
+.gantt-legend{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:0.75rem;}
+.leg-item{display:flex;align-items:center;gap:0.4rem;font-size:0.68rem;color:var(--muted2);}
+.leg-color{width:14px;height:8px;border-radius:2px;flex-shrink:0;}
+
+/* PLAN VIEW */
+.plan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0.75rem;}
+.plan-week-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:0.9rem 1rem;cursor:pointer;transition:border-color .2s;}
+.plan-week-card:hover{border-color:var(--muted);}
+.plan-week-card.ph1{border-left:3px solid var(--f1);}
+.plan-week-card.ph2{border-left:3px solid var(--f2);}
+.plan-week-card.ph3{border-left:3px solid var(--f3);}
+.plan-week-card.qw{border-left:3px solid var(--win) !important;}
+.plan-week-num{font-family:'Barlow Condensed',sans-serif;font-size:0.65rem;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted2);margin-bottom:0.25rem;}
+.plan-week-title{font-family:'Barlow Condensed',sans-serif;font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;line-height:1.2;margin-bottom:0.4rem;}
+.plan-week-status{font-size:0.68rem;color:var(--muted2);}
+.plan-phase-header{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin:1.25rem 0 0.6rem;display:flex;align-items:center;gap:0.5rem;}
+
+/* NOTIFICATION */
+.notif{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem 1.25rem;font-size:0.8rem;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;max-width:300px;}
+.notif.show{opacity:1;}
+.notif.success{border-left:3px solid var(--f3);color:var(--f3);}
+.notif.error{border-left:3px solid var(--f1);color:var(--f1);}
+.notif.info{border-left:3px solid var(--f2);color:var(--f2);}
+
+/* STATUS BAR */
+.status-bar{background:var(--surface2);border-bottom:1px solid var(--border);padding:0.4rem 2rem;display:flex;gap:1.5rem;flex-wrap:wrap;}
+.stat-item{font-size:0.68rem;color:var(--muted2);}
+.stat-item strong{color:var(--text);}
+
+@media(max-width:640px){
+  .form-row,.form-row-3{grid-template-columns:1fr;}
+  .tab-panel,.header{padding-left:1rem;padding-right:1rem;}
+  .tabs{padding:0 1rem;}
+}
+</style>
+</head>
+<body>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setupModal">
+  <div class="modal">
+    <div class="modal-title">Configuración inicial</div>
+    <div class="modal-sub">Conecta tu cuenta de Google para sincronizar tareas con Google Sheets.<br>Necesitas un <strong>Client ID de OAuth 2.0</strong> (Google Cloud Console) y el <strong>ID de tu hoja de cálculo</strong>.</div>
+    <div class="form-group">
+      <label>Google OAuth Client ID</label>
+      <input type="text" id="cfgClientId" placeholder="xxxx.apps.googleusercontent.com">
+      <div class="hint">Google Cloud Console → Credenciales → ID de cliente OAuth 2.0 (tipo: Aplicación web). Agrega http://localhost y tu URL como orígenes autorizados.</div>
+    </div>
+    <div class="form-group">
+      <label>Google Spreadsheet ID</label>
+      <input type="text" id="cfgSheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+      <div class="hint">Es la parte larga de la URL de tu Google Sheet: docs.google.com/spreadsheets/d/<strong>[ID]</strong>/edit</div>
+    </div>
+    <div class="form-group">
+      <label>Fecha de inicio del proyecto (Semana 1)</label>
+      <input type="date" id="cfgProjectStart">
+      <div class="hint">Las 16 semanas del plan se mapearán a partir de esta fecha.</div>
+    </div>
+    <div class="form-group">
+      <label>Google API Key (para lectura sin auth)</label>
+      <input type="text" id="cfgApiKey" placeholder="AIzaSy...">
+      <div class="hint">Opcional pero recomendado. Google Cloud Console → Credenciales → Clave de API.</div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-primary" onclick="saveConfig()">Guardar y conectar</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPLETION DATE MODAL -->
+<div class="modal-overlay hidden" id="completeModal">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-title">Marcar como completada</div>
+    <div class="modal-sub" id="completeModalName" style="color:var(--text);font-weight:600;"></div>
+    <div class="form-group" style="margin-top:1rem;">
+      <label>Fecha de completado</label>
+      <input type="date" id="completeDate">
+    </div>
+    <div class="form-actions">
+      <button class="btn-muted" onclick="closeCompleteModal()">Cancelar</button>
+      <button class="btn-green" onclick="confirmComplete()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-title">Almacén · <em>Tareas</em></div>
+    <div id="syncStatus" style="font-size:0.7rem;color:var(--muted2);">No conectado</div>
+  </div>
+  <div class="header-actions">
+    <button class="auth-btn signed-out" id="authBtn" onclick="handleAuth()">Iniciar sesión</button>
+    <button class="btn-muted" style="font-size:0.7rem;padding:0.35rem 0.75rem;" onclick="openSetup()">⚙ Config</button>
+  </div>
+</div>
+
+<!-- STATUS BAR -->
+<div class="status-bar" id="statusBar">
+  <div class="stat-item">Tareas: <strong id="statTotal">0</strong></div>
+  <div class="stat-item">Pendientes: <strong id="statPending">0</strong></div>
+  <div class="stat-item">En progreso: <strong id="statActive">0</strong></div>
+  <div class="stat-item">Completadas: <strong id="statDone">0</strong></div>
+  <div class="stat-item">Con actualización hoy: <strong id="statUpdate" style="color:var(--win);">0</strong></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('tasks')">Mis Tareas</div>
+  <div class="tab" onclick="switchTab('gantt')">Gantt</div>
+  <div class="tab" onclick="switchTab('plan')">Plan 16 Semanas</div>
+</div>
+
+<!-- TAB: TASKS -->
+<div class="tab-panel active" id="tab-tasks">
+  <div class="task-form-card">
+    <div class="form-title">+ Nueva tarea</div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0;grid-column:span 2;">
+        <label>Nombre de la tarea *</label>
+        <input type="text" id="fName" placeholder="Descripción de la tarea..." onkeydown="if(event.key==='Enter')addTask()">
+      </div>
+    </div>
+    <div class="form-row-3">
+      <div class="form-group" style="margin:0;">
+        <label>Fase / Categoría</label>
+        <select id="fPhase">
+          <option value="personal">Personal</option>
+          <option value="phase-1">Fase 1 · Datos</option>
+          <option value="phase-2">Fase 2 · Criticidad</option>
+          <option value="phase-3">Fase 3 · Control</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Prioridad</label>
+        <select id="fPriority">
+          <option value="normal">Normal</option>
+          <option value="alta">Alta</option>
+          <option value="critica">Crítica</option>
+          <option value="baja">Baja</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Quick Win</label>
+        <select id="fQuickWin">
+          <option value="no">No</option>
+          <option value="si">⚡ Sí</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="margin:0;">
+        <label>Fecha inicio (hoy por defecto)</label>
+        <input type="date" id="fStart">
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label>Fecha vencimiento (+3 días por defecto)</label>
+        <input type="date" id="fDue">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notas (opcional)</label>
+      <textarea id="fNotes" rows="2" placeholder="Contexto adicional..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn-muted" onclick="clearForm()">Limpiar</button>
+      <button class="btn-primary" onclick="addTask()">Agregar tarea</button>
+    </div>
+  </div>
+
+  <div class="tasks-header">
+    <h2>Tareas <span id="taskCount" style="color:var(--muted2);font-weight:400;"></span></h2>
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="setFilter('all',this)">Todas</button>
+      <button class="filter-btn" onclick="setFilter('pending',this)">Pendientes</button>
+      <button class="filter-btn" onclick="setFilter('active',this)">En progreso</button>
+      <button class="filter-btn" onclick="setFilter('done',this)">Completadas</button>
+      <button class="filter-btn" onclick="setFilter('update',this)">🔔 Actualizar</button>
+    </div>
+  </div>
+  <div id="taskList"></div>
+</div>
+
+<!-- TAB: GANTT -->
+<div class="tab-panel" id="tab-gantt">
+  <div class="gantt-controls">
+    <div>
+      <label>Desde</label>
+      <input type="date" id="ganttFrom" onchange="renderGantt()">
+    </div>
+    <div>
+      <label>Hasta</label>
+      <input type="date" id="ganttTo" onchange="renderGantt()">
+    </div>
+    <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;margin:0;">
+      <input type="checkbox" id="showPlan" checked onchange="renderGantt()">
+      <span>Mostrar plan 16 semanas</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;margin:0;">
+      <input type="checkbox" id="showDone" checked onchange="renderGantt()">
+      <span>Mostrar completadas</span>
+    </label>
+    <button class="btn-muted" onclick="autoRangeGantt()">Auto rango</button>
+  </div>
+  <div class="gantt-legend">
+    <div class="leg-item"><div class="leg-color" style="background:var(--f1)"></div>Fase 1</div>
+    <div class="leg-item"><div class="leg-color" style="background:var(--f2)"></div>Fase 2</div>
+    <div class="leg-item"><div class="leg-color" style="background:var(--f3)"></div>Fase 3</div>
+    <div class="leg-item"><div class="leg-color" style="background:var(--win)"></div>Personal / Quick Win</div>
+    <div class="leg-item"><div class="leg-color" style="background:var(--muted);opacity:0.5"></div>Completada</div>
+    <div class="leg-item"><div class="leg-color" style="background:transparent;border:1px dashed var(--muted2);"></div>Plan (fondo)</div>
+  </div>
+  <div class="gantt-wrapper">
+    <svg id="ganttSvg" style="display:block;"></svg>
+  </div>
+</div>
+
+<!-- TAB: PLAN -->
+<div class="tab-panel" id="tab-plan">
+  <div id="planView"></div>
+</div>
+
+<!-- NOTIFICATION -->
+<div class="notif" id="notif"></div>
+
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<script>
+// ─── PLAN DATA (16 weeks from the project) ───────────────────────────────────
+const PLAN_WEEKS = [
+  {id:'s1', week:1, phase:'phase-1', quickWin:true,  title:'Diagnóstico inicial y lista de emergencia',              deliverable:'Lista de repuestos críticos validada con stock asegurado.'},
+  {id:'s2', week:2, phase:'phase-1', quickWin:false, title:'Limpieza Oracle — Registros inválidos y stocks negativos', deliverable:'Reporte de inconsistencias Oracle con causa raíz documentada.'},
+  {id:'s3', week:3, phase:'phase-1', quickWin:false, title:'Limpieza Oracle — Equipos asociados y proveedores',        deliverable:'Mapa oficial de ubicaciones físicas vs. máquinas de planta.'},
+  {id:'s4', week:4, phase:'phase-1', quickWin:true,  title:'Excel Maestro + Inventario Total #1',                     deliverable:'Excel Maestro validado + primera orden de compra inteligente.'},
+  {id:'s5', week:5, phase:'phase-1', quickWin:false, title:'Estadísticas de uso — Sin movimiento y consumos anómalos', deliverable:'Lista de repuestos dormidos + reporte de anomalías con causa.'},
+  {id:'s6', week:6, phase:'phase-1', quickWin:true,  title:'Reporte ejecutivo Fase 1 — Cierre y aprobación',          deliverable:'Base de datos confiable, críticos cubiertos, Oracle actualizado.'},
+  {id:'s7', week:7, phase:'phase-2', quickWin:false, title:'Análisis de máquinas y metodología de criticidad normativa',deliverable:'Metodología SAE JA1011 / ISO 14224 documentada y aprobada.'},
+  {id:'s8', week:8, phase:'phase-2', quickWin:false, title:'Clasificación CRÍTICO/IMPORTANTE/MENOR + Inventario Total #2',deliverable:'Listado oficial de repuestos críticos por máquina firmado.'},
+  {id:'s9', week:9, phase:'phase-2', quickWin:false, title:'Cálculo estadístico de Mínimos, Máximos y Punto de Reorden', deliverable:'Tabla de Mínimos, Máximos y Punto de Reorden estadísticos.'},
+  {id:'s10',week:10,phase:'phase-2', quickWin:true,  title:'Power BI — Dashboard operativo con semáforo de stock',     deliverable:'Dashboard Power BI operativo con semáforo y alertas activas.'},
+  {id:'s11',week:11,phase:'phase-2', quickWin:false, title:'Planes de Mantenimiento y costos por máquina',             deliverable:'Tabla de repuestos vinculados a PM con costo anual proyectado.'},
+  {id:'s12',week:12,phase:'phase-2', quickWin:true,  title:'Reporte ejecutivo Fase 2 + Inventario Total #3',           deliverable:'Criticidad bajo norma, alertas activas, costo por máquina visible.'},
+  {id:'s13',week:13,phase:'phase-3', quickWin:false, title:'Análisis ABC del inventario completo',                     deliverable:'Clasificación ABC integrada al Excel Maestro y Power BI.'},
+  {id:'s14',week:14,phase:'phase-3', quickWin:false, title:'Dashboard Power BI completo y final',                      deliverable:'Dashboard Power BI completo, funcional, documentado.'},
+  {id:'s15',week:15,phase:'phase-3', quickWin:false, title:'Documentación, procedimientos y dataset consolidado',      deliverable:'Manual de procedimientos + dataset histórico estructurado.'},
+  {id:'s16',week:16,phase:'phase-3', quickWin:true,  title:'Presentación final · Cierre + Inventario Total #4',        deliverable:'Almacén transformado — datos, criticidad, alertas, dashboard.'},
+];
+
+const PHASE_COLORS = {'phase-1':'#e85d3a','phase-2':'#3a8fe8','phase-3':'#3ae87a','personal':'#f0c040'};
+const PHASE_LABELS = {'phase-1':'Fase 1','phase-2':'Fase 2','phase-3':'Fase 3','personal':'Personal'};
+
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const cfg = {
+  get clientId()     { return localStorage.getItem('tm_clientId') || ''; },
+  get sheetId()      { return localStorage.getItem('tm_sheetId') || ''; },
+  get apiKey()       { return localStorage.getItem('tm_apiKey') || ''; },
+  get projectStart() { return localStorage.getItem('tm_projectStart') || ''; },
+};
+
+function saveConfig() {
+  const cid = document.getElementById('cfgClientId').value.trim();
+  const sid = document.getElementById('cfgSheetId').value.trim();
+  const ps  = document.getElementById('cfgProjectStart').value;
+  const ak  = document.getElementById('cfgApiKey').value.trim();
+  if (!cid || !sid) { notify('Client ID y Sheet ID son requeridos.', 'error'); return; }
+  localStorage.setItem('tm_clientId', cid);
+  localStorage.setItem('tm_sheetId', sid);
+  localStorage.setItem('tm_projectStart', ps);
+  localStorage.setItem('tm_apiKey', ak);
+  document.getElementById('setupModal').classList.add('hidden');
+  initGapi();
+  notify('Configuración guardada.', 'success');
+}
+
+function openSetup() {
+  document.getElementById('cfgClientId').value = cfg.clientId;
+  document.getElementById('cfgSheetId').value  = cfg.sheetId;
+  document.getElementById('cfgProjectStart').value = cfg.projectStart;
+  document.getElementById('cfgApiKey').value   = cfg.apiKey;
+  document.getElementById('setupModal').classList.remove('hidden');
+}
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let tasks = [];         // personal/work tasks from Sheets
+let accessToken = null;
+let tokenClient = null;
+let currentFilter = 'all';
+let pendingCompleteRow = null;
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
+function initGapi() {
+  if (!cfg.clientId) return;
+  gapi.load('client', async () => {
+    await gapi.client.init({
+      apiKey: cfg.apiKey || undefined,
+      discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+    });
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: cfg.clientId,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      callback: onTokenReceived,
+    });
+    const stored = sessionStorage.getItem('tm_token');
+    if (stored) {
+      accessToken = stored;
+      gapi.client.setToken({ access_token: accessToken });
+      setSignedIn(true);
+      loadTasks();
+    }
+  });
+}
+
+function handleAuth() {
+  if (accessToken) {
+    google.accounts.oauth2.revoke(accessToken);
+    accessToken = null;
+    sessionStorage.removeItem('tm_token');
+    gapi.client.setToken(null);
+    tasks = [];
+    setSignedIn(false);
+    renderTasks();
+    return;
+  }
+  if (!cfg.clientId) { openSetup(); return; }
+  tokenClient.requestAccessToken();
+}
+
+function onTokenReceived(resp) {
+  if (resp.error) { notify('Error de autenticación: ' + resp.error, 'error'); return; }
+  accessToken = resp.access_token;
+  sessionStorage.setItem('tm_token', accessToken);
+  gapi.client.setToken({ access_token: accessToken });
+  setSignedIn(true);
+  loadTasks();
+}
+
+function setSignedIn(yes) {
+  const btn = document.getElementById('authBtn');
+  const st  = document.getElementById('syncStatus');
+  if (yes) {
+    btn.textContent = 'Cerrar sesión';
+    btn.className = 'auth-btn signed-in';
+    st.textContent = 'Conectado a Google Sheets';
+    st.style.color = 'var(--f3)';
+  } else {
+    btn.textContent = 'Iniciar sesión';
+    btn.className = 'auth-btn signed-out';
+    st.textContent = 'No conectado';
+    st.style.color = 'var(--muted2)';
+  }
+}
+
+// ─── SHEETS API ───────────────────────────────────────────────────────────────
+const SHEET_NAME = 'Tareas';
+const HEADERS = ['ID','Nombre','Fase','Prioridad','FechaInicio','FechaVencimiento','FechaCompletado','Estado','Notas','QuickWin','EsPlan','SemanaPlan'];
+
+async function ensureSheet() {
+  try {
+    const r = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: cfg.sheetId });
+    const sheets = r.result.sheets.map(s => s.properties.title);
+    if (!sheets.includes(SHEET_NAME)) {
+      await gapi.client.sheets.spreadsheets.batchUpdate({
+        spreadsheetId: cfg.sheetId,
+        resource: { requests: [{ addSheet: { properties: { title: SHEET_NAME } } }] }
+      });
+      await writeRow(1, HEADERS);
+    }
+  } catch(e) { notify('Error accediendo a la hoja: ' + e.message, 'error'); }
+}
+
+async function writeRow(row, values) {
+  await gapi.client.sheets.spreadsheets.values.update({
+    spreadsheetId: cfg.sheetId,
+    range: `${SHEET_NAME}!A${row}`,
+    valueInputOption: 'RAW',
+    resource: { values: [values] }
+  });
+}
+
+async function appendRow(values) {
+  await gapi.client.sheets.spreadsheets.values.append({
+    spreadsheetId: cfg.sheetId,
+    range: `${SHEET_NAME}!A1`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    resource: { values: [values] }
+  });
+}
+
+async function loadTasks() {
+  if (!accessToken) return;
+  document.getElementById('syncStatus').textContent = 'Cargando...';
+  try {
+    await ensureSheet();
+    const r = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: cfg.sheetId,
+      range: `${SHEET_NAME}!A2:L`,
+    });
+    const rows = r.result.values || [];
+    tasks = rows.filter(r => r[0]).map(r => ({
+      id:          r[0]  || '',
+      name:        r[1]  || '',
+      phase:       r[2]  || 'personal',
+      priority:    r[3]  || 'normal',
+      startDate:   r[4]  || '',
+      dueDate:     r[5]  || '',
+      completedDate: r[6] || '',
+      status:      r[7]  || 'Pendiente',
+      notes:       r[8]  || '',
+      quickWin:    r[9]  === 'si',
+      isPlan:      r[10] === 'si',
+      planWeek:    r[11] || '',
+    }));
+    document.getElementById('syncStatus').textContent = `Sincronizado · ${tasks.length} tareas`;
+    document.getElementById('syncStatus').style.color = 'var(--f3)';
+    renderTasks();
+    renderGantt();
+    renderPlan();
+    updateStats();
+  } catch(e) {
+    document.getElementById('syncStatus').textContent = 'Error de sincronización';
+    document.getElementById('syncStatus').style.color = 'var(--f1)';
+    notify('Error cargando tareas: ' + e.message, 'error');
+  }
+}
+
+// ─── DATE HELPERS ─────────────────────────────────────────────────────────────
+function today() { return new Date().toISOString().split('T')[0]; }
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  const [y,m,d] = s.split('-');
+  return `${d}/${m}/${y}`;
+}
+function diffDays(a, b) {
+  return Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00')) / 86400000);
+}
+function getUpdateDates(startDate, dueDate) {
+  const dates = []; let d = startDate;
+  while (true) {
+    d = addDays(d, 3);
+    if (d >= dueDate) break;
+    dates.push(d);
+    if (dates.length > 20) break;
+  }
+  return dates;
+}
+function planWeekStart(week) {
+  if (!cfg.projectStart) return null;
+  return addDays(cfg.projectStart, (week - 1) * 7);
+}
+function planWeekEnd(week) {
+  if (!cfg.projectStart) return null;
+  return addDays(cfg.projectStart, week * 7 - 1);
+}
+
+// ─── TASK FORM ────────────────────────────────────────────────────────────────
+function initForm() {
+  document.getElementById('fStart').value = today();
+  document.getElementById('fDue').value   = addDays(today(), 7);
+}
+function clearForm() {
+  document.getElementById('fName').value    = '';
+  document.getElementById('fNotes').value   = '';
+  document.getElementById('fPhase').value   = 'personal';
+  document.getElementById('fPriority').value= 'normal';
+  document.getElementById('fQuickWin').value= 'no';
+  initForm();
+}
+
+async function addTask() {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { notify('El nombre de la tarea es requerido.', 'error'); return; }
+  const id = 'T' + Date.now();
+  const start = document.getElementById('fStart').value || today();
+  const due   = document.getElementById('fDue').value   || addDays(start, 7);
+  const row = [
+    id,
+    name,
+    document.getElementById('fPhase').value,
+    document.getElementById('fPriority').value,
+    start,
+    due,
+    '',
+    'En progreso',
+    document.getElementById('fNotes').value.trim(),
+    document.getElementById('fQuickWin').value,
+    'no',
+    ''
+  ];
+  if (accessToken) {
+    try {
+      await appendRow(row);
+      notify('Tarea agregada y guardada.', 'success');
+    } catch(e) { notify('Error guardando: ' + e.message, 'error'); }
+  } else {
+    notify('Tarea agregada localmente (sin sesión).', 'info');
+  }
+  tasks.push({
+    id, name, phase: row[2], priority: row[3],
+    startDate: start, dueDate: due, completedDate: '',
+    status: 'En progreso', notes: row[8],
+    quickWin: row[9] === 'si', isPlan: false, planWeek: ''
+  });
+  clearForm();
+  renderTasks();
+  renderGantt();
+  updateStats();
+}
+
+// ─── FILTERS & RENDER ─────────────────────────────────────────────────────────
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+}
+
+function filteredTasks() {
+  const td = today();
+  return tasks.filter(t => {
+    if (currentFilter === 'pending')  return t.status === 'Pendiente';
+    if (currentFilter === 'active')   return t.status === 'En progreso';
+    if (currentFilter === 'done')     return t.status === 'Completado';
+    if (currentFilter === 'update') {
+      if (t.status === 'Completado') return false;
+      return getUpdateDates(t.startDate, t.dueDate).some(d => d === td);
+    }
+    return true;
+  });
+}
+
+function renderTasks() {
+  const list = document.getElementById('taskList');
+  const filtered = filteredTasks();
+  document.getElementById('taskCount').textContent = `(${filtered.length})`;
+  if (!filtered.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div style="font-size:2rem;">📋</div>
+      <p>No hay tareas en esta vista.</p>
+    </div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(t => taskCardHTML(t)).join('');
+}
+
+function taskCardHTML(t) {
+  const td = today();
+  const done = t.status === 'Completado';
+  const updates = getUpdateDates(t.startDate, t.dueDate);
+  const updateChips = updates.map(d => {
+    const cls = d < td ? 'past' : d === td ? 'today' : 'future';
+    return `<span class="update-chip ${cls}">${fmtDate(d)}</span>`;
+  }).join('');
+  const phaseClass = t.phase === 'personal' ? 'personal' : t.phase;
+  const phaseBadge = `<span class="badge badge-${t.phase==='personal'?'win':t.phase==='phase-1'?'f1':t.phase==='phase-2'?'f2':'f3'}">${PHASE_LABELS[t.phase]||t.phase}</span>`;
+  const qwBadge = t.quickWin ? `<span class="badge badge-win">⚡ QW</span>` : '';
+  const priBadge = t.priority === 'critica' ? `<span class="badge" style="color:var(--f1);border-color:var(--f1);">🔴 Crítica</span>` :
+                   t.priority === 'alta'    ? `<span class="badge" style="color:var(--win);border-color:var(--win);">Alta</span>` : '';
+  const overdue = !done && t.dueDate && t.dueDate < td;
+  return `<div class="task-card ${phaseClass} ${done?'done':''}" id="card-${t.id}">
+    <div class="task-row">
+      <div class="task-check ${done?'checked':''}" onclick="toggleDone('${t.id}')"></div>
+      <div class="task-name ${done?'done-text':''}">${t.name}${t.isPlan?` <span style="font-size:0.65rem;color:var(--muted2);">· S${t.planWeek}</span>`:''}</div>
+      <div class="task-meta">
+        ${phaseBadge}${qwBadge}${priBadge}
+        <span class="task-date" style="${overdue?'color:var(--f1);':''}">${overdue?'⚠ ':''}${fmtDate(t.dueDate)}</span>
+        <span class="task-expand" onclick="expandTask('${t.id}')">▼</span>
+      </div>
+    </div>
+    <div class="task-detail" id="detail-${t.id}">
+      <div class="task-detail-row">
+        <div class="td-item"><strong>Inicio</strong>${fmtDate(t.startDate)}</div>
+        <div class="td-item"><strong>Vencimiento</strong>${fmtDate(t.dueDate)}</div>
+        <div class="td-item"><strong>Completado</strong>${fmtDate(t.completedDate)}</div>
+        <div class="td-item"><strong>Estado</strong>${t.status}</div>
+        ${t.notes?`<div class="td-item" style="flex:1;min-width:200px;"><strong>Notas</strong>${t.notes}</div>`:''}
+      </div>
+      ${updates.length?`<div><div style="font-size:0.68rem;color:var(--muted2);margin-bottom:0.3rem;">Actualizaciones cada 3 días:</div><div class="update-chips">${updateChips}</div></div>`:''}
+      ${!done?`<div class="completion-row"><div><label>Fecha de completado</label><input type="date" id="cdate-${t.id}" value="${t.completedDate||td}"></div><button class="btn-green" style="margin-left:0.5rem;margin-top:1.2rem;" onclick="markDone('${t.id}')">✓ Completar</button></div>`:''}
+    </div>
+  </div>`;
+}
+
+function expandTask(id) {
+  const d = document.getElementById('detail-' + id);
+  if (d) d.classList.toggle('open');
+}
+
+function toggleDone(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  if (t.status !== 'Completado') {
+    document.getElementById('detail-' + id)?.classList.add('open');
+  } else {
+    updateTaskStatus(id, 'En progreso', '');
+  }
+}
+
+function markDone(id) {
+  const inp = document.getElementById('cdate-' + id);
+  const date = inp ? inp.value : today();
+  updateTaskStatus(id, 'Completado', date);
+}
+
+async function updateTaskStatus(id, status, completedDate) {
+  const idx = tasks.findIndex(t => t.id === id);
+  if (idx < 0) return;
+  tasks[idx].status = status;
+  tasks[idx].completedDate = completedDate;
+  if (accessToken) {
+    try {
+      const sheetRow = idx + 2;
+      await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: cfg.sheetId,
+        range: `${SHEET_NAME}!G${sheetRow}:H${sheetRow}`,
+        valueInputOption: 'RAW',
+        resource: { values: [[completedDate, status]] }
+      });
+      notify(status === 'Completado' ? '✓ Tarea completada.' : 'Estado actualizado.', 'success');
+    } catch(e) { notify('Error actualizando: ' + e.message, 'error'); }
+  }
+  renderTasks();
+  renderGantt();
+  updateStats();
+}
+
+function closeCompleteModal() {
+  document.getElementById('completeModal').classList.add('hidden');
+  pendingCompleteRow = null;
+}
+
+async function confirmComplete() {
+  if (!pendingCompleteRow) return;
+  const date = document.getElementById('completeDate').value || today();
+  await updateTaskStatus(pendingCompleteRow, 'Completado', date);
+  closeCompleteModal();
+}
+
+function updateStats() {
+  const td = today();
+  const personal = tasks.filter(t => !t.isPlan);
+  document.getElementById('statTotal').textContent   = personal.length;
+  document.getElementById('statPending').textContent = personal.filter(t=>t.status==='Pendiente').length;
+  document.getElementById('statActive').textContent  = personal.filter(t=>t.status==='En progreso').length;
+  document.getElementById('statDone').textContent    = personal.filter(t=>t.status==='Completado').length;
+  const updToday = personal.filter(t => t.status!=='Completado' && getUpdateDates(t.startDate, t.dueDate).includes(td));
+  document.getElementById('statUpdate').textContent  = updToday.length;
+}
+
+// ─── GANTT ─────────────────────────────────────────────────────────────────────
+function autoRangeGantt() {
+  const allTasks = buildGanttTasks();
+  if (!allTasks.length) return;
+  const starts = allTasks.map(t => t.start).filter(Boolean).sort();
+  const ends   = allTasks.map(t => t.end).filter(Boolean).sort();
+  document.getElementById('ganttFrom').value = starts[0] || today();
+  document.getElementById('ganttTo').value   = ends[ends.length-1] || addDays(today(), 30);
+  renderGantt();
+}
+
+function buildGanttTasks() {
+  const showPlan = document.getElementById('showPlan')?.checked;
+  const showDone = document.getElementById('showDone')?.checked;
+  const result = [];
+
+  // Personal/work tasks
+  tasks.forEach(t => {
+    if (!showDone && t.status === 'Completado') return;
+    result.push({
+      id: t.id, label: t.name, phase: t.phase,
+      start: t.startDate, end: t.completedDate || t.dueDate,
+      dueDate: t.dueDate, completedDate: t.completedDate,
+      status: t.status, quickWin: t.quickWin, isPlan: false,
+      updateDates: getUpdateDates(t.startDate, t.dueDate),
+    });
+  });
+
+  // Plan weeks as background tasks
+  if (showPlan && cfg.projectStart) {
+    PLAN_WEEKS.forEach(pw => {
+      result.push({
+        id: pw.id, label: `S${pw.week} · ${pw.title}`,
+        phase: pw.phase, start: planWeekStart(pw.week), end: planWeekEnd(pw.week),
+        dueDate: planWeekEnd(pw.week), completedDate: '',
+        status: 'Plan', quickWin: pw.quickWin, isPlan: true, updateDates: [],
+      });
+    });
+  }
+  return result;
+}
+
+function renderGantt() {
+  const svg = document.getElementById('ganttSvg');
+  const fromInput = document.getElementById('ganttFrom');
+  const toInput   = document.getElementById('ganttTo');
+  let fromDate = fromInput.value;
+  let toDate   = toInput.value;
+
+  const allTasks = buildGanttTasks();
+  if (!fromDate || !toDate) {
+    if (!allTasks.length) { svg.innerHTML = '<text x="20" y="40" fill="#5a6478" font-family="Barlow" font-size="13">No hay tareas para mostrar en el Gantt.</text>'; svg.setAttribute('width', 400); svg.setAttribute('height', 60); return; }
+    const starts = allTasks.map(t=>t.start).filter(Boolean).sort();
+    const ends   = allTasks.map(t=>t.end).filter(Boolean).sort();
+    fromDate = starts[0];
+    toDate   = ends[ends.length-1] || addDays(fromDate, 30);
+    fromInput.value = fromDate;
+    toInput.value   = toDate;
+  }
+
+  const LABEL_W  = 220;
+  const ROW_H    = 34;
+  const HEADER_H = 52;
+  const td       = today();
+  const totalDays = diffDays(fromDate, toDate) + 1;
+  const dayW = Math.max(18, Math.min(40, 900 / totalDays));
+  const chartW   = totalDays * dayW;
+  const totalW   = LABEL_W + chartW;
+
+  // Sort: plan tasks first (background), then personal
+  const sorted = [...allTasks].sort((a,b) => {
+    if (a.isPlan && !b.isPlan) return -1;
+    if (!a.isPlan && b.isPlan) return 1;
+    return (a.start||'') < (b.start||'') ? -1 : 1;
+  });
+  const totalH = HEADER_H + sorted.length * ROW_H + 20;
+
+  let out = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" style="background:#161b27;">`;
+  out += `<defs>
+    <pattern id="gridPat" x="${LABEL_W}" width="${dayW}" height="${totalH}" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="${totalH}" stroke="#252d3d" stroke-width="0.5"/>
+    </pattern>
+    <clipPath id="chartClip"><rect x="${LABEL_W}" y="0" width="${chartW}" height="${totalH}"/></clipPath>
+  </defs>`;
+
+  // Grid background
+  out += `<rect x="${LABEL_W}" y="0" width="${chartW}" height="${totalH}" fill="url(#gridPat)"/>`;
+
+  // Header: month labels
+  let cur = new Date(fromDate + 'T00:00:00');
+  const endD = new Date(toDate + 'T00:00:00');
+  const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  let hx = LABEL_W;
+  while (cur <= endD) {
+    const m = cur.getMonth(); const y = cur.getFullYear();
+    const firstOfMonth = new Date(y, m, 1);
+    const nextMonth = new Date(y, m+1, 1);
+    const start = Math.max(firstOfMonth, new Date(fromDate+'T00:00:00'));
+    const end   = new Date(Math.min(nextMonth, new Date(toDate+'T00:00:00')));
+    const days  = Math.round((end - start) / 86400000);
+    const mx    = LABEL_W + diffDays(fromDate, start.toISOString().split('T')[0]) * dayW;
+    const mw    = days * dayW;
+    out += `<rect x="${mx}" y="0" width="${mw}" height="24" fill="#1e2535"/>`;
+    out += `<text x="${mx+mw/2}" y="16" text-anchor="middle" font-family="Barlow Condensed" font-size="11" fill="#8a95aa" font-weight="600">${MONTHS[m]} ${y}</text>`;
+    cur = nextMonth;
+  }
+
+  // Header: week day labels (show day of month every 7 days)
+  let dIdx = 0;
+  let d = new Date(fromDate + 'T00:00:00');
+  while (d <= endD) {
+    const ds = d.toISOString().split('T')[0];
+    const x = LABEL_W + dIdx * dayW + dayW/2;
+    if (dIdx % 7 === 0) {
+      out += `<text x="${x}" y="40" text-anchor="middle" font-family="Barlow Condensed" font-size="10" fill="#5a6478">${d.getDate()}</text>`;
+    }
+    d.setDate(d.getDate()+1); dIdx++;
+  }
+
+  // Header line
+  out += `<line x1="0" y1="${HEADER_H}" x2="${totalW}" y2="${HEADER_H}" stroke="#252d3d" stroke-width="1"/>`;
+  out += `<text x="${LABEL_W/2}" y="30" text-anchor="middle" font-family="Barlow Condensed" font-size="11" fill="#5a6478" font-weight="700">TAREA</text>`;
+
+  // Today line
+  if (td >= fromDate && td <= toDate) {
+    const todayX = LABEL_W + diffDays(fromDate, td) * dayW + dayW/2;
+    out += `<line x1="${todayX}" y1="${HEADER_H}" x2="${todayX}" y2="${totalH}" stroke="#f0c040" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>`;
+    out += `<text x="${todayX}" y="${HEADER_H-4}" text-anchor="middle" font-family="Barlow Condensed" font-size="10" fill="#f0c040" font-weight="700">HOY</text>`;
+  }
+
+  // Rows
+  sorted.forEach((t, i) => {
+    const y = HEADER_H + i * ROW_H;
+    const rowBg = i % 2 === 0 ? 'rgba(30,37,53,0.4)' : 'transparent';
+    out += `<rect x="0" y="${y}" width="${totalW}" height="${ROW_H}" fill="${rowBg}"/>`;
+
+    // Label
+    const labelText = t.label.length > 30 ? t.label.slice(0,29)+'…' : t.label;
+    const phColor = PHASE_COLORS[t.phase] || '#8a95aa';
+    out += `<rect x="0" y="${y+ROW_H/2-5}" width="3" height="10" fill="${phColor}" rx="1"/>`;
+    const labelStyle = t.isPlan ? 'opacity:0.5;' : '';
+    out += `<text x="10" y="${y+ROW_H/2+4}" font-family="Barlow" font-size="${t.isPlan?10:11}" fill="${t.isPlan?'#5a6478':'#e8ecf4'}" style="${labelStyle}">${labelText}</text>`;
+    if (t.quickWin && !t.isPlan) {
+      out += `<text x="205" y="${y+ROW_H/2+4}" font-family="Barlow Condensed" font-size="9" fill="#f0c040">⚡</text>`;
+    }
+
+    // Bar
+    if (t.start && t.end && t.start <= toDate && t.end >= fromDate) {
+      const barStart = t.start < fromDate ? fromDate : t.start;
+      const barEnd   = t.end   > toDate   ? toDate   : t.end;
+      const bx = LABEL_W + diffDays(fromDate, barStart) * dayW;
+      const bw = Math.max(4, diffDays(barStart, barEnd) * dayW);
+      const by = y + 8;
+      const bh = ROW_H - 16;
+      const isDone = t.status === 'Completado';
+      const barColor = isDone ? '#5a6478' : phColor;
+      const barOpacity = t.isPlan ? 0.18 : 0.85;
+      const barStroke = t.isPlan ? `stroke="${phColor}" stroke-width="1" stroke-dasharray="4,2"` : '';
+
+      out += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="${barColor}" fill-opacity="${barOpacity}" ${barStroke}/>`;
+
+      // Completed overlay
+      if (isDone && t.completedDate && t.startDate) {
+        const cEnd = t.completedDate > toDate ? toDate : t.completedDate;
+        const cw = Math.max(4, diffDays(barStart, cEnd) * dayW);
+        out += `<rect x="${bx}" y="${by}" width="${cw}" height="${bh}" rx="3" fill="${phColor}" fill-opacity="0.4"/>`;
+      }
+
+      // Due date marker
+      if (!t.isPlan && t.dueDate && t.dueDate >= fromDate && t.dueDate <= toDate) {
+        const dx = LABEL_W + diffDays(fromDate, t.dueDate) * dayW + dayW - 3;
+        out += `<line x1="${dx}" y1="${by}" x2="${dx}" y2="${by+bh}" stroke="${phColor}" stroke-width="2" opacity="0.9"/>`;
+      }
+
+      // Update markers (3-day intervals)
+      if (!t.isPlan) {
+        t.updateDates.forEach(ud => {
+          if (ud < fromDate || ud > toDate) return;
+          const ux = LABEL_W + diffDays(fromDate, ud) * dayW + dayW/2;
+          const uy = by + bh/2;
+          const isUd = ud === td;
+          out += `<circle cx="${ux}" cy="${uy}" r="${isUd?4:3}" fill="${isUd?'#f0c040':'#e8ecf4'}" opacity="${isUd?1:0.6}"/>`;
+        });
+      }
+    }
+  });
+
+  // Label column separator
+  out += `<line x1="${LABEL_W}" y1="0" x2="${LABEL_W}" y2="${totalH}" stroke="#252d3d" stroke-width="1"/>`;
+  out += '</svg>';
+  svg.outerHTML = out;
+  // Re-get reference isn't needed because we replaced it; the wrapper still shows it.
+}
+
+// ─── PLAN VIEW ─────────────────────────────────────────────────────────────────
+function renderPlan() {
+  const el = document.getElementById('planView');
+  const phases = [
+    { key: 'phase-1', label: 'Fase 1 · Limpieza de Datos y Resurtido Seguro', color: 'var(--f1)', weeks: PLAN_WEEKS.filter(w=>w.phase==='phase-1') },
+    { key: 'phase-2', label: 'Fase 2 · Criticidad SAE/ISO · Máximos · Mínimos · Power BI', color: 'var(--f2)', weeks: PLAN_WEEKS.filter(w=>w.phase==='phase-2') },
+    { key: 'phase-3', label: 'Fase 3 · Control Total, Análisis ABC y Base Sólida', color: 'var(--f3)', weeks: PLAN_WEEKS.filter(w=>w.phase==='phase-3') },
+  ];
+  const phNum = {'phase-1':'01','phase-2':'02','phase-3':'03'};
+
+  let html = '';
+  phases.forEach(p => {
+    html += `<div class="plan-phase-header" style="color:${p.color};">
+      <span style="font-size:2rem;opacity:0.25;font-family:'Barlow Condensed',sans-serif;">${phNum[p.key]}</span>
+      ${p.label}
+    </div>
+    <div class="plan-grid">`;
+    p.weeks.forEach(w => {
+      const wStart = planWeekStart(w.week);
+      const wEnd   = planWeekEnd(w.week);
+      const linked = tasks.filter(t => t.planWeek === String(w.week));
+      const done   = linked.filter(t => t.status === 'Completado').length;
+      const clazz  = w.quickWin ? 'plan-week-card qw' : `plan-week-card ph${w.phase.slice(-1)}`;
+      html += `<div class="${clazz}" onclick="jumpToPlanWeek(${w.week})">
+        <div class="plan-week-num">SEM ${String(w.week).padStart(2,'0')} ${w.quickWin?'· ⚡ Quick Win':''}</div>
+        <div class="plan-week-title">${w.title}</div>
+        ${wStart ? `<div class="plan-week-status">${fmtDate(wStart)} — ${fmtDate(wEnd)}</div>` : '<div class="plan-week-status" style="color:var(--f1);">Configura fecha de inicio del proyecto</div>'}
+        ${linked.length ? `<div style="margin-top:0.5rem;font-size:0.7rem;color:var(--muted2);">Tareas vinculadas: <strong style="color:var(--text);">${done}/${linked.length}</strong> completadas</div>` : ''}
+        <div style="margin-top:0.5rem;font-size:0.68rem;color:var(--muted);line-height:1.4;">${w.deliverable}</div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function jumpToPlanWeek(week) {
+  // Pre-fill form to link a new task to this plan week
+  switchTab('tasks');
+  const w = PLAN_WEEKS.find(x => x.week === week);
+  if (!w) return;
+  document.getElementById('fName').value    = w.title;
+  document.getElementById('fPhase').value   = w.phase;
+  document.getElementById('fQuickWin').value= w.quickWin ? 'si' : 'no';
+  if (cfg.projectStart) {
+    document.getElementById('fStart').value = planWeekStart(week);
+    document.getElementById('fDue').value   = planWeekEnd(week);
+  }
+  document.getElementById('fName').scrollIntoView({ behavior: 'smooth' });
+  notify(`Formulario prellenado con Semana ${week}.`, 'info');
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['tasks','gantt','plan'];
+    t.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + name);
+  });
+  if (name === 'gantt') renderGantt();
+  if (name === 'plan')  renderPlan();
+}
+
+// ─── NOTIFICATION ─────────────────────────────────────────────────────────────
+let notifTimer;
+function notify(msg, type='info') {
+  const n = document.getElementById('notif');
+  n.textContent = msg;
+  n.className = `notif show ${type}`;
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => n.classList.remove('show'), 3500);
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  if (!cfg.clientId || !cfg.sheetId) {
+    document.getElementById('setupModal').classList.remove('hidden');
+    const ps = document.getElementById('cfgProjectStart');
+    if (ps && !ps.value) ps.value = today();
+  } else {
+    document.getElementById('setupModal').classList.add('hidden');
+    initGapi();
+  }
+  initForm();
+  renderPlan();
+  autoRangeGantt();
+  updateStats();
+});
+</script>
+</body>
+</html>
