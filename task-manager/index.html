@@ -152,26 +152,22 @@ label{font-size:0.72rem;color:var(--muted2);letter-spacing:0.08em;text-transform
 <div class="modal-overlay" id="setupModal">
   <div class="modal">
     <div class="modal-title">Configuración inicial</div>
-    <div class="modal-sub">Conecta tu cuenta de Google para sincronizar tareas con Google Sheets.<br>Necesitas un <strong>Client ID de OAuth 2.0</strong> (Google Cloud Console) y el <strong>ID de tu hoja de cálculo</strong>.</div>
+    <div class="modal-sub">Solo necesitas tu <strong>Client ID de OAuth 2.0</strong>. La app creará y configurará el Google Sheet automáticamente en tu Drive — sin pasos manuales.</div>
     <div class="form-group">
       <label>Google OAuth Client ID</label>
       <input type="text" id="cfgClientId" placeholder="xxxx.apps.googleusercontent.com">
-      <div class="hint">Google Cloud Console → Credenciales → ID de cliente OAuth 2.0 (tipo: Aplicación web). Agrega http://localhost y tu URL como orígenes autorizados.</div>
-    </div>
-    <div class="form-group">
-      <label>Google Spreadsheet ID</label>
-      <input type="text" id="cfgSheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
-      <div class="hint">Es la parte larga de la URL de tu Google Sheet: docs.google.com/spreadsheets/d/<strong>[ID]</strong>/edit</div>
+      <div class="hint">Google Cloud Console → Credenciales → ID de cliente OAuth 2.0 (Aplicación web). Agrega <strong>http://localhost:8080</strong> como origen autorizado.</div>
     </div>
     <div class="form-group">
       <label>Fecha de inicio del proyecto (Semana 1)</label>
       <input type="date" id="cfgProjectStart">
-      <div class="hint">Las 16 semanas del plan se mapearán a partir de esta fecha.</div>
+      <div class="hint">Las 16 semanas del plan se mapearán a partir de esta fecha. Puedes cambiarlo después.</div>
     </div>
-    <div class="form-group">
-      <label>Google API Key (para lectura sin auth)</label>
-      <input type="text" id="cfgApiKey" placeholder="AIzaSy...">
-      <div class="hint">Opcional pero recomendado. Google Cloud Console → Credenciales → Clave de API.</div>
+    <div style="background:var(--f2-dim);border:1px solid var(--f2);border-radius:4px;padding:0.75rem 1rem;font-size:0.75rem;color:var(--f2);margin-bottom:1rem;line-height:1.6;">
+      <strong>¿Qué hará la app automáticamente?</strong><br>
+      1. Busca en tu Drive un archivo llamado <em>"Almacen Repuestos Tasks"</em><br>
+      2. Si no existe, lo crea y configura con las 16 semanas del plan<br>
+      3. Si ya existe (sesiones futuras), lo reutiliza directamente
     </div>
     <div class="form-actions">
       <button class="btn-primary" onclick="saveConfig()">Guardar y conectar</button>
@@ -365,30 +361,24 @@ const PHASE_LABELS = {'phase-1':'Fase 1','phase-2':'Fase 2','phase-3':'Fase 3','
 const cfg = {
   get clientId()     { return localStorage.getItem('tm_clientId') || ''; },
   get sheetId()      { return localStorage.getItem('tm_sheetId') || ''; },
-  get apiKey()       { return localStorage.getItem('tm_apiKey') || ''; },
+  set sheetId(v)     { localStorage.setItem('tm_sheetId', v); },
   get projectStart() { return localStorage.getItem('tm_projectStart') || ''; },
 };
 
 function saveConfig() {
   const cid = document.getElementById('cfgClientId').value.trim();
-  const sid = document.getElementById('cfgSheetId').value.trim();
   const ps  = document.getElementById('cfgProjectStart').value;
-  const ak  = document.getElementById('cfgApiKey').value.trim();
-  if (!cid || !sid) { notify('Client ID y Sheet ID son requeridos.', 'error'); return; }
+  if (!cid) { notify('El Client ID es requerido.', 'error'); return; }
   localStorage.setItem('tm_clientId', cid);
-  localStorage.setItem('tm_sheetId', sid);
   localStorage.setItem('tm_projectStart', ps);
-  localStorage.setItem('tm_apiKey', ak);
   document.getElementById('setupModal').classList.add('hidden');
   initGapi();
-  notify('Configuración guardada.', 'success');
+  notify('Configuración guardada. Inicia sesión para continuar.', 'success');
 }
 
 function openSetup() {
-  document.getElementById('cfgClientId').value = cfg.clientId;
-  document.getElementById('cfgSheetId').value  = cfg.sheetId;
+  document.getElementById('cfgClientId').value    = cfg.clientId;
   document.getElementById('cfgProjectStart').value = cfg.projectStart;
-  document.getElementById('cfgApiKey').value   = cfg.apiKey;
   document.getElementById('setupModal').classList.remove('hidden');
 }
 
@@ -404,12 +394,17 @@ function initGapi() {
   if (!cfg.clientId) return;
   gapi.load('client', async () => {
     await gapi.client.init({
-      apiKey: cfg.apiKey || undefined,
-      discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+      discoveryDocs: [
+        'https://sheets.googleapis.com/$discovery/rest?version=v4',
+        'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
+      ],
     });
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: cfg.clientId,
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: [
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.file',
+      ].join(' '),
       callback: onTokenReceived,
     });
     const stored = sessionStorage.getItem('tm_token');
@@ -417,7 +412,7 @@ function initGapi() {
       accessToken = stored;
       gapi.client.setToken({ access_token: accessToken });
       setSignedIn(true);
-      loadTasks();
+      initializeSpreadsheet();
     }
   });
 }
@@ -443,7 +438,7 @@ function onTokenReceived(resp) {
   sessionStorage.setItem('tm_token', accessToken);
   gapi.client.setToken({ access_token: accessToken });
   setSignedIn(true);
-  loadTasks();
+  initializeSpreadsheet();
 }
 
 function setSignedIn(yes) {
@@ -452,8 +447,8 @@ function setSignedIn(yes) {
   if (yes) {
     btn.textContent = 'Cerrar sesión';
     btn.className = 'auth-btn signed-in';
-    st.textContent = 'Conectado a Google Sheets';
-    st.style.color = 'var(--f3)';
+    st.textContent = 'Conectado · inicializando Drive…';
+    st.style.color = 'var(--f2)';
   } else {
     btn.textContent = 'Iniciar sesión';
     btn.className = 'auth-btn signed-out';
@@ -462,22 +457,90 @@ function setSignedIn(yes) {
   }
 }
 
-// ─── SHEETS API ───────────────────────────────────────────────────────────────
-const SHEET_NAME = 'Tareas';
+function setStatus(msg, type) {
+  const el = document.getElementById('syncStatus');
+  el.textContent = msg;
+  el.style.color = type === 'error' ? 'var(--f1)' : type === 'success' ? 'var(--f3)' : 'var(--muted2)';
+}
+
+// ─── DRIVE + SHEETS API ───────────────────────────────────────────────────────
+const SHEET_NAME       = 'Tareas';
+const SPREADSHEET_TITLE = 'Almacen Repuestos Tasks';
 const HEADERS = ['ID','Nombre','Fase','Prioridad','FechaInicio','FechaVencimiento','FechaCompletado','Estado','Notas','QuickWin','EsPlan','SemanaPlan'];
 
-async function ensureSheet() {
+async function initializeSpreadsheet() {
+  setStatus('Buscando archivo en Drive…', 'muted');
   try {
-    const r = await gapi.client.sheets.spreadsheets.get({ spreadsheetId: cfg.sheetId });
-    const sheets = r.result.sheets.map(s => s.properties.title);
-    if (!sheets.includes(SHEET_NAME)) {
-      await gapi.client.sheets.spreadsheets.batchUpdate({
-        spreadsheetId: cfg.sheetId,
-        resource: { requests: [{ addSheet: { properties: { title: SHEET_NAME } } }] }
+    // 1. Search Drive for existing spreadsheet (drive.file scope — only app-created files)
+    const searchRes = await gapi.client.drive.files.list({
+      q: `name='${SPREADSHEET_TITLE}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
+      fields: 'files(id,name)',
+      pageSize: 1,
+      spaces: 'drive',
+    });
+    const files = (searchRes.result.files || []);
+    let sheetId = cfg.sheetId;
+
+    if (files.length > 0) {
+      sheetId = files[0].id;
+      cfg.sheetId = sheetId;
+      setStatus('Archivo encontrado en Drive.', 'muted');
+    } else if (!sheetId) {
+      // 2. Create the spreadsheet via Sheets API
+      setStatus('Creando archivo en Drive…', 'muted');
+      const createRes = await gapi.client.sheets.spreadsheets.create({
+        resource: {
+          properties: { title: SPREADSHEET_TITLE },
+          sheets: [{ properties: { title: SHEET_NAME, gridProperties: { rowCount: 1000, columnCount: 12 } } }],
+        }
       });
-      await writeRow(1, HEADERS);
+      sheetId = createRes.result.spreadsheetId;
+      cfg.sheetId = sheetId;
+      // 3. First-time setup: headers + plan data
+      await firstTimeSetup(sheetId);
     }
-  } catch(e) { notify('Error accediendo a la hoja: ' + e.message, 'error'); }
+
+    await loadTasks();
+  } catch(e) {
+    setStatus('Error inicializando Drive.', 'error');
+    notify('Error: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+async function firstTimeSetup(sheetId) {
+  setStatus('Configurando hoja por primera vez…', 'muted');
+  // Write headers
+  await gapi.client.sheets.spreadsheets.values.update({
+    spreadsheetId: sheetId,
+    range: `${SHEET_NAME}!A1`,
+    valueInputOption: 'RAW',
+    resource: { values: [HEADERS] }
+  });
+  // Seed 16 plan weeks
+  const ps = cfg.projectStart;
+  const planRows = PLAN_WEEKS.map(pw => [
+    `PLAN-S${pw.week}`,
+    pw.title,
+    pw.phase,
+    pw.quickWin ? 'critica' : 'alta',
+    ps ? addDays(ps, (pw.week - 1) * 7) : '',
+    ps ? addDays(ps, pw.week * 7 - 1)   : '',
+    '',
+    'Pendiente',
+    `Semana ${pw.week} del Plan · Almacén de Repuestos`,
+    pw.quickWin ? 'si' : 'no',
+    'si',
+    String(pw.week),
+  ]);
+  await gapi.client.sheets.spreadsheets.values.append({
+    spreadsheetId: sheetId,
+    range: `${SHEET_NAME}!A1`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    resource: { values: planRows }
+  });
+  notify('✅ Hoja creada en Google Drive con las 16 semanas del plan.', 'success');
 }
 
 async function writeRow(row, values) {
@@ -501,9 +564,8 @@ async function appendRow(values) {
 
 async function loadTasks() {
   if (!accessToken) return;
-  document.getElementById('syncStatus').textContent = 'Cargando...';
+  setStatus('Cargando tareas…', 'muted');
   try {
-    await ensureSheet();
     const r = await gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: cfg.sheetId,
       range: `${SHEET_NAME}!A2:L`,
@@ -523,8 +585,7 @@ async function loadTasks() {
       isPlan:      r[10] === 'si',
       planWeek:    r[11] || '',
     }));
-    document.getElementById('syncStatus').textContent = `Sincronizado · ${tasks.length} tareas`;
-    document.getElementById('syncStatus').style.color = 'var(--f3)';
+    setStatus(`Sincronizado · ${tasks.length} tareas`, 'success');
     renderTasks();
     renderGantt();
     renderPlan();
@@ -1035,7 +1096,7 @@ function notify(msg, type='info') {
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  if (!cfg.clientId || !cfg.sheetId) {
+  if (!cfg.clientId) {
     document.getElementById('setupModal').classList.remove('hidden');
     const ps = document.getElementById('cfgProjectStart');
     if (ps && !ps.value) ps.value = today();
