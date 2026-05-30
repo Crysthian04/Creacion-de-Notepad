@@ -144,6 +144,21 @@ label{font-size:0.72rem;color:var(--muted2);letter-spacing:0.08em;text-transform
   .tab-panel,.header{padding-left:1rem;padding-right:1rem;}
   .tabs{padding:0 1rem;}
 }
+
+/* 3D PLAN */
+#tab-3d{padding:0;}
+.plan3d-container{position:relative;height:calc(100vh - 140px);min-height:420px;}
+#warehouse-canvas{width:100%;height:100%;display:block;cursor:grab;}
+#warehouse-canvas:active{cursor:grabbing;}
+.legend-3d{position:absolute;bottom:1rem;left:1rem;background:rgba(14,17,23,0.9);border:1px solid var(--border);border-radius:4px;padding:0.75rem 1rem;pointer-events:none;}
+.legend-3d-title{font-family:'Barlow Condensed',sans-serif;font-size:0.68rem;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted2);margin-bottom:0.5rem;}
+.leg3d-item{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;font-size:0.72rem;color:var(--text);}
+.leg3d-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.controls-3d{position:absolute;top:1rem;right:1rem;display:flex;flex-direction:column;gap:0.4rem;}
+.ctrl3d-btn{background:rgba(14,17,23,0.85);border:1px solid var(--border);color:var(--text);width:34px;height:34px;border-radius:4px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:border-color .2s;}
+.ctrl3d-btn:hover{border-color:var(--muted);}
+.tooltip-3d{position:absolute;background:rgba(22,27,39,0.97);border:1px solid var(--border);border-radius:4px;padding:0.5rem 0.75rem;font-size:0.75rem;color:var(--text);pointer-events:none;display:none;max-width:220px;line-height:1.5;z-index:10;}
+.info-3d{position:absolute;top:1rem;left:1rem;background:rgba(14,17,23,0.85);border:1px solid var(--border);border-radius:4px;padding:0.4rem 0.75rem;font-size:0.68rem;color:var(--muted2);}
 </style>
 </head>
 <body>
@@ -217,6 +232,7 @@ label{font-size:0.72rem;color:var(--muted2);letter-spacing:0.08em;text-transform
   <div class="tab active" onclick="switchTab('tasks')">Mis Tareas</div>
   <div class="tab" onclick="switchTab('gantt')">Gantt</div>
   <div class="tab" onclick="switchTab('plan')">Plan 16 Semanas</div>
+  <div class="tab" onclick="switchTab('3d')">🏭 Plano 3D</div>
 </div>
 
 <!-- TAB: TASKS -->
@@ -328,9 +344,34 @@ label{font-size:0.72rem;color:var(--muted2);letter-spacing:0.08em;text-transform
   <div id="planView"></div>
 </div>
 
+<!-- TAB: 3D WAREHOUSE PLAN -->
+<div class="tab-panel" id="tab-3d">
+  <div class="plan3d-container" id="plan3d-container">
+    <canvas id="warehouse-canvas"></canvas>
+    <div class="info-3d">Arrastra para rotar · Scroll para zoom · Clic derecho para desplazar</div>
+    <div class="legend-3d">
+      <div class="legend-3d-title">Zonas del Almacén</div>
+      <div class="leg3d-item"><div class="leg3d-dot" style="background:#e85d3a;"></div>Zona A — Críticos</div>
+      <div class="leg3d-item"><div class="leg3d-dot" style="background:#3a8fe8;"></div>Zona B — Importantes</div>
+      <div class="leg3d-item"><div class="leg3d-dot" style="background:#3ae87a;"></div>Zona C — Menores</div>
+      <div class="leg3d-item"><div class="leg3d-dot" style="background:#f0c040;"></div>Recepción / Despacho</div>
+      <div class="leg3d-item"><div class="leg3d-dot" style="background:#8a95aa;"></div>Oficina</div>
+    </div>
+    <div class="controls-3d">
+      <button class="ctrl3d-btn" onclick="reset3DCamera()" title="Vista inicial">⌂</button>
+      <button class="ctrl3d-btn" onclick="view3DTop()" title="Vista cenital">▲</button>
+      <button class="ctrl3d-btn" onclick="view3DIso()" title="Vista isométrica">◈</button>
+      <button class="ctrl3d-btn" onclick="view3DFront()" title="Vista frontal">↗</button>
+    </div>
+    <div class="tooltip-3d" id="tooltip-3d"></div>
+  </div>
+</div>
+
 <!-- NOTIFICATION -->
 <div class="notif" id="notif"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.155.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client"></script>
 <script>
@@ -383,7 +424,7 @@ function openSetup() {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
-let tasks = [];         // personal/work tasks from Sheets
+let tasks = [];
 let accessToken = null;
 let tokenClient = null;
 let currentFilter = 'all';
@@ -471,7 +512,6 @@ const HEADERS = ['ID','Nombre','Fase','Prioridad','FechaInicio','FechaVencimient
 async function initializeSpreadsheet() {
   setStatus('Buscando archivo en Drive…', 'muted');
   try {
-    // 1. Search Drive for existing spreadsheet (drive.file scope — only app-created files)
     const searchRes = await gapi.client.drive.files.list({
       q: `name='${SPREADSHEET_TITLE}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`,
       fields: 'files(id,name)',
@@ -486,7 +526,6 @@ async function initializeSpreadsheet() {
       cfg.sheetId = sheetId;
       setStatus('Archivo encontrado en Drive.', 'muted');
     } else if (!sheetId) {
-      // 2. Create the spreadsheet via Sheets API
       setStatus('Creando archivo en Drive…', 'muted');
       const createRes = await gapi.client.sheets.spreadsheets.create({
         resource: {
@@ -496,7 +535,6 @@ async function initializeSpreadsheet() {
       });
       sheetId = createRes.result.spreadsheetId;
       cfg.sheetId = sheetId;
-      // 3. First-time setup: headers + plan data
       await firstTimeSetup(sheetId);
     }
 
@@ -510,14 +548,12 @@ async function initializeSpreadsheet() {
 
 async function firstTimeSetup(sheetId) {
   setStatus('Configurando hoja por primera vez…', 'muted');
-  // Write headers
   await gapi.client.sheets.spreadsheets.values.update({
     spreadsheetId: sheetId,
     range: `${SHEET_NAME}!A1`,
     valueInputOption: 'RAW',
     resource: { values: [HEADERS] }
   });
-  // Seed 16 plan weeks
   const ps = cfg.projectStart;
   const planRows = PLAN_WEEKS.map(pw => [
     `PLAN-S${pw.week}`,
@@ -652,18 +688,13 @@ async function addTask() {
   const start = document.getElementById('fStart').value || today();
   const due   = document.getElementById('fDue').value   || addDays(start, 7);
   const row = [
-    id,
-    name,
+    id, name,
     document.getElementById('fPhase').value,
     document.getElementById('fPriority').value,
-    start,
-    due,
-    '',
-    'En progreso',
+    start, due, '', 'En progreso',
     document.getElementById('fNotes').value.trim(),
     document.getElementById('fQuickWin').value,
-    'no',
-    ''
+    'no', ''
   ];
   if (accessToken) {
     try {
@@ -712,10 +743,7 @@ function renderTasks() {
   const filtered = filteredTasks();
   document.getElementById('taskCount').textContent = `(${filtered.length})`;
   if (!filtered.length) {
-    list.innerHTML = `<div class="empty-state">
-      <div style="font-size:2rem;">📋</div>
-      <p>No hay tareas en esta vista.</p>
-    </div>`;
+    list.innerHTML = `<div class="empty-state"><div style="font-size:2rem;">📋</div><p>No hay tareas en esta vista.</p></div>`;
     return;
   }
   list.innerHTML = filtered.map(t => taskCardHTML(t)).join('');
@@ -840,8 +868,6 @@ function buildGanttTasks() {
   const showPlan = document.getElementById('showPlan')?.checked;
   const showDone = document.getElementById('showDone')?.checked;
   const result = [];
-
-  // Personal/work tasks
   tasks.forEach(t => {
     if (!showDone && t.status === 'Completado') return;
     result.push({
@@ -852,8 +878,6 @@ function buildGanttTasks() {
       updateDates: getUpdateDates(t.startDate, t.dueDate),
     });
   });
-
-  // Plan weeks as background tasks
   if (showPlan && cfg.projectStart) {
     PLAN_WEEKS.forEach(pw => {
       result.push({
@@ -894,7 +918,6 @@ function renderGantt() {
   const chartW   = totalDays * dayW;
   const totalW   = LABEL_W + chartW;
 
-  // Sort: plan tasks first (background), then personal
   const sorted = [...allTasks].sort((a,b) => {
     if (a.isPlan && !b.isPlan) return -1;
     if (!a.isPlan && b.isPlan) return 1;
@@ -909,15 +932,11 @@ function renderGantt() {
     </pattern>
     <clipPath id="chartClip"><rect x="${LABEL_W}" y="0" width="${chartW}" height="${totalH}"/></clipPath>
   </defs>`;
-
-  // Grid background
   out += `<rect x="${LABEL_W}" y="0" width="${chartW}" height="${totalH}" fill="url(#gridPat)"/>`;
 
-  // Header: month labels
   let cur = new Date(fromDate + 'T00:00:00');
   const endD = new Date(toDate + 'T00:00:00');
   const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  let hx = LABEL_W;
   while (cur <= endD) {
     const m = cur.getMonth(); const y = cur.getFullYear();
     const firstOfMonth = new Date(y, m, 1);
@@ -932,11 +951,9 @@ function renderGantt() {
     cur = nextMonth;
   }
 
-  // Header: week day labels (show day of month every 7 days)
   let dIdx = 0;
   let d = new Date(fromDate + 'T00:00:00');
   while (d <= endD) {
-    const ds = d.toISOString().split('T')[0];
     const x = LABEL_W + dIdx * dayW + dayW/2;
     if (dIdx % 7 === 0) {
       out += `<text x="${x}" y="40" text-anchor="middle" font-family="Barlow Condensed" font-size="10" fill="#5a6478">${d.getDate()}</text>`;
@@ -944,24 +961,19 @@ function renderGantt() {
     d.setDate(d.getDate()+1); dIdx++;
   }
 
-  // Header line
   out += `<line x1="0" y1="${HEADER_H}" x2="${totalW}" y2="${HEADER_H}" stroke="#252d3d" stroke-width="1"/>`;
   out += `<text x="${LABEL_W/2}" y="30" text-anchor="middle" font-family="Barlow Condensed" font-size="11" fill="#5a6478" font-weight="700">TAREA</text>`;
 
-  // Today line
   if (td >= fromDate && td <= toDate) {
     const todayX = LABEL_W + diffDays(fromDate, td) * dayW + dayW/2;
     out += `<line x1="${todayX}" y1="${HEADER_H}" x2="${todayX}" y2="${totalH}" stroke="#f0c040" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.7"/>`;
     out += `<text x="${todayX}" y="${HEADER_H-4}" text-anchor="middle" font-family="Barlow Condensed" font-size="10" fill="#f0c040" font-weight="700">HOY</text>`;
   }
 
-  // Rows
   sorted.forEach((t, i) => {
     const y = HEADER_H + i * ROW_H;
     const rowBg = i % 2 === 0 ? 'rgba(30,37,53,0.4)' : 'transparent';
     out += `<rect x="0" y="${y}" width="${totalW}" height="${ROW_H}" fill="${rowBg}"/>`;
-
-    // Label
     const labelText = t.label.length > 30 ? t.label.slice(0,29)+'…' : t.label;
     const phColor = PHASE_COLORS[t.phase] || '#8a95aa';
     out += `<rect x="0" y="${y+ROW_H/2-5}" width="3" height="10" fill="${phColor}" rx="1"/>`;
@@ -970,8 +982,6 @@ function renderGantt() {
     if (t.quickWin && !t.isPlan) {
       out += `<text x="205" y="${y+ROW_H/2+4}" font-family="Barlow Condensed" font-size="9" fill="#f0c040">⚡</text>`;
     }
-
-    // Bar
     if (t.start && t.end && t.start <= toDate && t.end >= fromDate) {
       const barStart = t.start < fromDate ? fromDate : t.start;
       const barEnd   = t.end   > toDate   ? toDate   : t.end;
@@ -983,23 +993,16 @@ function renderGantt() {
       const barColor = isDone ? '#5a6478' : phColor;
       const barOpacity = t.isPlan ? 0.18 : 0.85;
       const barStroke = t.isPlan ? `stroke="${phColor}" stroke-width="1" stroke-dasharray="4,2"` : '';
-
       out += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="${barColor}" fill-opacity="${barOpacity}" ${barStroke}/>`;
-
-      // Completed overlay
       if (isDone && t.completedDate && t.startDate) {
         const cEnd = t.completedDate > toDate ? toDate : t.completedDate;
         const cw = Math.max(4, diffDays(barStart, cEnd) * dayW);
         out += `<rect x="${bx}" y="${by}" width="${cw}" height="${bh}" rx="3" fill="${phColor}" fill-opacity="0.4"/>`;
       }
-
-      // Due date marker
       if (!t.isPlan && t.dueDate && t.dueDate >= fromDate && t.dueDate <= toDate) {
         const dx = LABEL_W + diffDays(fromDate, t.dueDate) * dayW + dayW - 3;
         out += `<line x1="${dx}" y1="${by}" x2="${dx}" y2="${by+bh}" stroke="${phColor}" stroke-width="2" opacity="0.9"/>`;
       }
-
-      // Update markers (3-day intervals)
       if (!t.isPlan) {
         t.updateDates.forEach(ud => {
           if (ud < fromDate || ud > toDate) return;
@@ -1012,11 +1015,9 @@ function renderGantt() {
     }
   });
 
-  // Label column separator
   out += `<line x1="${LABEL_W}" y1="0" x2="${LABEL_W}" y2="${totalH}" stroke="#252d3d" stroke-width="1"/>`;
   out += '</svg>';
   svg.outerHTML = out;
-  // Re-get reference isn't needed because we replaced it; the wrapper still shows it.
 }
 
 // ─── PLAN VIEW ─────────────────────────────────────────────────────────────────
@@ -1028,7 +1029,6 @@ function renderPlan() {
     { key: 'phase-3', label: 'Fase 3 · Control Total, Análisis ABC y Base Sólida', color: 'var(--f3)', weeks: PLAN_WEEKS.filter(w=>w.phase==='phase-3') },
   ];
   const phNum = {'phase-1':'01','phase-2':'02','phase-3':'03'};
-
   let html = '';
   phases.forEach(p => {
     html += `<div class="plan-phase-header" style="color:${p.color};">
@@ -1056,7 +1056,6 @@ function renderPlan() {
 }
 
 function jumpToPlanWeek(week) {
-  // Pre-fill form to link a new task to this plan week
   switchTab('tasks');
   const w = PLAN_WEEKS.find(x => x.week === week);
   if (!w) return;
@@ -1074,7 +1073,7 @@ function jumpToPlanWeek(week) {
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t,i) => {
-    const names = ['tasks','gantt','plan'];
+    const names = ['tasks','gantt','plan','3d'];
     t.classList.toggle('active', names[i] === name);
   });
   document.querySelectorAll('.tab-panel').forEach(p => {
@@ -1082,6 +1081,7 @@ function switchTab(name) {
   });
   if (name === 'gantt') renderGantt();
   if (name === 'plan')  renderPlan();
+  if (name === '3d')    init3D();
 }
 
 // ─── NOTIFICATION ─────────────────────────────────────────────────────────────
@@ -1109,6 +1109,285 @@ document.addEventListener('DOMContentLoaded', () => {
   autoRangeGantt();
   updateStats();
 });
+</script>
+
+<script>
+// ─── 3D WAREHOUSE PLAN ────────────────────────────────────────────────────────
+let _3d = { scene:null, camera:null, renderer:null, controls:null, raf:null, ready:false };
+let _3dRayRC = null;
+let _3dMouse = null;
+const _3dObjects = [];
+
+function init3D() {
+  if (_3d.ready) return;
+  if (typeof THREE === 'undefined') { setTimeout(init3D, 200); return; }
+  _3d.ready = true;
+
+  _3dMouse = new THREE.Vector2();
+  _3dRayRC = new THREE.Raycaster();
+
+  const canvas = document.getElementById('warehouse-canvas');
+  const cont   = document.getElementById('plan3d-container');
+  const W = cont.clientWidth, H = cont.clientHeight;
+
+  _3d.scene = new THREE.Scene();
+  _3d.scene.background = new THREE.Color(0x0e1117);
+  _3d.scene.fog = new THREE.Fog(0x0e1117, 55, 85);
+
+  _3d.camera = new THREE.PerspectiveCamera(48, W / H, 0.1, 200);
+  _3d.camera.position.set(20, 18, 24);
+  _3d.camera.lookAt(0, 1, 0);
+
+  _3d.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  _3d.renderer.setSize(W, H);
+  _3d.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  _3d.renderer.shadowMap.enabled = true;
+  _3d.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  _3d.controls = new THREE.OrbitControls(_3d.camera, _3d.renderer.domElement);
+  _3d.controls.enableDamping = true;
+  _3d.controls.dampingFactor = 0.06;
+  _3d.controls.minDistance = 5;
+  _3d.controls.maxDistance = 70;
+  _3d.controls.maxPolarAngle = Math.PI / 2.05;
+  _3d.controls.target.set(0, 1, 0);
+  _3d.controls.update();
+
+  _3d.scene.add(new THREE.AmbientLight(0xe8ecf4, 0.55));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+  sun.position.set(14, 28, 12);
+  sun.castShadow = true;
+  sun.shadow.mapSize.setScalar(2048);
+  sun.shadow.camera.left = sun.shadow.camera.bottom = -22;
+  sun.shadow.camera.right = sun.shadow.camera.top = 22;
+  sun.shadow.camera.far = 80;
+  _3d.scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x3a8fe8, 0.18);
+  fill.position.set(-12, 8, -8);
+  _3d.scene.add(fill);
+
+  canvas.addEventListener('mousemove', _3dMouseMove);
+
+  new ResizeObserver(() => {
+    const W = cont.clientWidth, H = cont.clientHeight;
+    _3d.camera.aspect = W / H;
+    _3d.camera.updateProjectionMatrix();
+    _3d.renderer.setSize(W, H);
+  }).observe(cont);
+
+  _buildWarehouse();
+
+  (function loop() {
+    _3d.raf = requestAnimationFrame(loop);
+    _3d.controls.update();
+    _3d.renderer.render(_3d.scene, _3d.camera);
+  })();
+}
+
+function _3dMouseMove(e) {
+  const c = document.getElementById('warehouse-canvas');
+  const r = c.getBoundingClientRect();
+  _3dMouse.x =  ((e.clientX - r.left) / r.width)  * 2 - 1;
+  _3dMouse.y = -((e.clientY - r.top)  / r.height) * 2 + 1;
+  _3dRayRC.setFromCamera(_3dMouse, _3d.camera);
+  const hits = _3dRayRC.intersectObjects(_3dObjects);
+  const tip = document.getElementById('tooltip-3d');
+  if (hits.length && hits[0].object.userData.tip) {
+    tip.style.display = 'block';
+    tip.style.left = (e.clientX - r.left + 14) + 'px';
+    tip.style.top  = (e.clientY - r.top  - 14) + 'px';
+    tip.innerHTML = hits[0].object.userData.tip;
+  } else { tip.style.display = 'none'; }
+}
+
+function reset3DCamera() {
+  if (!_3d.camera) return;
+  _3d.camera.position.set(20, 18, 24);
+  _3d.controls.target.set(0, 1, 0);
+  _3d.controls.update();
+}
+function view3DTop() {
+  if (!_3d.camera) return;
+  _3d.camera.position.set(0, 42, 0.01);
+  _3d.controls.target.set(0, 0, 0);
+  _3d.controls.update();
+}
+function view3DIso() {
+  if (!_3d.camera) return;
+  _3d.camera.position.set(24, 24, 24);
+  _3d.controls.target.set(0, 1, 0);
+  _3d.controls.update();
+}
+function view3DFront() {
+  if (!_3d.camera) return;
+  _3d.camera.position.set(0, 10, 32);
+  _3d.controls.target.set(0, 2, 0);
+  _3d.controls.update();
+}
+
+function _box(w, h, d, x, y, z, color, tip, opacity) {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const mat = new THREE.MeshLambertMaterial({ color });
+  if (opacity !== undefined && opacity < 1) { mat.transparent = true; mat.opacity = opacity; }
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = true; m.receiveShadow = true;
+  if (tip) { m.userData.tip = tip; _3dObjects.push(m); }
+  _3d.scene.add(m);
+  return m;
+}
+
+function _zonePlane(w, d, x, z, color, tip) {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, d),
+    new THREE.MeshLambertMaterial({ color })
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, 0.01, z);
+  if (tip) { m.userData.tip = tip; _3dObjects.push(m); }
+  m.receiveShadow = true;
+  _3d.scene.add(m);
+  const pts = [
+    new THREE.Vector3(-w/2, 0, -d/2), new THREE.Vector3( w/2, 0, -d/2),
+    new THREE.Vector3( w/2, 0,  d/2), new THREE.Vector3(-w/2, 0,  d/2),
+    new THREE.Vector3(-w/2, 0, -d/2),
+  ];
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.5 })
+  );
+  line.position.set(x, 0.02, z);
+  _3d.scene.add(line);
+}
+
+function _label(text, color, x, y, z, scale) {
+  const cv = document.createElement('canvas');
+  cv.width = 512; cv.height = 96;
+  const cx = cv.getContext('2d');
+  cx.clearRect(0, 0, 512, 96);
+  cx.font = 'bold 44px Arial';
+  cx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillText(text, 256, 48);
+  const tex = new THREE.CanvasTexture(cv);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  sp.scale.set((scale || 5), (scale || 5) * 0.19, 1);
+  sp.position.set(x, y, z);
+  _3d.scene.add(sp);
+}
+
+function _shelfUnit(x, z, accentColor) {
+  const sH = 3.0, sW = 1.9, sD = 0.55, levels = 3;
+  const pW = 0.07;
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz]) => {
+    _box(pW, sH, pW, x + sx*(sW/2 - pW/2), sH/2, z + sz*(sD/2 - pW/2), 0x2a3350);
+  });
+  for (let l = 0; l <= levels; l++) {
+    const sy = l * (sH / levels);
+    _box(sW, 0.06, sD, x, sy, z, l === 0 ? accentColor : 0x1e2a3d);
+    if (l > 0) {
+      const n = 1 + Math.floor(Math.random() * 3);
+      for (let k = 0; k < n; k++) {
+        const iw = 0.18 + Math.random() * 0.22;
+        const ih = 0.12 + Math.random() * 0.22;
+        const id = 0.14 + Math.random() * 0.16;
+        const ix = x - sW/2 + 0.15 + k * 0.48 + Math.random() * 0.12;
+        const iy = sy + 0.03 + ih/2;
+        const iCol = [0x334466,0x334433,0x443333,0x2a3a4a,0x3a3028][Math.floor(Math.random()*5)];
+        _box(iw, ih, id, ix, iy, z, iCol);
+      }
+    }
+  }
+  _box(sW + 0.08, 0.08, 0.1, x, sH + 0.04, z, accentColor);
+}
+
+function _buildWarehouse() {
+  const WW = 28, WD = 20, WH = 5.5;
+
+  const floorM = new THREE.Mesh(
+    new THREE.PlaneGeometry(WW, WD),
+    new THREE.MeshLambertMaterial({ color: 0x1c2230 })
+  );
+  floorM.rotation.x = -Math.PI / 2;
+  floorM.receiveShadow = true;
+  _3d.scene.add(floorM);
+
+  const grid = new THREE.GridHelper(32, 32, 0x252d3d, 0x252d3d);
+  grid.position.y = 0.015;
+  _3d.scene.add(grid);
+
+  _zonePlane(8, 12, -8, 2, 0x1f0d09,
+    '<strong style="color:#e85d3a">ZONA A — Críticos</strong><br>Repuestos de alta rotación.<br>Esenciales para detener paradas<br>de producción no programadas.');
+  _zonePlane(8, 12,  0, 2, 0x090f1f,
+    '<strong style="color:#3a8fe8">ZONA B — Importantes</strong><br>Criticidad media (SAE/ISO).<br>Rotación mensual documentada<br>con mínimos y máximos calculados.');
+  _zonePlane(8, 12,  8, 2, 0x091a0d,
+    '<strong style="color:#3ae87a">ZONA C — Menores</strong><br>Repuestos de baja rotación.<br>Stock mínimo de seguridad,<br>análisis ABC aplicado.');
+
+  _label('ZONA A', 0xe85d3a, -8, 0.05, -3.5, 4.5);
+  _label('ZONA B', 0x3a8fe8,  0, 0.05, -3.5, 4.5);
+  _label('ZONA C', 0x3ae87a,  8, 0.05, -3.5, 4.5);
+
+  _zonePlane(8, 5, -6, -7, 0x1a1500,
+    '<strong style="color:#f0c040">RECEPCIÓN / DESPACHO</strong><br>Entrada y salida de repuestos.<br>Control de órdenes de compra<br>y verificación de stock.');
+  _label('RECEPCIÓN', 0xf0c040, -6, 0.05, -8.5, 4);
+
+  _box(3, 1.0, 0.7, -5, 0.5, -5.5, 0x252d3d,
+    '<strong style="color:#f0c040">Mostrador de despacho</strong><br>Entrega de repuestos con<br>registro en sistema Oracle.');
+  _box(3, 0.06, 0.7, -5, 1.06, -5.5, 0xf0c040);
+  _box(1.2, 0.2, 0.8, -9,   0.1, -6.5, 0x3a3020);
+  _box(1.0, 0.6, 0.7, -9,   0.4, -6.5, 0x4a3a25);
+  _box(1.2, 0.2, 0.8, -7.5, 0.1, -5.5, 0x3a3020);
+  _box(1.0, 0.4, 0.7, -7.5, 0.3, -5.5, 0x4a3a25);
+
+  _zonePlane(7, 6, 10.5, -6, 0x121822,
+    '<strong style="color:#8a95aa">OFICINA</strong><br>Control de inventario Oracle,<br>Power BI, reportes y<br>gestión de órdenes de compra.');
+  _label('OFICINA', 0x8a95aa, 10.5, 0.05, -8.3, 4);
+  _box(7, WH*0.7, 0.2, 10.5, WH*0.35, -3.1, 0x1e2535, null, 0.85);
+  _box(0.2, WH*0.7, 6, 7.1, WH*0.35, -6, 0x1e2535, null, 0.85);
+  _box(1.5, 0.75, 0.8,  9.5, 0.38, -5.5, 0x252d3d);
+  _box(0.6, 0.5,  0.6,  9.5, 0.25, -4.8, 0x1e2535);
+  _box(0.4, 0.55, 0.1, 10.2, 0.55, -5.6, 0x2a3fe8);
+  _box(0.5, 0.06, 0.3, 10.2, 0.72, -5.6, 0x1e2535);
+
+  const wC = 0x161b27;
+  _box(WW, WH, 0.3,    0, WH/2, -10, wC);
+  _box(9,  WH, 0.3, -9.5, WH/2,  10, wC);
+  _box(5,  WH, 0.3, 11.5, WH/2,  10, wC);
+  _box(0.3, WH, WD, -14, WH/2, 0, wC);
+  _box(0.3, WH, WD,  14, WH/2, 0, wC);
+  _box(0.4, 3.2, 0.4, -2.2, 1.6, 10, 0x252d3d);
+  _box(0.4, 3.2, 0.4,  2.2, 1.6, 10, 0x252d3d);
+  _box(4.8, 0.3, 0.4,    0, 3.3, 10, 0x252d3d);
+  _box(2.0, 3.0, 0.1, -3.2, 1.5, 9.7, 0x1e2535, null, 0.6);
+  _box(2.0, 3.0, 0.1,  3.2, 1.5, 9.7, 0x1e2535, null, 0.6);
+
+  [-7,0,7].forEach(zz => _box(WW, 0.18, 0.18, 0, WH+0.09, zz, 0x252d3d));
+  [-7,7].forEach(xx => _box(0.18, 0.18, WD, xx, WH+0.09, 0, 0x252d3d));
+
+  const shelfRows = [
+    { cx:-10, acc:0xe85d3a }, { cx:-6, acc:0xe85d3a },
+    { cx: -2, acc:0x3a8fe8 }, { cx:  2, acc:0x3a8fe8 },
+    { cx:  6, acc:0x3ae87a }, { cx: 10, acc:0x3ae87a },
+  ];
+  const shelfZPos = [-4.0, -1.5, 1.0, 3.5, 6.0];
+  shelfRows.forEach(row => shelfZPos.forEach(zz => _shelfUnit(row.cx, zz, row.acc)));
+
+  [[-4, 0xf0c040],[4, 0xf0c040]].forEach(([ax, col]) => {
+    const pts = [];
+    for (let az = -9.8; az < 9.5; az += 0.6) {
+      pts.push(new THREE.Vector3(ax, 0.03, az));
+      pts.push(new THREE.Vector3(ax, 0.03, az + 0.32));
+    }
+    _3d.scene.add(new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.25 })
+    ));
+  });
+
+  _box(0.6, 0.3, 0.05, -13.5, 3.5, -9.85, 0x3ae87a);
+  _box(0.15, 0.5, 0.15, -13.7, 0.25, 8.5, 0xe85d3a);
+}
 </script>
 </body>
 </html>
