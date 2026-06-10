@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REFRESH S.A. — Planta de Detergente en Polvo · Panamá — Asignación #6</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="cajetin">
+  <div>
+    <h1>REFRESH S.A. — Planta de Detergente en Polvo · Panamá</h1>
+    <div class="sub">Asignación #6 — Parte D: Distribución de Planta con Equipos · Curso: Selección de Equipos y Trazado de Planta</div>
+  </div>
+  <div id="relojPlanta" class="parado">
+    <span class="dia" id="rjDia">Lunes</span>
+    <span class="hora" id="rjHora">06:00</span>
+    <span class="turno" id="rjTurno">T1</span>
+    <span class="actividad" id="rjAct">Simulación pausada — ▶ Iniciar en pestaña 5</span>
+  </div>
+  <div class="sello">
+    REFRESH S.A. · Asignación #6 — Distribución de Planta<br>
+    Escala 1:250 · Cotas en metros · Junio 2026
+  </div>
+</header>
+
+<nav class="tabs">
+  <button data-vista="vista2d" class="activo">1 · Plano 2D — Distribución de Planta</button>
+  <button data-vista="vista3d">2 · Plano 3D — Vista Isométrica/Orbital</button>
+  <button data-vista="vistaPid">3 · P&amp;ID — Servicios Industriales y Proceso</button>
+  <button data-vista="vistaUni">4 · Unifilar Eléctrico</button>
+  <button data-vista="vistaSim">5 · Simulación de Producción</button>
+</nav>
+
+<main>
+  <section id="vista2d" class="vista activa"></section>
+  <section id="vista3d" class="vista"><div id="contenedor3d"></div></section>
+  <section id="vistaPid" class="vista"></section>
+  <section id="vistaUni" class="vista"></section>
+  <section id="vistaSim" class="vista"></section>
+</main>
+
+<div id="tooltip"></div>
+
+<aside id="drawer">
+  <div class="drawer-head">
+    <div>
+      <h2 id="drawerTitulo">—</h2>
+      <div class="marca" id="drawerMarca"></div>
+    </div>
+    <button class="cerrar" onclick="cerrarDrawer()" title="Cerrar">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerCuerpo"></div>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>/* Respaldo local si el CDN no está disponible (misma versión r128) */
+if (typeof THREE === 'undefined') document.write('<script src="lib/three.min.js"><\/script>');</script>
+<script src="data.js"></script>
+<script src="common.js"></script>
+<script src="sim.js"></script>
+<script src="simui.js"></script>
+<script src="plano2d.js"></script>
+<script src="pid.js"></script>
+<script src="unifilar.js"></script>
+<script src="plano3d.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

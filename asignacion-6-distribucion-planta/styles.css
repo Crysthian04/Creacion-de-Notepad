@@ -1,0 +1,372 @@
+/* REFRESH S.A. — Asignación #6 · Estilo de plano de ingeniería */
+:root {
+  --azul-plano: #1a3a5c;
+  --azul-linea: #2c5f8a;
+  --gris-linea: #7a8a99;
+  --papel: #f7f6f1;
+  --papel-grid: #e8e6dd;
+  --fase-liquido: #2196f3;
+  --fase-granulo: #ff9800;
+  --fase-polvo: #fbc02d;
+  --fase-envasado: #4caf50;
+  --alerta-roja: #d32f2f;
+  --alerta-amarilla: #f9a825;
+  --info: #0277bd;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--papel);
+  color: var(--azul-plano);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------- Encabezado tipo cajetín ---------- */
+header.cajetin {
+  border-bottom: 3px double var(--azul-plano);
+  background: #fff;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+header.cajetin h1 {
+  font-size: 17px;
+  margin: 0;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+}
+header.cajetin .sub {
+  font-size: 11px;
+  color: var(--gris-linea);
+  letter-spacing: 0.4px;
+}
+header.cajetin .sello {
+  border: 1.5px solid var(--azul-plano);
+  padding: 4px 10px;
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: right;
+  background: var(--papel);
+}
+
+/* ---------- Reloj de planta global ---------- */
+#relojPlanta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  background: var(--azul-plano);
+  color: #fff;
+  padding: 5px 14px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+#relojPlanta .hora { font-size: 17px; font-weight: 700; }
+#relojPlanta .turno {
+  background: #fff; color: var(--azul-plano);
+  border-radius: 3px; padding: 1px 7px; font-weight: 700;
+}
+#relojPlanta .actividad { max-width: 330px; opacity: 0.95; }
+#relojPlanta.parado { background: #5c6b7a; }
+
+/* ---------- Tabs ---------- */
+nav.tabs {
+  display: flex;
+  background: #fff;
+  border-bottom: 2px solid var(--azul-plano);
+  padding: 0 10px;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+nav.tabs button {
+  border: 1.5px solid var(--gris-linea);
+  border-bottom: none;
+  background: var(--papel);
+  color: var(--azul-plano);
+  font: 600 12.5px 'Inter', sans-serif;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  margin-top: 6px;
+}
+nav.tabs button:hover { background: #eef3f8; }
+nav.tabs button.activo {
+  background: var(--azul-plano);
+  color: #fff;
+  border-color: var(--azul-plano);
+}
+
+/* ---------- Contenedor de vistas ---------- */
+main { flex: 1; position: relative; overflow: hidden; }
+.vista { position: absolute; inset: 0; display: none; overflow: hidden; }
+.vista.activa { display: block; }
+
+/* Lienzos SVG con cuadrícula tipo papel técnico */
+.lienzo-svg {
+  width: 100%; height: 100%;
+  background:
+    linear-gradient(var(--papel-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--papel-grid) 1px, transparent 1px);
+  background-size: 25px 25px;
+  background-color: var(--papel);
+  cursor: grab;
+  display: block;
+}
+.lienzo-svg:active { cursor: grabbing; }
+
+/* ---------- Barra de herramientas flotante por vista ---------- */
+.toolbar {
+  position: absolute;
+  top: 10px; left: 10px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 20px);
+}
+.toolbar button, .toolbar label.toggle {
+  background: #fff;
+  border: 1.5px solid var(--azul-linea);
+  color: var(--azul-plano);
+  font: 600 11.5px 'Inter', sans-serif;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  user-select: none;
+}
+.toolbar button:hover, .toolbar label.toggle:hover { background: #eef3f8; }
+.toolbar button.on, .toolbar label.toggle.on { background: var(--azul-plano); color: #fff; }
+
+/* ---------- Tooltip ---------- */
+#tooltip {
+  position: fixed;
+  pointer-events: none;
+  background: var(--azul-plano);
+  color: #fff;
+  font-size: 11.5px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  z-index: 60;
+  display: none;
+  max-width: 290px;
+  line-height: 1.45;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+}
+#tooltip .tt-volt { color: #ffd54f; font-weight: 600; }
+
+/* ---------- Drawer (panel lateral de ficha técnica) ---------- */
+#drawer {
+  position: fixed;
+  top: 0; right: -440px;
+  width: 430px; max-width: 92vw;
+  height: 100%;
+  background: #fff;
+  border-left: 3px double var(--azul-plano);
+  box-shadow: -4px 0 18px rgba(0,0,0,0.25);
+  transition: right 0.25s ease;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+}
+#drawer.abierto { right: 0; }
+#drawer .drawer-head {
+  background: var(--azul-plano);
+  color: #fff;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+#drawer .drawer-head h2 { margin: 0; font-size: 15px; line-height: 1.35; }
+#drawer .drawer-head .marca { font-size: 11.5px; opacity: 0.85; margin-top: 3px; }
+#drawer .cerrar {
+  background: none; border: 1.5px solid #fff; color: #fff;
+  border-radius: 4px; cursor: pointer; font-size: 14px;
+  width: 28px; height: 28px; flex-shrink: 0;
+}
+#drawer .drawer-body { padding: 14px 16px; overflow-y: auto; flex: 1; font-size: 12.5px; }
+.ficha-fila { margin-bottom: 11px; }
+.ficha-fila .etiq {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
+  color: var(--gris-linea); font-weight: 700; margin-bottom: 2px;
+}
+.ficha-fila .valor { line-height: 1.5; }
+.ficha-fila .valor.volt { color: #b71c1c; font-weight: 600; }
+.estado-vivo {
+  border: 1.5px solid var(--azul-linea);
+  background: #eef5fb;
+  border-radius: 5px;
+  padding: 9px 11px;
+  margin-bottom: 12px;
+}
+.estado-vivo .etiq { color: var(--info); }
+.estado-vivo.en-alerta { border-color: var(--alerta-roja); background: #fdecea; }
+.chip {
+  display: inline-block; border-radius: 3px; padding: 1px 7px;
+  font-size: 10.5px; font-weight: 700; color: #fff; margin: 1px 2px 1px 0;
+}
+.chip.ok { background: var(--fase-envasado); }
+.chip.warn { background: var(--alerta-amarilla); }
+.chip.err { background: var(--alerta-roja); }
+.chip.info { background: var(--info); }
+
+/* ---------- Elementos SVG interactivos ---------- */
+.clicable { cursor: pointer; }
+.clicable:hover .cuerpo, .clicable.hover .cuerpo {
+  stroke: #e65100 !important;
+  stroke-width: 0.5;
+  filter: brightness(1.06);
+}
+.edif-rect { stroke: var(--azul-plano); stroke-width: 0.35; }
+.equipo-rect { stroke: var(--azul-plano); stroke-width: 0.25; }
+.etiq-svg { font-family: 'Inter', sans-serif; fill: var(--azul-plano); }
+.cota-linea { stroke: #9c27b0; stroke-width: 0.12; }
+.cota-texto { fill: #9c27b0; font-weight: 600; }
+
+@keyframes parpadeoRojo {
+  0%, 100% { fill: #ef9a9a; }
+  50% { fill: #d32f2f; }
+}
+.alerta-parpadeo .cuerpo, rect.alerta-parpadeo, path.alerta-parpadeo {
+  animation: parpadeoRojo 0.8s infinite;
+}
+@keyframes parpadeoAmarillo {
+  0%, 100% { fill: #fff59d; }
+  50% { fill: #f9a825; }
+}
+.alerta-amarilla-parpadeo .cuerpo, rect.alerta-amarilla-parpadeo {
+  animation: parpadeoAmarillo 0.9s infinite;
+}
+
+/* Flujo animado en tuberías (P&ID) */
+@keyframes flujoDash { to { stroke-dashoffset: -20; } }
+.linea-flujo-anim { animation: flujoDash 1s linear infinite; }
+
+/* ---------- Pestaña 3D ---------- */
+#vista3d canvas { display: block; }
+#contenedor3d { width: 100%; height: 100%; }
+
+/* ---------- Pestaña Simulación ---------- */
+#vistaSim { overflow-y: auto !important; padding: 14px 18px 40px; }
+.sim-grid {
+  display: grid;
+  grid-template-columns: 330px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+.panel {
+  background: #fff;
+  border: 1.5px solid var(--azul-linea);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+}
+.panel h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid var(--papel-grid);
+  padding-bottom: 6px;
+}
+.ctrl-fila { margin-bottom: 12px; font-size: 12px; }
+.ctrl-fila label { display: block; font-weight: 600; margin-bottom: 4px; }
+.ctrl-fila input[type=range] { width: 100%; }
+.ctrl-fila .lectura { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--azul-linea); }
+.botones-sim { display: flex; gap: 6px; flex-wrap: wrap; }
+.botones-sim button {
+  flex: 1; min-width: 80px;
+  border: 1.5px solid var(--azul-plano);
+  background: #fff; color: var(--azul-plano);
+  font: 700 12px 'Inter', sans-serif;
+  padding: 8px 6px; border-radius: 4px; cursor: pointer;
+}
+.botones-sim button:hover { background: #eef3f8; }
+.botones-sim button.primario { background: var(--azul-plano); color: #fff; }
+.botones-sim button.reset { border-color: #b71c1c; color: #b71c1c; }
+.vel-sim { display: flex; gap: 4px; }
+.vel-sim button {
+  flex: 1; border: 1.5px solid var(--gris-linea); background: #fff;
+  padding: 4px; font-size: 11.5px; cursor: pointer; border-radius: 3px;
+}
+.vel-sim button.on { background: var(--azul-plano); color: #fff; border-color: var(--azul-plano); }
+
+/* KPIs */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.kpi {
+  border: 1px solid var(--papel-grid); border-radius: 5px;
+  padding: 8px 10px; background: var(--papel);
+}
+.kpi .k-etiq { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--gris-linea); font-weight: 700; }
+.kpi .k-val { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.kpi .k-sub { font-size: 10px; color: var(--gris-linea); }
+.kpi.err { border-color: var(--alerta-roja); background: #fdecea; }
+.kpi.warn { border-color: var(--alerta-amarilla); background: #fff8e1; }
+
+/* Alertas */
+#alertas { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.alerta {
+  border-radius: 5px; padding: 9px 13px; font-size: 12.5px; font-weight: 600;
+  border: 1.5px solid; display: flex; gap: 8px; align-items: flex-start;
+}
+.alerta.roja { background: #fdecea; border-color: var(--alerta-roja); color: #b71c1c; animation: pulsoAlerta 1s infinite; }
+.alerta.amarilla { background: #fff8e1; border-color: var(--alerta-amarilla); color: #8d6e00; }
+.alerta.info { background: #e1f0fa; border-color: var(--info); color: #01579b; }
+@keyframes pulsoAlerta { 50% { box-shadow: 0 0 0 3px rgba(211,47,47,0.25); } }
+
+/* Diagrama de flujo Sankey */
+#sankey { width: 100%; overflow-x: auto; }
+#sankey svg { min-width: 1150px; display: block; }
+
+/* Log de eventos */
+#logEventos {
+  max-height: 230px; overflow-y: auto;
+  font: 11px 'Consolas', 'Courier New', monospace;
+  background: #16222e; color: #cfe3f5;
+  border-radius: 5px; padding: 8px 10px;
+}
+#logEventos div { padding: 1px 0; border-bottom: 1px dotted #2c3e50; }
+#logEventos .lg-rojo { color: #ff8a80; }
+#logEventos .lg-amar { color: #ffe082; }
+#logEventos .lg-info { color: #81d4fa; }
+#logEventos .lg-turno { color: #a5d6a7; }
+
+/* Calendario semanal */
+table.cal { border-collapse: collapse; width: 100%; font-size: 11px; }
+table.cal th, table.cal td { border: 1px solid var(--gris-linea); padding: 4px 6px; text-align: center; }
+table.cal th { background: var(--azul-plano); color: #fff; font-weight: 600; }
+table.cal td.mant { background: #ffe0e0; }
+table.cal td.setup { background: #fff3cd; }
+table.cal td.libre { background: #e8f5e9; }
+table.cal td.actual { outline: 2.5px solid var(--info); outline-offset: -2.5px; font-weight: 700; }
+
+/* Panel IEEE 519 y NFPA 70E (unifilar) */
+.mini-panel {
+  position: absolute; right: 10px; top: 10px; z-index: 5;
+  background: rgba(255,255,255,0.97);
+  border: 1.5px solid var(--azul-plano); border-radius: 6px;
+  padding: 10px 13px; font-size: 11px; max-width: 290px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.mini-panel h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; }
+.mini-panel table { border-collapse: collapse; width: 100%; }
+.mini-panel td, .mini-panel th { border: 1px solid var(--papel-grid); padding: 2px 6px; font-size: 10.5px; }
+.mejora { color: #2e7d32; font-weight: 700; }
+
+@media (max-width: 1100px) {
+  .sim-grid { grid-template-columns: 1fr; }
+  #relojPlanta .actividad { max-width: 200px; }
+}
