@@ -38,6 +38,12 @@ const Sim = {
   _alertasPrevias: {},
   _timer: null,
 
+  // ----- Control de calidad (4 puertas QC · producto no conforme) -----
+  qcAuto: true,              // genera no conformes ocasionales en modo automático
+  qcEvento: null,            // {puerta, fase:'inspeccion'|'accion'|'decision', tFin, kgLote, manual}
+  qcProximoAuto: 24 * 60,
+  qcStats: { total: 0, noConforme: 0, reproceso: 0, desecho: 0, devuelto: 0, cuarentena: 0 },
+
   // ---------------- Tiempo y calendario ----------------
   infoTiempo() {
     const diaIdx = Math.floor(this.tMin / 1440) % 7;
@@ -106,6 +112,22 @@ const Sim = {
     // Torre: nunca se detiene; limitada a 1,500 kg/h (cuello de botella)
     let torreOut = Math.min(this.alimentacionKgH, PLANT_DATA.torreMaxKgH);
 
+    // ---- Control de calidad: progresión de eventos QC ----
+    this.qcPaso();
+    let inflowTolva = torreOut;
+    const ev = this.qcEvento;
+    if (ev && ev.fase === 'accion') {
+      if (ev.puerta === 'qc2') {
+        // Reformulación: el slurry retorna al mezclado, la torre recircula sin alimentar
+        this.qcStats.reproceso += torreOut * dtH;
+        torreOut = 0; inflowTolva = 0;
+      } else if (ev.puerta === 'qc3') {
+        // Retrabajo de gránulos: la salida de torre se desvía a la línea de retorno
+        this.qcStats.reproceso += torreOut * dtH;
+        inflowTolva = 0;
+      }
+    }
+
     // Capacidad de envasado del módulo activo
     let packCap = 0;
     if (act.formato) {
@@ -114,11 +136,11 @@ const Sim = {
     }
 
     // Balance de tolvas: entra torre, sale envasado (limitado por material disponible)
-    const disponible = this.tolvaKg + torreOut * dtH;
+    const disponible = this.tolvaKg + inflowTolva * dtH;
     const packOut = Math.min(packCap * dtH, disponible) / dtH || 0;
 
     // Tolvas llenas → la torre debe reducir carga (sobreproducción)
-    let nuevaTolva = this.tolvaKg + (torreOut - packOut) * dtH;
+    let nuevaTolva = this.tolvaKg + (inflowTolva - packOut) * dtH;
     if (nuevaTolva > cap) {
       const exceso = (nuevaTolva - cap) / dtH;
       torreOut = Math.max(0, torreOut - exceso);
@@ -130,9 +152,104 @@ const Sim = {
     this.envasadoUdsH = act.formato ? packOut / PLANT_DATA.formatos[act.formato].kgUd : 0;
     this.kgDia += packOut * dtH;
     this.kgSemanaTotal += torreOut * dtH;
+    this.qcStats.total += packOut * dtH;
     this.horasTranscurridas += dtH;
 
     this.evaluarAlertas(act, packCap, torreOut);
+  },
+
+  // ---------------- Control de calidad (QC) ----------------
+  pctNoConforme() {
+    const q = this.qcStats;
+    const base = q.total + q.noConforme;
+    return base > 1 ? (q.noConforme / base) * 100 : 0;
+  },
+
+  declararNoConforme(puerta, manual = true) {
+    if (this.qcEvento) {
+      if (manual) this.registrar('🧪 Ya hay un evento de calidad en curso — espera a que se resuelva', 'info');
+      return;
+    }
+    const def = PLANT_DATA.qc.puertas[puerta];
+    if (!def) return;
+    // tamaño del lote afectado
+    let kgLote = def.loteKg;
+    if (puerta === 'qc2') kgLote = Math.round(Math.min(this.alimentacionKgH, 1500) * (def.accionMin / 60));
+    if (puerta === 'qc3') kgLote = Math.round(this.torreOutKgH * (def.accionMin / 60)) || 800;
+    this.qcEvento = { puerta, fase: 'inspeccion', tFin: this.tMin + def.inspeccionMin, kgLote, manual };
+    this.registrar(`🧪 ${def.tag} ${manual ? '(declarado manualmente)' : '(detección automática)'}: ${def.pregunta} → NO. Verificación de calidad en curso (${def.inspeccionMin} min) — ${def.ubicacion}`, 'amar');
+    // programar el siguiente evento automático (24–40 h simuladas)
+    this.qcProximoAuto = this.tMin + (24 + Math.random() * 16) * 60;
+    Bus.emit('tick');
+  },
+
+  qcPaso() {
+    const ev = this.qcEvento;
+    const q = this.qcStats;
+    if (ev) {
+      const def = PLANT_DATA.qc.puertas[ev.puerta];
+      if (ev.fase === 'inspeccion' && this.tMin >= ev.tFin) {
+        if (ev.puerta === 'qc1') {
+          q.noConforme += ev.kgLote; q.devuelto += ev.kgLote;
+          this.registrar(`${def.tag}: ${def.camino} — lote de ${fmt(ev.kgLote)} kg aislado y devuelto. Sale del sistema (trazabilidad registrada)`, 'rojo');
+          this.qcEvento = null;
+        } else if (ev.puerta === 'qc4') {
+          q.noConforme += ev.kgLote; q.cuarentena += ev.kgLote;
+          if (ev.manual) {
+            ev.fase = 'decision';
+            this.registrar(`${def.tag}: lote de ${fmt(ev.kgLote)} kg envasado RETENIDO en CUARENTENA — esperando tu disposición final (♻ Reprocesar / ✗ Desechar)`, 'rojo');
+          } else {
+            ev.fase = 'accion'; ev.tFin = this.tMin + 45;
+            this.registrar(`${def.tag}: lote de ${fmt(ev.kgLote)} kg envasado RETENIDO en CUARENTENA — auditoría QA automática en curso`, 'amar');
+          }
+        } else {
+          q.noConforme += ev.kgLote;
+          ev.fase = 'accion'; ev.tFin = this.tMin + def.accionMin;
+          this.registrar(`${def.tag}: ${def.camino} iniciado (${def.accionMin} min) — ${def.accion}`, 'amar');
+        }
+      } else if (ev.fase === 'accion' && this.tMin >= ev.tFin) {
+        if (ev.puerta === 'qc4') {
+          this._disponerCuarentena(false); // disposición automática 80/20
+        } else {
+          this.registrar(`${def.tag}: ${def.camino} completado — material recuperado vía reproceso ♻`, 'info');
+          this.qcEvento = null;
+        }
+      }
+    } else if (this.corriendo && this.qcAuto && this.tMin >= this.qcProximoAuto) {
+      const puertas = ['qc1', 'qc2', 'qc3', 'qc4'];
+      this.declararNoConforme(puertas[Math.floor(Math.random() * puertas.length)], false);
+    }
+  },
+
+  // decision: 'reprocesar' | 'desechar' (botones del usuario) — o automática 80/20
+  decidirCuarentena(decision) {
+    if (!this.qcEvento || this.qcEvento.puerta !== 'qc4' || this.qcEvento.fase !== 'decision') return;
+    this._disponerCuarentena(true, decision);
+  },
+
+  _disponerCuarentena(manual, decision) {
+    const q = this.qcStats;
+    const kg = this.qcEvento ? this.qcEvento.kgLote : q.cuarentena;
+    const cap = PLANT_DATA.tolvasCapacidadKg;
+    if (manual) {
+      if (decision === 'reprocesar') {
+        q.reproceso += kg;
+        this.tolvaKg = Math.min(cap, this.tolvaKg + kg);
+        this.registrar(`♻ Disposición final (tu decisión): lote de ${fmt(kg)} kg REPROCESADO — retorna a tolvas/post-adición`, 'info');
+      } else {
+        q.desecho += kg;
+        this.registrar(`✗ Disposición final (tu decisión): lote de ${fmt(kg)} kg DESECHADO — retiro por gestor autorizado`, 'rojo');
+      }
+    } else {
+      const rep = Math.round(kg * (PLANT_DATA.qc.autoReprocesoPct / 100));
+      const des = kg - rep;
+      q.reproceso += rep; q.desecho += des;
+      this.tolvaKg = Math.min(cap, this.tolvaKg + rep);
+      this.registrar(`Auditoría QA automática: ${fmt(rep)} kg reprocesados ♻ (${PLANT_DATA.qc.autoReprocesoPct} %) · ${fmt(des)} kg desechados ✗`, 'info');
+    }
+    q.cuarentena = Math.max(0, q.cuarentena - kg);
+    this.qcEvento = null;
+    Bus.emit('tick');
   },
 
   evaluarAlertas(act, packCap, torreOut) {
@@ -154,6 +271,18 @@ const Sim = {
     }
     if (this.enMantenimiento) {
       a.mant = { nivel: 'info', texto: 'ℹ️ Miércoles de MANTENIMIENTO: envasado detenido y MCC-B desenergizado. La torre GEA NIRO® sigue 24/7 — autonomía de tolvas 13.3 h a 1,125 kg/h.' };
+    }
+    if (this.qcEvento) {
+      const def = PLANT_DATA.qc.puertas[this.qcEvento.puerta];
+      const fase = this.qcEvento.fase === 'inspeccion' ? 'verificación de calidad en curso'
+        : this.qcEvento.fase === 'decision' ? 'CUARENTENA — esperando tu disposición final (♻ Reprocesar / ✗ Desechar en el panel QC)'
+        : def.camino;
+      a.qc = { nivel: this.qcEvento.fase === 'decision' ? 'roja' : 'amarilla', texto: `🧪 ${def.tag} NO CONFORME (${fmt(this.qcEvento.kgLote)} kg): ${fase}` };
+    }
+    // la meta <2 % se evalúa con base estadística suficiente (>20 t producidas)
+    const pctNC = this.pctNoConforme();
+    if (pctNC >= PLANT_DATA.qc.metaPct && this.qcStats.noConforme > 0 && this.qcStats.total > 20000) {
+      a.metaQc = { nivel: 'amarilla', texto: `⚠️ Producto no conforme acumulado ${pctNC.toFixed(1)} % — por encima de la meta <${PLANT_DATA.qc.metaPct} % del programa de aseguramiento de calidad` };
     }
 
     // Registrar transiciones en el log
@@ -206,6 +335,9 @@ const Sim = {
     this.kgDia = 0; this.kgSemanaTotal = 0; this.horasTranscurridas = 0;
     this.ultimoFormato = '50kg';
     this.alertas = {}; this._alertasPrevias = {};
+    this.qcEvento = null;
+    this.qcStats = { total: 0, noConforme: 0, reproceso: 0, desecho: 0, devuelto: 0, cuarentena: 0 };
+    this.qcProximoAuto = (18 + Math.random() * 12) * 60;
     this.log = [];
     this.paso(0.0001); // recalcular estado instantáneo sin avanzar tiempo
     this.alertas = {}; this._alertasPrevias = {}; // estado eficiente: sin alertas
@@ -275,7 +407,23 @@ const Sim = {
       case 'silos':
         chips.push({ tipo: 'ok', texto: 'Suministrando MP' });
         texto = `Dosificación continua de materias primas para ${fmt(this.alimentacionKgH)} kg/h de slurry.`;
+        if (this.qcEvento && this.qcEvento.puerta === 'qc1') {
+          chips.push({ tipo: 'err', texto: 'QC-1: MP NO CONFORME' });
+          texto += ' ⚠ Lote de MP en verificación/devolución (puerta QC-1).';
+          alerta = true;
+        }
         break;
+      case 'cuarentena': {
+        const enDecision = this.qcEvento && this.qcEvento.puerta === 'qc4';
+        const kgRet = this.qcStats.cuarentena;
+        chips.push({ tipo: kgRet > 0 ? 'err' : 'ok', texto: kgRet > 0 ? `RETENIDO: ${fmt(kgRet)} kg` : 'Sin lotes retenidos' });
+        chips.push({ tipo: 'info', texto: `No conforme acum.: ${this.pctNoConforme().toFixed(1)} % (meta <2 %)` });
+        texto = enDecision && this.qcEvento.fase === 'decision'
+          ? '⚠ Lote bloqueado esperando disposición final — decide ♻ Reprocesar o ✗ Desechar en el panel QC de la pestaña 5.'
+          : kgRet > 0 ? 'Lote en auditoría QA (bloqueo de lote, trazabilidad WMS).' : `Histórico: ♻ ${fmt(this.qcStats.reproceso)} kg reprocesados · ✗ ${fmt(this.qcStats.desecho)} kg desechados · ↩ ${fmt(this.qcStats.devuelto)} kg devueltos a proveedor.`;
+        alerta = kgRet > 0;
+        break;
+      }
       default:
         if (item.tipo === 'edificio') {
           if (id === 'naveB') {
