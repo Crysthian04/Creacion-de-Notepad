@@ -340,6 +340,9 @@ const PID = {
     // salida de producto
     this.linea('M 1150 540 V 600 H 1330', 'caliente', 'GRÁNULO 60–80 °C → VIBRO-FLUIDIZER (Etapa ⑥)', 1170, 622);
 
+    // retorno de gránulos no conformes (puerta QC-3) al mezclado
+    this.linea('M 1300 600 V 768 H 560 V 690', 'retorno', 'RETRABAJO DE GRÁNULOS NO CONFORMES (QC-3) → mezclado · re-disolución en slurry', 620, 760);
+
     // ---- Leyendas ----
     const gl = svgEl('g', {});
     gl.appendChild(svgEl('rect', { x: 20, y: 800, width: 500, height: 160, fill: '#fff', stroke: '#1a3a5c', 'stroke-width': 1.5 }));

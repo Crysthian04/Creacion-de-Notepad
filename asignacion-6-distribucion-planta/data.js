@@ -312,6 +312,18 @@ const PLANT_DATA = {
       conexiones: { aguasArriba: 'BC-101 / BC-102', aguasAbajo: 'Almacén temporal de pallets → 4 bahías de despacho (sur)' },
       faseProducto: '🟢 Pallets de producto terminado',
     },
+    cuarentena: {
+      id: 'cuarentena', tipo: 'equipo', nombre: 'Estación de Cuarentena — Producto No Conforme', etapa: 9,
+      marca: 'Área de bloqueo de lote · auditoría QA (puerta QC-4)',
+      pos: { x: 34, y: 76, w: 5, h: 3 }, alturaEq: 2.5, edificio: 'naveB',
+      dims: '5.0 × 3.0 m · demarcación roja + racks de retención', peso: '—',
+      alimentacion: '120/208 V — iluminación y báscula de verificación (TTD)',
+      consumos: '—',
+      materiales: 'Zona demarcada con acceso restringido · etiquetado RETENIDO/WMS',
+      velocidad: 'Disposición final: ♻ Reproceso (retorna a post-adición/tolvas) o ✗ Desecho. Meta: <2 % no conforme — la mayoría se recupera vía reproceso',
+      conexiones: { aguasArriba: 'Checkweigher + detector de metales (rechazo QC-4: peso · sello · metales)', aguasAbajo: '♻ Reproceso → tolvas/post-adición · ✗ Desecho → gestor autorizado' },
+      faseProducto: '🔴 Producto envasado RETENIDO (bloqueo de lote)',
+    },
   },
 
   // ---------------- FLUJO DE PROCESO (10 SUBPROCESOS) ----------------
@@ -356,6 +368,63 @@ const PLANT_DATA = {
     { dia: 'Viernes',   turnos: [{ act: 'setup', de: '3kg', a: '5kg' }, { act: 'pack', formato: '5kg' }, { act: 'setup', de: '5kg', a: '20kg' }] },
     { dia: 'Sábado',    turnos: [{ act: 'pack', formato: '20kg' }, { act: 'setup', de: '20kg', a: '50kg' }, { act: 'pack', formato: '50kg' }] },
     { dia: 'Domingo',   turnos: [{ act: 'libre' }, { act: 'libre' }, { act: 'libre' }] },
+  ],
+
+  // ---------------- CONTROL DE CALIDAD (4 PUERTAS QC · 4 CAMINOS) ----------------
+  qc: {
+    metaPct: 2, // meta: <2 % de producto no conforme
+    puertas: {
+      qc1: {
+        tag: 'QC-1', pregunta: '¿MP cumple ficha técnica?',
+        ubicacion: 'Recepción de materia prima (silos, etapa ①→②)',
+        camino: 'MP NO CONFORME → Devolución a proveedor',
+        accion: 'Lote rechazado: aislamiento en zona de no conformidad y devolución. Sale del sistema.',
+        loteKg: 1000, inspeccionMin: 15, accionMin: 0, recupera: false,
+      },
+      qc2: {
+        tag: 'QC-2', pregunta: '¿Slurry OK? (densidad · viscosidad · % sólidos)',
+        ubicacion: 'Salida de mezclado TK-101/TK-102 (etapa ③→④)',
+        camino: 'SLURRY FUERA DE SPEC → Reformular + re-mezclar',
+        accion: 'El slurry retorna al mezclador para ajuste de fórmula (1 h). La torre entra en recirculación interna — no se alimenta slurry nuevo.',
+        loteKg: 0, inspeccionMin: 15, accionMin: 60, recupera: true,
+      },
+      qc3: {
+        tag: 'QC-3', pregunta: '¿Humedad ≤ 5 %? (gránulo)',
+        ubicacion: 'Salida de torre / enfriado (etapa ⑤→⑥)',
+        camino: 'GRÁNULOS NO CONFORMES → Retrabajo de gránulos',
+        accion: 'Los gránulos retornan al mezclado por la línea de retrabajo (1 h): se re-disuelven en el slurry y se recuperan. Las tolvas no reciben durante el retrabajo.',
+        loteKg: 0, inspeccionMin: 15, accionMin: 60, recupera: true,
+      },
+      qc4: {
+        tag: 'QC-4', pregunta: '¿Peso · sello · metales OK?',
+        ubicacion: 'Checkweigher + detector de metales (etapa ⑨)',
+        camino: 'PRODUCTO ENVASADO → CUARENTENA (bloqueo de lote · auditoría QA)',
+        accion: 'Disposición final tras auditoría: ♻ Reproceso (retorna a tolvas/post-adición) o ✗ Desecho.',
+        loteKg: 400, inspeccionMin: 15, accionMin: 0, recupera: true,
+      },
+    },
+    // En modo automático ~80 % del producto en cuarentena se reprocesa (la mayoría se recupera)
+    autoReprocesoPct: 80,
+  },
+
+  // ---------------- DISTRIBUCIÓN POR PRESENTACIÓN (base 27,000 kg/día) ----------------
+  distribucionPresentaciones: [
+    { formato: '500g', seg: 'Hogar',      pct: 15, kgDia: 4050, udsDia: 8100, udsMes: 243000 },
+    { formato: '1kg',  seg: 'Hogar',      pct: 25, kgDia: 6750, udsDia: 6750, udsMes: 202500 },
+    { formato: '3kg',  seg: 'Hogar',      pct: 20, kgDia: 5400, udsDia: 1800, udsMes: 54000 },
+    { formato: '5kg',  seg: 'Industrial', pct: 15, kgDia: 4050, udsDia: 810,  udsMes: 24300 },
+    { formato: '20kg', seg: 'Industrial', pct: 15, kgDia: 4050, udsDia: 202,  udsMes: 6075 },
+    { formato: '50kg', seg: 'Industrial', pct: 10, kgDia: 2700, udsDia: 54,   udsMes: 1620 },
+  ],
+
+  // ---------------- VERIFICACIÓN DE METAS MENSUALES (4 ciclos × 7 días) ----------------
+  metasMensuales: [
+    { formato: '500g', equipo: 'VFFS · 3,600 uds/h',      turnosCiclo: 3, hMes: 96, prodMes: 345600, metaMes: 243000 },
+    { formato: '1kg',  equipo: 'VFFS · 2,400 uds/h',      turnosCiclo: 3, hMes: 96, prodMes: 230400, metaMes: 202500 },
+    { formato: '3kg',  equipo: 'VFFS · 900 uds/h',        turnosCiclo: 2, hMes: 64, prodMes: 57600,  metaMes: 54000 },
+    { formato: '5kg',  equipo: 'Ensacadora · 540 uds/h',  turnosCiclo: 2, hMes: 64, prodMes: 34560,  metaMes: 24300 },
+    { formato: '20kg', equipo: 'Ensacadora · 180 uds/h',  turnosCiclo: 2, hMes: 64, prodMes: 11520,  metaMes: 6075 },
+    { formato: '50kg', equipo: 'Ensacadora · 90 uds/h',   turnosCiclo: 1, hMes: 32, prodMes: 2880,   metaMes: 1620 },
   ],
 
   // ---------------- DATOS ELÉCTRICOS (ELEC-REF-001) ----------------

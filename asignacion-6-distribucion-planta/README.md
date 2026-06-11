@@ -28,6 +28,12 @@ Resolución recomendada: 1280 px de ancho o más.
 
 **Sinergia global:** el estado de la simulación se comparte entre pestañas — la torre en alerta parpadea en el 2D, pulsa en rojo en el 3D y el P&ID, y el unifilar muestra MCC-B desenergizado durante el mantenimiento. Las fichas técnicas incluyen el estado operativo actual (kg/h, % de utilización, alertas).
 
+## Control de calidad — producto no conforme (4 puertas QC · 4 caminos)
+
+- **QC-1** (¿MP cumple ficha técnica?) → Devolución a proveedor · **QC-2** (¿Slurry OK?) → Reformular + re-mezclar · **QC-3** (¿Humedad ≤5 %?) → Retrabajo de gránulos · **QC-4** (¿Peso·sello·metales OK?) → Cuarentena con disposición final ♻ Reproceso / ✗ Desecho.
+- **Modo automático:** durante la simulación normal se detectan no conformes ocasionales (meta <2 %) y se disponen solos (≈80 % reproceso). **Modo manual:** botones QC-1 a QC-4 en la pestaña 5; en QC-4 tú decides la disposición.
+- Estación de Cuarentena visible y clicable en el plano 2D/3D, puertas QC y líneas de retorno en la capa "🧪 Puertas QC y retornos" del 2D, retorno de retrabajo en el P&ID, y KPIs de % no conforme / reproceso / desecho en vivo.
+
 ## Datos clave del modelo
 
 - Torre GEA NIRO®: **cuello de botella, máx 1,500 kg/h**, opera 24/7 (nunca se detiene).

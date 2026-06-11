@@ -260,6 +260,7 @@ const Plano3D = {
       bc101: { tipo: 'caja', color: 0x9c8a80 },
       bc102: { tipo: 'caja', color: 0x9c8a80 },
       paletizador: { tipo: 'caja', color: 0xe09b4d },
+      cuarentena: { tipo: 'caja', color: 0xc94f4f },
     };
     this.mallasEquipo = {};
     for (const [id, gdef] of Object.entries(equiposGeom)) {
@@ -365,6 +366,17 @@ const Plano3D = {
       this.matTorre.color.setRGB(0.9, 0.9 - k * 0.65, 0.9 - k * 0.65);
     } else {
       this.matTorre.color.setHex(0xe8e8ee);
+    }
+
+    // estación de cuarentena: pulso cuando hay lote retenido (QC-4)
+    const mCuar = this.mallasEquipo.cuarentena;
+    if (mCuar) {
+      if (Sim.qcStats.cuarentena > 0) {
+        const k = (Math.sin(Date.now() / 160) + 1) / 2;
+        mCuar.material.color.setRGB(0.85 + k * 0.15, 0.18, 0.18);
+      } else {
+        mCuar.material.color.setHex(0xc94f4f);
+      }
     }
 
     this.renderer.render(this.escena, this.camara);

@@ -18,7 +18,9 @@ const Plano2D = {
     tb.innerHTML = `
       <button id="btnAjustar2d">⤢ Ajustar vista</button>
       <label class="toggle on" id="tgCotas">📏 Mostrar/ocultar cotas</label>
-      <label class="toggle" id="tgFlujo">①→⑩ Flujo de proceso</label>`;
+      <label class="toggle" id="tgFlujo">①→⑩ Flujo de proceso</label>
+      <label class="toggle" id="tgQc">🧪 Puertas QC y retornos</label>
+      <label class="toggle" id="tgDist">ℹ Tipo de distribución</label>`;
     cont.appendChild(tb);
 
     const svg = svgEl('svg', { class: 'lienzo-svg', preserveAspectRatio: 'xMidYMid meet' });
@@ -36,6 +38,37 @@ const Plano2D = {
     document.getElementById('tgFlujo').onclick = (e) => {
       e.currentTarget.classList.toggle('on');
       this.gFlujo.style.display = e.currentTarget.classList.contains('on') ? '' : 'none';
+    };
+    document.getElementById('tgQc').onclick = (e) => {
+      e.currentTarget.classList.toggle('on');
+      this.gQc.style.display = e.currentTarget.classList.contains('on') ? '' : 'none';
+    };
+
+    // Panel de justificación del tipo de distribución (Asignación #6)
+    const pd = document.createElement('div');
+    pd.className = 'mini-panel';
+    pd.style.display = 'none';
+    pd.style.maxWidth = '360px';
+    pd.innerHTML = `<h4>Tipo de distribución de planta</h4>
+      <table>
+        <tr><th>Tipo</th><th>¿Aplica?</th></tr>
+        <tr><td><b>Por producto (en línea)</b></td><td><span class="chip ok">SÍ — Principal</span></td></tr>
+        <tr><td>Por proceso (funcional)</td><td><span class="chip" style="background:#f9a825">Parcial — Soporte</span></td></tr>
+        <tr><td>Tecnología de grupos</td><td><span class="chip" style="background:#90a4ae">No aplica</span></td></tr>
+        <tr><td>Por posición fija</td><td><span class="chip" style="background:#90a4ae">No aplica</span></td></tr>
+      </table>
+      <div style="margin-top:6px;line-height:1.5">
+        <b>Principal:</b> los equipos siguen el orden exacto del proceso ①→⑩ sin retrocesos — la naturaleza
+        continua de la GEA NIRO® (24/7) exige distribución en línea: mínimo manejo de materiales, QC integrado
+        y máxima utilización del cuello de botella.<br>
+        <b>Complementaria:</b> áreas de soporte (laboratorio QC, taller, calderas, SCADA) agrupadas por función
+        en los Edificios C y D.<br>
+        <b>No aplican:</b> no hay familias de partes (producto único) y el producto nunca es estacionario.
+      </div>`;
+    cont.appendChild(pd);
+    document.getElementById('tgDist').onclick = (e) => {
+      e.currentTarget.classList.toggle('on');
+      pd.style.display = e.currentTarget.classList.contains('on') ? '' : 'none';
     };
 
     Bus.on('tick', () => this.actualizarEstado());
@@ -171,15 +204,20 @@ const Plano2D = {
       if (esTanque) {
         forma = svgEl('circle', { cx: p.x + p.w / 2, cy: p.y + p.h / 2, r: p.w / 2, fill: '#b3d3ee', class: 'equipo-rect cuerpo' });
       } else {
-        const colores = { torre: '#ffd180', enfriador: '#fff59d', postadicion: '#fff59d', tolvas: '#ffe082', vffs: '#c8e6c9', ensacadora: '#c8e6c9', paletizador: '#c8e6c9', distribuidor: '#e1bee7', checkweigher: '#b2dfdb', bc101: '#d7ccc8', bc102: '#d7ccc8', p101: '#b3d3ee', p102: '#b3d3ee' };
+        const colores = { torre: '#ffd180', enfriador: '#fff59d', postadicion: '#fff59d', tolvas: '#ffe082', vffs: '#c8e6c9', ensacadora: '#c8e6c9', paletizador: '#c8e6c9', distribuidor: '#e1bee7', checkweigher: '#b2dfdb', bc101: '#d7ccc8', bc102: '#d7ccc8', p101: '#b3d3ee', p102: '#b3d3ee', cuarentena: '#ffcdd2' };
         forma = svgEl('rect', { x: p.x, y: p.y, width: p.w, height: p.h, fill: colores[eq.id] || '#e0e0e0', class: 'equipo-rect cuerpo', rx: 0.15 });
+      }
+      if (eq.id === 'cuarentena') {
+        forma.setAttribute('stroke', '#b71c1c');
+        forma.setAttribute('stroke-dasharray', '0.7 0.45');
+        forma.setAttribute('stroke-width', '0.35');
       }
       g.appendChild(forma);
       this.nodosEquipo[eq.id] = forma;
 
       // etiqueta corta + dimensiones al lado del equipo
-      const cortos = { tk101: 'TK-101', tk102: 'TK-102', p101: 'P-101', p102: 'P-102', torre: 'TORRE GEA NIRO®', enfriador: 'VIBRO-FLUIDIZER', postadicion: 'POST-ADICIÓN', tolvas: 'TOLVAS BUFFER 3×5,000 kg', distribuidor: 'DISTRIBUIDOR', vffs: 'VFFS ROVEMA (Mód. A)', ensacadora: 'ENSACADORA H&B (Mód. B)', checkweigher: 'CW + DM', bc101: 'BC-101', bc102: 'BC-102', paletizador: 'PALETIZADOR' };
-      const dimsCortas = { tk101: 'Ø3.0 m', tk102: 'Ø3.0 m', p101: '2.0×1.2', p102: '2.0×1.2', torre: '12×14 m · h 15–20 m', enfriador: '4×2 m', postadicion: '4×2.5 m', tolvas: '6.00×3.00 m', distribuidor: '2×1.5', vffs: '1.8×1.2 · h 2.8', ensacadora: '2.5×2.0 · h 2.8', checkweigher: '1.6×1.0', bc101: '6.0 m', bc102: '6.0 m', paletizador: '2.2×2.2' };
+      const cortos = { tk101: 'TK-101', tk102: 'TK-102', p101: 'P-101', p102: 'P-102', torre: 'TORRE GEA NIRO®', enfriador: 'VIBRO-FLUIDIZER', postadicion: 'POST-ADICIÓN', tolvas: 'TOLVAS BUFFER 3×5,000 kg', distribuidor: 'DISTRIBUIDOR', vffs: 'VFFS ROVEMA (Mód. A)', ensacadora: 'ENSACADORA H&B (Mód. B)', checkweigher: 'CW + DM', bc101: 'BC-101', bc102: 'BC-102', paletizador: 'PALETIZADOR', cuarentena: '🔴 CUARENTENA QC' };
+      const dimsCortas = { tk101: 'Ø3.0 m', tk102: 'Ø3.0 m', p101: '2.0×1.2', p102: '2.0×1.2', torre: '12×14 m · h 15–20 m', enfriador: '4×2 m', postadicion: '4×2.5 m', tolvas: '6.00×3.00 m', distribuidor: '2×1.5', vffs: '1.8×1.2 · h 2.8', ensacadora: '2.5×2.0 · h 2.8', checkweigher: '1.6×1.0', bc101: '6.0 m', bc102: '6.0 m', paletizador: '2.2×2.2', cuarentena: '5.0×3.0 m' };
       g.appendChild(svgEl('text', { x: p.x + p.w / 2, y: p.y + p.h / 2 + (eq.id === 'torre' ? -0.5 : 0.2), class: 'etiq-svg', 'font-size': eq.id === 'torre' ? 1.3 : 0.75, 'text-anchor': 'middle', 'font-weight': 700 }, cortos[eq.id]));
       g.appendChild(svgEl('text', { x: p.x + p.w / 2, y: p.y + p.h + 0.9, class: 'cota-texto', 'font-size': 0.7, 'text-anchor': 'middle' }, dimsCortas[eq.id]));
       hacerInteractivo(g, eq.id);
@@ -232,6 +270,45 @@ const Plano2D = {
     });
     svg.appendChild(gFlujo);
 
+    // ---- Capa QC: puertas de calidad + retornos de no conforme ----
+    const gQc = svgEl('g', { style: 'display:none' });
+    this.gQc = gQc;
+    // líneas de retorno (rojas discontinuas)
+    const retornosQc = [
+      ['M 33 40 L 26 36 L 14 36 L 12 37.5', 'retrabajo de gránulos (QC-3) → mezclado', 18, 35.2],   // enfriador → TK
+      ['M 16 39 C 14 39 13.5 38.5 13 38.4', 'reformular slurry (QC-2)', 0, 0],                      // bomba → TK
+      ['M 36.5 76.5 L 43 76.5 L 43 47 L 45 44.5', '♻ reproceso (QC-4) → tolvas', 44, 60],          // cuarentena → tolvas
+      ['M 51 24 L 51 14 L 48 9', '↩ devolución a proveedor (QC-1)', 39, 12],                       // silos → norte
+    ];
+    for (const [d, etiq, ex, ey] of retornosQc) {
+      gQc.appendChild(svgEl('path', { d, fill: 'none', stroke: '#b71c1c', 'stroke-width': 0.45, 'stroke-dasharray': '1.2 0.8', 'marker-end': 'url(#flecha2d)', opacity: 0.9 }));
+      if (ex) gQc.appendChild(svgEl('text', { x: ex, y: ey, 'font-size': 0.95, fill: '#b71c1c', 'font-weight': 600 }, etiq));
+    }
+    // diamantes QC clicables
+    const puertasPos = { qc1: [51, 30], qc2: [17.8, 43.5], qc3: [33, 41.5], qc4: [21.3, 71.7] };
+    this.nodosQc = {};
+    for (const [id, [qx, qy]] of Object.entries(puertasPos)) {
+      const def = PLANT_DATA.qc.puertas[id];
+      const gd = svgEl('g', { class: 'clicable' });
+      const dia = svgEl('path', { d: `M ${qx} ${qy - 1.3} L ${qx + 1.3} ${qy} L ${qx} ${qy + 1.3} L ${qx - 1.3} ${qy} Z`, fill: '#fff', stroke: '#b71c1c', 'stroke-width': 0.28 });
+      gd.appendChild(dia);
+      gd.appendChild(svgEl('text', { x: qx, y: qy + 0.4, 'font-size': 0.85, 'text-anchor': 'middle', 'font-weight': 700, fill: '#b71c1c' }, def.tag));
+      gd.addEventListener('mouseenter', (e) => mostrarTooltip(e, `<b>${def.tag}</b> — ${def.pregunta}<br>NO → ${def.camino}`));
+      gd.addEventListener('mousemove', moverTooltip);
+      gd.addEventListener('mouseleave', ocultarTooltip);
+      gd.addEventListener('click', (e) => {
+        e.stopPropagation();
+        abrirFichaLibre(`${def.tag} — Puerta de control de calidad`, def.pregunta, [
+          ['Ubicación', def.ubicacion], ['Criterio', def.pregunta],
+          ['Camino de no conformidad', def.camino], ['Acción', def.accion],
+          ['Programa QC', '4 puertas · 4 caminos (Devolución · Reformular · Retrabajo · Cuarentena) · meta <2 % no conforme'],
+        ]);
+      });
+      gQc.appendChild(gd);
+      this.nodosQc[id] = dia;
+    }
+    svg.appendChild(gQc);
+
     // ---- Leyenda ----
     const gLey = svgEl('g', {});
     gLey.appendChild(svgEl('rect', { x: 44, y: 92.2, width: 54, height: 7.2, fill: '#fff', stroke: '#1a3a5c', 'stroke-width': 0.25 }));
@@ -259,11 +336,17 @@ const Plano2D = {
   // Sinergia: reflejar alertas de la simulación
   actualizarEstado() {
     if (!this.inicializado) return;
-    const torre = this.nodosEquipo.torre, tolvas = this.nodosEquipo.tolvas;
+    const torre = this.nodosEquipo.torre, tolvas = this.nodosEquipo.tolvas, cuar = this.nodosEquipo.cuarentena;
     if (torre) torre.classList.toggle('alerta-parpadeo', !!Sim.alertas.torre);
     if (tolvas) {
       tolvas.classList.toggle('alerta-parpadeo', !!(Sim.alertas.tolvas && Sim.alertas.tolvas.nivel === 'roja'));
       tolvas.classList.toggle('alerta-amarilla-parpadeo', !!(Sim.alertas.tolvas && Sim.alertas.tolvas.nivel === 'amarilla'));
+    }
+    if (cuar) cuar.classList.toggle('alerta-parpadeo', Sim.qcStats.cuarentena > 0);
+    if (this.nodosQc) {
+      for (const [id, dia] of Object.entries(this.nodosQc)) {
+        dia.classList.toggle('alerta-parpadeo', !!(Sim.qcEvento && Sim.qcEvento.puerta === id));
+      }
     }
   },
 };
