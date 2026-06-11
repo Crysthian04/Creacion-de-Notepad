@@ -49,6 +49,7 @@ const Plano2D = {
     pd.className = 'mini-panel';
     pd.style.display = 'none';
     pd.style.maxWidth = '360px';
+    pd.style.top = '92px'; // debajo de la barra de herramientas, sin sobreponerse
     pd.innerHTML = `<h4>Tipo de distribución de planta</h4>
       <table>
         <tr><th>Tipo</th><th>¿Aplica?</th></tr>
@@ -106,7 +107,7 @@ const Plano2D = {
     const T = PLANT_DATA.proyecto.terreno;
 
     // ---- Terreno y vial perimetral ----
-    svg.appendChild(svgEl('rect', { x: 0, y: 0, width: T.w, height: T.h, fill: '#eef2e8', stroke: '#1a3a5c', 'stroke-width': 0.5 }));
+    svg.appendChild(svgEl('rect', { id: 'terreno2d', x: 0, y: 0, width: T.w, height: T.h, fill: '#eef2e8', stroke: '#1a3a5c', 'stroke-width': 0.5 }));
     svg.appendChild(svgEl('rect', { x: 1, y: 1, width: T.w - 2, height: T.h - 2, fill: 'none', stroke: '#888', 'stroke-width': 7, opacity: 0.35 })); // vial 7 m
     svg.appendChild(svgEl('rect', { x: 1, y: 1, width: T.w - 2, height: T.h - 2, fill: 'none', stroke: '#555', 'stroke-width': 0.15, 'stroke-dasharray': '2 1.2' }));
     svg.appendChild(svgEl('text', { x: 50, y: 3.6, class: 'etiq-svg', 'font-size': 1.6, 'text-anchor': 'middle', 'font-weight': 700 }, '⬆ ACCESO CAMIONES DE MATERIA PRIMA (NORTE) — Vial perimetral 7.00 m · R 15.00'));
@@ -255,6 +256,7 @@ const Plano2D = {
       [53.5, 26.5], [50, 33], [11.5, 38], [16, 39.5], [26, 44],
       [36, 40], [36, 45.2], [43, 42.5], [17, 70], [31, 71.5],
     ];
+    this.puntosFlujo = puntosFlujo;
     for (let i = 0; i < puntosFlujo.length - 1; i++) {
       const [x1, y1] = puntosFlujo[i], [x2, y2] = puntosFlujo[i + 1];
       const f = PLANT_DATA.flujo[i];
@@ -331,6 +333,9 @@ const Plano2D = {
     this.cota(gCotas, 0, -3.5, 100, -3.5, '100.00 m', 1.8);
     this.cota(gCotas, -4.5, 100, -4.5, 0, '100.00 m (10,000 m²)', 1.8);
     svg.appendChild(gCotas);
+
+    // Complementos: recorrido narrado, checklist, mezzanines y temas
+    Recorrido.init();
   },
 
   // Sinergia: reflejar alertas de la simulación

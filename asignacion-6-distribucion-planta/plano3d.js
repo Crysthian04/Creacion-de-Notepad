@@ -280,6 +280,24 @@ const Plano3D = {
       this.mallasEquipo[id] = m;
     }
 
+    // Mezzanines (plataformas técnicas elevadas, del plano complementario)
+    const mezz3d = (x, y, w, h, alt) => {
+      const [cx, cz] = this.aXZ(x + w / 2, y + h / 2);
+      const plat = new THREE.Mesh(new THREE.BoxGeometry(w, 0.3, h),
+        new THREE.MeshLambertMaterial({ color: 0x7986cb, transparent: true, opacity: 0.55 }));
+      plat.position.set(cx, alt, cz);
+      this.escena.add(plat);
+      // columnas de apoyo
+      for (const [dx, dz] of [[-w / 2 + 0.5, -h / 2 + 0.5], [w / 2 - 0.5, -h / 2 + 0.5], [-w / 2 + 0.5, h / 2 - 0.5], [w / 2 - 0.5, h / 2 - 0.5]]) {
+        const col = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, alt, 8),
+          new THREE.MeshLambertMaterial({ color: 0x5c6bc0 }));
+        col.position.set(cx + dx, alt / 2, cz + dz);
+        this.escena.add(col);
+      }
+    };
+    mezz3d(33, 43.5, 14.5, 9.5, 4.5);  // Nave A +4.50 m
+    mezz3d(31, 63, 8, 4, 3.2);          // Nave B +3.20 m
+
     // Camiones en bahías (cajas simples) y en acceso norte
     const camion = (x, y, rot = 0) => {
       const g = new THREE.Group();
