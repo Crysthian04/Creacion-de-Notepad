@@ -34,6 +34,14 @@ Resolución recomendada: 1280 px de ancho o más.
 - **Modo automático:** durante la simulación normal se detectan no conformes ocasionales (meta <2 %) y se disponen solos (≈80 % reproceso). **Modo manual:** botones QC-1 a QC-4 en la pestaña 5; en QC-4 tú decides la disposición.
 - Estación de Cuarentena visible y clicable en el plano 2D/3D, puertas QC y líneas de retorno en la capa "🧪 Puertas QC y retornos" del 2D, retorno de retrabajo en el P&ID, y KPIs de % no conforme / reproceso / desecho en vivo.
 
+## Complementos integrados (de los repos del proyecto REFRESH)
+
+Los datos del trabajo base (Asignación #6) son siempre la referencia válida; estos módulos los complementan sin contradecirlos:
+
+- **Plano 2D:** 🎬 recorrido narrado del proceso en 10 pasos con partícula animada y timeline · ✓ checklist de cumplimiento normativo (7 verificaciones: vial, SENADIS, montacargas, silos, ATEX, expansión, cortafuego) · 🏗 capa de mezzanines (+4.50 m Nave A, +3.20 m Nave B, también en 3D) · 🎨 temas de color Claro/Blueprint/Oscuro.
+- **P&ID:** ⚙ panel de variables de proceso (presión de caldera, aire, SP de temperatura, Hz de bomba) con retroalimentación calculada y lecturas en vivo sobre los instrumentos · mando ABRIR/CERRAR en XV-101 y XV-302 que corta visualmente el flujo aguas abajo · fichas enriquecidas (HX ≈380 kW/78 m², ciclones ≈99.2 % captura, boquilla Delavan, sellos dobles) · cajetín con timestamp en vivo.
+- **Unifilar — 4 estudios como sub-pestañas:** 〜 armónicos IEEE 519 (osciloscopio + espectro H1–H19 con toggle del filtro AHF, usando los THDv del trabajo base) · ⚡ simulador de selectividad (falla en ensacadora → solo dispara el breaker local 75 A/18 kAIC) · 🧮 calculadora NEC (corrección de FP que valida el banco de 600 kVAr, base de motores 480 V NEC 430.250, llenado de conduit Cap. 9) · 📈 monitoreo ISO 50001 (medidores clase 0.5S alimentados por la simulación y termografía de barras).
+
 ## Datos clave del modelo
 
 - Torre GEA NIRO®: **cuello de botella, máx 1,500 kg/h**, opera 24/7 (nunca se detiene).

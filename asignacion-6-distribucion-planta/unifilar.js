@@ -56,6 +56,9 @@ const Unifilar = {
     };
     this.energizadoVisible = true;
     Bus.on('tick', () => this.actualizarEnergizado());
+
+    // Estudios eléctricos complementarios (armónicos, selectividad, NEC, ISO 50001)
+    Estudios.init(cont, tb, ip);
   },
 
   // ---------- helpers de símbolos ----------

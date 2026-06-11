@@ -72,9 +72,95 @@ const PID = {
     };
 
     this.dibujar();
+    this.crearPanelProceso(cont);
     Bus.on('tick', () => {
       if (this.nodoTorre) this.nodoTorre.classList.toggle('alerta-parpadeo', !!Sim.alertas.torre);
     });
+  },
+
+  /* ---- Sliders de proceso con retroalimentación calculada (complemento del P&ID mecánico) ---- */
+  proceso: { presionCaldera: 8, presionAire: 7, spTemp: 250, hzBomba: 45 },
+  valvulas: { 'XV-101': { abierta: true }, 'XV-302': { abierta: true } },
+
+  crearPanelProceso(cont) {
+    const p = document.createElement('div');
+    p.className = 'mini-panel';
+    p.style.maxWidth = '300px';
+    p.innerHTML = `
+      <h4>⚙ Variables de proceso (en vivo)</h4>
+      <div class="ctrl-fila" style="margin-bottom:8px">
+        <label style="font-size:10.5px">Presión caldera S-1: <b id="pcLec">8.0 barg</b> <span style="color:#7a8a99">(diseño 8 barg)</span></label>
+        <input type="range" id="slCaldera" min="6" max="15" step="0.5" value="8">
+      </div>
+      <div class="ctrl-fila" style="margin-bottom:8px">
+        <label style="font-size:10.5px">Presión aire S-2: <b id="paLec">7.0 barg</b></label>
+        <input type="range" id="slAire" min="4" max="8" step="0.2" value="7">
+      </div>
+      <div class="ctrl-fila" style="margin-bottom:8px">
+        <label style="font-size:10.5px">SP temperatura aire (TC-101): <b id="spLec">250 °C</b></label>
+        <input type="range" id="slSp" min="150" max="300" step="5" value="250">
+      </div>
+      <div class="ctrl-fila" style="margin-bottom:8px">
+        <label style="font-size:10.5px">Frecuencia bomba P-101 (VFD-102): <b id="hzLec">45 Hz</b></label>
+        <input type="range" id="slHz" min="0" max="60" step="1" value="45">
+      </div>
+      <div id="procOut" style="border-top:1px solid #e8e6dd;padding-top:6px;font-size:10.5px;line-height:1.7"></div>`;
+    cont.appendChild(p);
+    const liga = (id, prop, fmt2) => {
+      p.querySelector('#' + id).oninput = (e) => {
+        this.proceso[prop] = +e.target.value;
+        this.calcularProceso();
+      };
+    };
+    liga('slCaldera', 'presionCaldera'); liga('slAire', 'presionAire');
+    liga('slSp', 'spTemp'); liga('slHz', 'hzBomba');
+    this.panelProc = p;
+    this.calcularProceso();
+  },
+
+  calcularProceso() {
+    const pr = this.proceso;
+    const vaporOk = this.valvulas['XV-101'].abierta;
+    // temperatura de aire alcanzable según presión de vapor (lazo TT-101→TC-101→XV-102)
+    const tMax = pr.presionCaldera * 31.2;
+    const tAire = vaporOk ? Math.min(pr.spTemp, tMax) : 28;
+    const caudal = 2000 * (pr.hzBomba / 60);
+    const tGranulo = Math.max(55, Math.min(82, 60 + (tAire - 200) * 0.2));
+    this.panelProc.querySelector('#pcLec').textContent = pr.presionCaldera.toFixed(1) + ' barg';
+    this.panelProc.querySelector('#paLec').textContent = pr.presionAire.toFixed(1) + ' barg';
+    this.panelProc.querySelector('#spLec').textContent = pr.spTemp + ' °C';
+    this.panelProc.querySelector('#hzLec').textContent = pr.hzBomba + ' Hz';
+    this.panelProc.querySelector('#procOut').innerHTML =
+      `🌡 Aire a torre (TT-101): <b>${tAire.toFixed(0)} °C</b> ${!vaporOk ? '<span style="color:#b71c1c">— XV-101 CERRADA, sin vapor</span>' : tAire < pr.spTemp ? '<span style="color:#b8860b">— limitado por presión de vapor</span>' : '✓ en SP'}<br>
+       💧 Caudal a boquilla (FT-402): <b>${fmt(caudal)} kg/h</b> ${caudal > 1500 ? '<span style="color:#b71c1c">— excede el cuello de botella 1,500 kg/h (recircula)</span>' : ''}<br>
+       🟠 Gránulo a la salida: <b>~${tGranulo.toFixed(0)} °C</b> (rango base 60–80 °C)<br>
+       🔵 Aire de instrumentos: <b>${pr.presionAire.toFixed(1)} barg</b> ${pr.presionAire < 5.5 ? '<span style="color:#b71c1c">— insuficiente para actuadores XV/PCV/FCV</span>' : '✓'}`;
+    // lecturas en vivo sobre el diagrama
+    if (this.lecturas) {
+      this.lecturas.tt101.textContent = tAire.toFixed(0) + ' °C';
+      this.lecturas.pt101.textContent = pr.presionCaldera.toFixed(1) + ' barg';
+      this.lecturas.pt201.textContent = pr.presionAire.toFixed(1) + ' barg';
+      this.lecturas.ft402.textContent = fmt(caudal) + ' kg/h';
+    }
+  },
+
+  /* ---- Toggle de válvulas: cerrar corta el flujo aguas abajo ---- */
+  toggleValvula(tag) {
+    const v = this.valvulas[tag];
+    v.abierta = !v.abierta;
+    const gris = '#9e9e9e';
+    v.lineas.forEach(({ p, estilo }) => {
+      p.setAttribute('stroke', v.abierta ? estilo.stroke : gris);
+      p.setAttribute('opacity', v.abierta ? 1 : 0.55);
+    });
+    v.marca.style.display = v.abierta ? 'none' : '';
+    this.calcularProceso();
+    const btn = document.getElementById('btnValv-' + tag);
+    if (btn) {
+      btn.textContent = v.abierta ? '🔴 CERRAR válvula' : '🟢 ABRIR válvula';
+      const est = document.getElementById('estValv-' + tag);
+      if (est) est.innerHTML = v.abierta ? '<span class="chip ok">ABIERTA — flujo habilitado</span>' : '<span class="chip err">CERRADA — línea aguas abajo sin flujo</span>';
+    }
   },
 
   linea(d, tipo, etiqueta, ex, ey) {
@@ -124,7 +210,16 @@ const PID = {
     }
     if (tag) {
       const d = this.INSTR[tag];
-      g.addEventListener('mouseenter', (e) => mostrarTooltip(e, `<b>${tag}</b> — ${d ? d[0] : 'Válvula'}`));
+      const toggleable = !!this.valvulas[tag];
+      if (toggleable) {
+        // marca de "cerrada" (X roja sobre la válvula)
+        const marca = svgEl('g', { style: 'display:none' });
+        marca.appendChild(svgEl('line', { x1: x - 13, y1: y - 13, x2: x + 13, y2: y + 13, stroke: '#d32f2f', 'stroke-width': 3 }));
+        marca.appendChild(svgEl('line', { x1: x - 13, y1: y + 13, x2: x + 13, y2: y - 13, stroke: '#d32f2f', 'stroke-width': 3 }));
+        g.appendChild(marca);
+        this.valvulas[tag].marca = marca;
+      }
+      g.addEventListener('mouseenter', (e) => mostrarTooltip(e, `<b>${tag}</b> — ${d ? d[0] : 'Válvula'}${toggleable ? '<br>🖱 Clic para inspección y mando ABRIR/CERRAR' : ''}`));
       g.addEventListener('mousemove', moverTooltip);
       g.addEventListener('mouseleave', ocultarTooltip);
       g.addEventListener('click', (e) => {
@@ -133,6 +228,22 @@ const PID = {
           ['Tag', tag], ['Servicio', d ? d[1] : '—'], ['Rango', d ? d[2] : '—'], ['Función', d ? d[3] : '—'],
           ['Norma', 'ISA-5.1 · ISO 10628'],
         ]);
+        if (toggleable) {
+          const v = this.valvulas[tag];
+          const cuerpo = document.getElementById('drawerCuerpo');
+          const div = document.createElement('div');
+          div.className = 'ficha-fila';
+          div.innerHTML = `<div class="etiq">Mando de operación (simulado)</div>
+            <div id="estValv-${tag}" style="margin-bottom:6px">${v.abierta ? '<span class="chip ok">ABIERTA — flujo habilitado</span>' : '<span class="chip err">CERRADA — línea aguas abajo sin flujo</span>'}</div>`;
+          const btn = document.createElement('button');
+          btn.id = 'btnValv-' + tag;
+          btn.className = 'qc-botones';
+          btn.style.cssText = 'border:1.5px solid #1a3a5c;background:#fff;color:#1a3a5c;font:700 11.5px Inter,sans-serif;padding:7px 12px;border-radius:4px;cursor:pointer';
+          btn.textContent = v.abierta ? '🔴 CERRAR válvula' : '🟢 ABRIR válvula';
+          btn.onclick = () => this.toggleValvula(tag);
+          div.appendChild(btn);
+          cuerpo.appendChild(div);
+        }
       });
     }
     this.svg.appendChild(g);
@@ -181,7 +292,7 @@ const PID = {
     svg.appendChild(svgEl('path', { d: 'M 90 90 v -22 h 14 v 22', fill: 'none', stroke: '#1a3a5c', 'stroke-width': 2 })); // chimenea
     svg.appendChild(svgEl('text', { x: 118, y: 200, 'font-size': 18 }, '🔥'));
     // línea de vapor
-    this.linea('M 210 140 H 560', 'vapor', 'VAPOR 8 barg · 185 °C', 230, 128);
+    const lnVapor1 = this.linea('M 210 140 H 560', 'vapor', 'VAPOR 8 barg · 185 °C', 230, 128);
     this.instr(255, 95, 'PT-101'); svg.appendChild(svgEl('line', { x1: 255, y1: 112, x2: 255, y2: 140, stroke: '#1a3a5c', 'stroke-width': 1 }));
     this.instr(305, 95, 'PI-101'); svg.appendChild(svgEl('line', { x1: 305, y1: 112, x2: 305, y2: 140, stroke: '#1a3a5c', 'stroke-width': 1 }));
     this.valvula(340, 140, 'bola', 'XV-101');
@@ -193,7 +304,7 @@ const PID = {
     svg.appendChild(st);
     svg.appendChild(svgEl('text', { x: 558, y: 170, 'font-size': 9.5, 'text-anchor': 'middle', fill: '#1a3a5c' }, 'ST-101'));
     // XV-102 control + HX
-    this.linea('M 571 140 H 645', 'vapor');
+    const lnVapor2 = this.linea('M 571 140 H 645', 'vapor');
     this.valvula(615, 140, 'control', 'XV-102');
     const hx = svgEl('g', { class: 'clicable' });
     hx.appendChild(svgEl('circle', { cx: 700, cy: 150, r: 45, fill: '#fff', stroke: '#1a3a5c', 'stroke-width': 2, class: 'cuerpo' }));
@@ -203,6 +314,7 @@ const PID = {
     hx.addEventListener('click', (e) => { e.stopPropagation(); abrirFichaLibre('HX-101 — Intercambiador de calor', 'Vapor → aire de secado', [
       ['Función', 'Calienta el aire de secado de la torre con vapor de S-1 (lazo TT-101 → TC-101 → XV-102)'],
       ['Lado caliente', 'Vapor 8 barg · 185 °C'], ['Lado frío', 'Aire filtrado → 200–300 °C'],
+      ['Datos complementarios', 'Potencia térmica ≈ 380 kW · área de intercambio ≈ 78 m² · presión de diseño 10 bar (especificación mecánica del fabricante)'],
       ['Condensado', 'Retorna vía ST-101 al sistema de recuperación'], ['Norma', 'ISO 10628'],
     ]); });
     svg.appendChild(hx);
@@ -210,9 +322,14 @@ const PID = {
     this.instr(830, 80, 'TC-101'); svg.appendChild(svgEl('line', { x1: 787, y1: 80, x2: 813, y2: 80, stroke: '#1a3a5c', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
     svg.appendChild(svgEl('path', { d: 'M 830 97 V 118 H 615 V 126', fill: 'none', stroke: '#1a3a5c', 'stroke-width': 1, 'stroke-dasharray': '3 3' })); // señal TC→XV-102
     // aire caliente a torre
-    this.linea('M 745 150 H 960 V 250 H 1048', 'caliente', 'AIRE CALIENTE A TORRE', 790, 168);
+    const lnCaliente = this.linea('M 745 150 H 960 V 250 H 1048', 'caliente', 'AIRE CALIENTE A TORRE', 790, 168);
     // condensado de HX
-    this.linea('M 700 195 V 268 H 220 ', 'cond', 'condensado a retorno', 380, 260);
+    const lnCond = this.linea('M 700 195 V 268 H 220 ', 'cond', 'condensado a retorno', 380, 260);
+    // aguas abajo de XV-101: cerrar la válvula corta vapor, aire caliente y condensado
+    this.valvulas['XV-101'].lineas = [
+      { p: lnVapor1, estilo: this.ESTILOS.vapor }, { p: lnVapor2, estilo: this.ESTILOS.vapor },
+      { p: lnCaliente, estilo: this.ESTILOS.caliente }, { p: lnCond, estilo: this.ESTILOS.cond },
+    ];
 
     // ---- S-2 Compresores ----
     this.cajaEquipo(40, 330, 170, 120, 'S-2 COMPRESORES', 'Aire comprimido 7 barg · ATEX', null, [
@@ -237,7 +354,8 @@ const PID = {
       ['Sala', 'Edificio C — junto a compresores'],
     ]);
     this.linea('M 210 625 H 540 V 470 H 558', 'aguadi', 'AGUA DI', 230, 613);
-    this.linea('M 540 625 V 690 H 900 V 320 H 1048', 'aguadi', 'AGUA DI a CIP torre', 700, 682);
+    const lnCip = this.linea('M 540 625 V 690 H 900 V 320 H 1048', 'aguadi', 'AGUA DI a CIP torre', 700, 682);
+    this.valvulas['XV-302'].lineas = [{ p: lnCip, estilo: this.ESTILOS.aguadi }];
     this.instr(255, 580, 'PT-301'); svg.appendChild(svgEl('line', { x1: 255, y1: 597, x2: 255, y2: 625, stroke: '#1a3a5c', 'stroke-width': 1 }));
     this.instr(305, 580, 'PI-301'); svg.appendChild(svgEl('line', { x1: 305, y1: 597, x2: 305, y2: 625, stroke: '#1a3a5c', 'stroke-width': 1 }));
     const f301 = svgEl('g', {});
@@ -321,9 +439,22 @@ const PID = {
     this.nodoTorre = torre.querySelector('.cuerpo');
 
     // ciclones
-    const ciclon = (x, xv, pi) => {
-      const g = svgEl('g', {});
-      g.appendChild(svgEl('path', { d: `M ${x} 150 h 56 v 36 l -28 58 z`, fill: '#fff', stroke: '#1a3a5c', 'stroke-width': 2 }));
+    const ciclon = (x, xv, pi, n) => {
+      const g = svgEl('g', { class: 'clicable' });
+      g.appendChild(svgEl('path', { d: `M ${x} 150 h 56 v 36 l -28 58 z`, fill: '#fff', stroke: '#1a3a5c', 'stroke-width': 2, class: 'cuerpo' }));
+      g.addEventListener('mouseenter', (e) => mostrarTooltip(e, `<b>Ciclón ${n}</b> — separación de finos · eficiencia ≈ 99.2 %`));
+      g.addEventListener('mousemove', moverTooltip);
+      g.addEventListener('mouseleave', ocultarTooltip);
+      g.addEventListener('click', (e) => {
+        e.stopPropagation();
+        abrirFichaLibre(`Ciclón ${n} — separador de finos`, 'Aguas abajo de la torre GEA NIRO®', [
+          ['Función', 'Recupera los finos arrastrados por el aire de salida de la torre y los retorna por línea neumática'],
+          ['Eficiencia de captura', '≈ 99.2 % (alta eficiencia, especificación del fabricante)'],
+          ['Limpieza', `Válvula de pulso ${xv} con aire 7 barg de S-2`],
+          ['Supervisión', `${pi} — presión diferencial 0–50 mbar (pérdida de carga)`],
+          ['Norma', 'ISO 10628 · ISA-5.1'],
+        ]);
+      });
       svg.appendChild(g);
       this.valvula(x + 28, 122, 'pulso', xv);
       this.instr(x + 28, 290, pi);
@@ -331,8 +462,8 @@ const PID = {
     };
     this.linea('M 1240 165 H 1290', 'caliente');
     this.linea('M 1346 165 H 1370', 'caliente');
-    ciclon(1290, 'XV-201', 'PI-202');
-    ciclon(1370, 'XV-202', 'PI-203');
+    ciclon(1290, 'XV-201', 'PI-202', 1);
+    ciclon(1370, 'XV-202', 'PI-203', 2);
     svg.appendChild(svgEl('text', { x: 1395, y: 330, 'font-size': 10, fill: '#546e7a', 'font-weight': 600 }, 'CICLONES 1 y 2'));
     // finos de ciclones retornan
     this.linea('M 1318 244 V 470 H 1252', 'retorno', 'finos a torre (línea neumática)', 1280, 488);
@@ -385,9 +516,24 @@ const PID = {
     cj.appendChild(svgEl('text', { x: 1230, y: 888, 'font-size': 11, 'text-anchor': 'middle' }, 'Servicios Industriales y Proceso — Nave A'));
     cj.appendChild(svgEl('text', { x: 1000, y: 930, 'font-size': 10.5 }, 'P&ID No.: REF-PRC-PID-001'));
     cj.appendChild(svgEl('text', { x: 1000, y: 948, 'font-size': 10.5 }, 'Normas: ISA-5.1 · ISO 10628 · DIN 28000'));
-    cj.appendChild(svgEl('text', { x: 1250, y: 930, 'font-size': 10.5 }, 'Hoja 1 de 1 · Escala N.T.S.'));
+    cj.appendChild(svgEl('text', { x: 1250, y: 930, 'font-size': 10.5 }, 'Hoja 1 de 1 · Escala N.T.S. · Rev. 2'));
     cj.appendChild(svgEl('text', { x: 1250, y: 948, 'font-size': 10.5 }, 'Junio 2026 · Panamá'));
+    // reloj en vivo del cajetín (formato ISO 14617 con timestamp auditable)
+    this.relojCajetin = svgEl('text', { x: 1472, y: 815, 'font-size': 9, 'text-anchor': 'end', fill: '#546e7a', 'font-family': 'monospace' }, '');
+    cj.appendChild(this.relojCajetin);
+    setInterval(() => {
+      this.relojCajetin.textContent = 'Consulta: ' + new Date().toLocaleString('es-PA', { dateStyle: 'short', timeStyle: 'medium' });
+    }, 1000);
     svg.appendChild(cj);
+
+    // lecturas en vivo junto a los instrumentos (ligadas al panel de variables)
+    this.lecturas = {
+      pt101: svgEl('text', { x: 255, y: 73, 'font-size': 9.5, 'text-anchor': 'middle', fill: '#b71c1c', 'font-weight': 700 }, '8.0 barg'),
+      tt101: svgEl('text', { x: 770, y: 112, 'font-size': 9.5, 'text-anchor': 'middle', fill: '#ef6c00', 'font-weight': 700 }, '250 °C'),
+      pt201: svgEl('text', { x: 255, y: 328, 'font-size': 9.5, 'text-anchor': 'middle', fill: '#00838f', 'font-weight': 700 }, '7.0 barg'),
+      ft402: svgEl('text', { x: 1000, y: 498, 'font-size': 9.5, 'text-anchor': 'middle', fill: '#2e7d32', 'font-weight': 700 }, '1,500 kg/h'),
+    };
+    Object.values(this.lecturas).forEach((t) => svg.appendChild(t));
   },
 
   _miniValv(g, x, y, tipo) {
