@@ -139,6 +139,40 @@ Servicios (Edificio C → rack de tuberías aéreo → Nave A):
 - **Complementaria: POR PROCESO (funcional)** — áreas de soporte (laboratorio QC, taller, calderas, SCADA) agrupadas por función en Edificios C y D.
 - **NO aplican:** tecnología de grupos (producto único, sin familias de partes) ni posición fija (el producto avanza continuamente).
 
+## 10-B. PRINCIPIOS BÁSICOS DE DISTRIBUCIÓN EN PLANTA (Asignación #6 — parte b)
+
+Terminología oficial de la PPT del curso: 1. Principio de la Integración de Conjunto · 2. Principio de la Mínima Distancia Recorrida · 3. Principio de la Circulación o Recorrido · 4. Principio del Espacio Cúbico · 5. Principio de Satisfacción y Seguridad · 6. Principio de Flexibilidad.
+
+**Criterio general de jerarquización:** REFRESH S.A. es una planta de PROCESO QUÍMICO CONTINUO con un cuello de botella físico (torre de secado, 1,500 kg/h, opera 24/7 y nunca se detiene). En este tipo de planta, el material fluye permanentemente y cualquier desorden en la secuencia, retroceso o cruce de flujos genera pérdidas directas de capacidad en el cuello de botella — que son irrecuperables. Por eso los principios asociados al FLUJO DEL MATERIAL (Circulación + Mínima Distancia = 45 % combinado) dominan la jerarquía, seguidos por SEGURIDAD (20 %) debido al riesgo ATEX inherente al polvo de detergente. Los principios de optimización espacial y adaptabilidad (Espacio Cúbico, Flexibilidad) cierran la lista no por ser menos válidos, sino porque en esta planta ya quedaron resueltos por diseño y no condicionaron el trazado.
+
+**Jerarquización 1–6 (suma 100 % ✓):**
+
+**1. PRINCIPIO DE LA CIRCULACIÓN O RECORRIDO — 25 %**
+POR QUÉ ES EL #1: En un proceso continuo, la secuencia de transformación es inalterable (slurry → secado → enfriado → post-adición → envasado). El layout DEBE seguir ese orden o la planta simplemente no funciona. Este principio no se "aplicó" al diseño: DICTÓ el diseño.
+CÓMO SE APLICÓ: Las áreas de trabajo están ordenadas en la misma secuencia en que se transforma el material: silos (norte) → Nave A proceso ①→⑧ → pasarela técnica → Nave B envasado ⑨ → paletizado ⑩ → bahías de despacho (sur). Ningún material retrocede en ninguna etapa (única excepción: retorno de finos QC-3, línea neumática dedicada que no cruza el flujo principal).
+
+**2. PRINCIPIO DE LA MÍNIMA DISTANCIA RECORRIDA — 20 %**
+POR QUÉ ES EL #2: Cada metro extra de transporte de slurry caliente (65–75 °C) o gránulo es pérdida térmica, riesgo de taponamiento y costo de bombeo. En proceso continuo el material recorre esa distancia MILES de veces al año — un sobrecosto de distancia se multiplica brutalmente.
+CÓMO SE APLICÓ: Flujo lineal Norte→Sur sin cruces: MP entra por el norte directo a silos; producto terminado sale por el sur directo a bahías. La pasarela A–B es RECTA (se evaluó una "L" y se descartó: rompía la caída por gravedad de las tolvas y agregaba un transportador). Equipos consecutivos del proceso son físicamente adyacentes. La bifurcación de envasado está al FINAL para que ambos módulos compartan el 100 % de la línea aguas arriba.
+
+**3. PRINCIPIO DE SATISFACCIÓN Y SEGURIDAD — 20 %** (empatado en peso con el #2)
+POR QUÉ ES EL #3: El polvo de detergente es ATEX (atmósfera explosiva). Un layout que mezcle fuentes de ignición (caldera, generador) con zonas de polvo es un riesgo inaceptable — la seguridad aquí no es un "extra", condiciona qué puede ir junto a qué.
+CÓMO SE APLICÓ: Segregación en 5 edificios independientes (caldera y generador en Edificio C, separados de las naves con polvo). Pasillos peatonales de 2.00 m físicamente segregados de corredores de montacargas de 3.50 m. Cumplimiento SENADIS: áreas de giro 1.50×1.50 m, puestos de estacionamiento accesibles. Semáforos acústico-luminosos y espejos convexos en cruces. Portones doble hoja 2.40 m con sello cortafuego. Trabajadores seguros = trabajo satisfactorio (definición textual del principio en la PPT).
+
+**4. PRINCIPIO DE LA INTEGRACIÓN DE CONJUNTO — 15 %**
+POR QUÉ ES EL #4: La planta funciona como UN solo organismo (hombres + máquinas + servicios + materiales), pero esta integración es CONSECUENCIA de haber aplicado bien los principios 1–3, no la causa del trazado.
+CÓMO SE APLICÓ: Los 5 edificios + patio de silos operan integrados: rack de tuberías aéreo lleva los servicios del Edificio C a la Nave A (vapor 8 barg, aire 7 barg, agua DI); SCADA central integra los PLC de todos los equipos; el Edificio D (laboratorio QC, taller, comedor) está posicionado equidistante de ambas naves para servir a todo el personal (65 personas pico/turno); el taller tiene portón directo a Nave A.
+
+**5. PRINCIPIO DEL ESPACIO CÚBICO — 12 %**
+POR QUÉ ES EL #5: Se aprovechó intensivamente la vertical, pero como HERRAMIENTA para servir al flujo (gravedad), no como objetivo en sí. El espacio horizontal no era una restricción (terreno de 10,000 m²).
+CÓMO SE APLICÓ: Nave A con 22 m de altura libre para la torre; mezzanines técnicos a +4.50 m (Nave A) y +3.20 m (Nave B); tolvas buffer en plataforma elevada descargando POR GRAVEDAD a los módulos de envasado (cero energía de transporte); transportadores aéreos suspendidos a +8 m dejando el piso libre; elevadores de cangilones que suben la MP 14 m para que luego TODO el proceso descienda por gravedad — la planta usa la altura como motor gratuito del flujo.
+
+**6. PRINCIPIO DE FLEXIBILIDAD — 8 %**
+POR QUÉ ES EL #6: En una planta de proceso continuo dedicada a UN solo producto (detergente en polvo), la reordenación interna de equipos es inherentemente baja — la torre de 80–120 toneladas no se va a mover. La flexibilidad se resolvió por RESERVA DE ESPACIO, no por movilidad de equipos, y por eso no condicionó el trazado interno.
+CÓMO SE APLICÓ: Área de expansión futura del 30 % del terreno (3,000 m²) en el lado ESTE, colindante con ambas naves — permite duplicar la capacidad (segunda torre o segunda línea de envasado) sin demoler ni reordenar nada de lo existente. La línea de envasado bifurcada admite un tercer módulo. Los servicios (generador 1,500 kW, transformador 1,500 kVA, banco 600 kVAr) están dimensionados con margen del 40 %+ para absorber la expansión. La demanda de los 6 formatos se ajusta con el calendario de turnos (flexibilidad operativa) sin tocar el layout.
+
+**REGLA DE ORO PARA DEFENDER EL ORDEN:** "El orden refleja la naturaleza de la planta: en un proceso químico continuo con cuello de botella, el flujo manda (45 %), la seguridad ATEX condiciona (20 %), la integración ejecuta (15 %) y la optimización espacial y la flexibilidad se resuelven por diseño (20 %). En una planta de taller (job shop) el orden sería casi el inverso — la flexibilidad sería #1. La jerarquía no es universal: depende del tipo de proceso."
+
 ## 11. TEORÍA DE RESTRICCIONES (TOC)
 
 Cuello de botella = **Torre GEA NIRO® a 1,500 kg/h** (Goldratt, 1984). Todos los equipos se dimensionaron alrededor de esta restricción. Si se pide >1,500 kg/h, el exceso de slurry se recircula (FCV-402). Si las tolvas llegan a 80 % → riesgo de sobreproducción; a 100 % → la torre debe reducir carga. El miércoles valida la regla: con 13.3 h de autonomía y 24 h de mantenimiento se requiere **gestión activa del nivel de tolvas antes del paro**. Referencias usadas: Goldratt (1984), Chase, Jacobs & Aquilano (2006), factor 85 % estándar industrial.

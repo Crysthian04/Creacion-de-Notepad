@@ -48,8 +48,11 @@ const Plano2D = {
     const pd = document.createElement('div');
     pd.className = 'mini-panel';
     pd.style.display = 'none';
-    pd.style.maxWidth = '360px';
+    pd.style.maxWidth = '380px';
     pd.style.top = '92px'; // debajo de la barra de herramientas, sin sobreponerse
+    pd.style.maxHeight = 'calc(100% - 110px)';
+    pd.style.overflowY = 'auto';
+    const PR = PLANT_DATA.principios;
     pd.innerHTML = `<h4>Tipo de distribución de planta</h4>
       <table>
         <tr><th>Tipo</th><th>¿Aplica?</th></tr>
@@ -65,6 +68,22 @@ const Plano2D = {
         <b>Complementaria:</b> áreas de soporte (laboratorio QC, taller, calderas, SCADA) agrupadas por función
         en los Edificios C y D.<br>
         <b>No aplican:</b> no hay familias de partes (producto único) y el producto nunca es estacionario.
+      </div>
+      <h4 style="margin-top:12px">Principios básicos de distribución — jerarquización (parte b)</h4>
+      <div style="line-height:1.45;color:#555;margin-bottom:7px">${PR.criterio}</div>
+      ${PR.lista.map((p) => `
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+            <b>${p.n}. ${p.nombre}</b><span class="chip info" style="flex-shrink:0">${p.pct} %</span>
+          </div>
+          <div style="height:7px;background:#eee;border-radius:4px;overflow:hidden;margin:3px 0 4px">
+            <div style="width:${p.pct * 3.5}%;height:100%;background:${p.n <= 2 ? '#1565c0' : p.n === 3 ? '#d32f2f' : '#78909c'};border-radius:4px"></div>
+          </div>
+          <div style="line-height:1.45"><b>Por qué:</b> ${p.porQue}</div>
+          <div style="line-height:1.45;color:#555"><b>Cómo se aplicó:</b> ${p.como}</div>
+        </div>`).join('')}
+      <div style="border-top:1px solid #e8e6dd;padding-top:6px;margin-top:4px;line-height:1.5">
+        <b>Regla de oro (suma 100 % ✓):</b> ${PR.reglaDeOro}
       </div>`;
     cont.appendChild(pd);
     document.getElementById('tgDist').onclick = (e) => {
