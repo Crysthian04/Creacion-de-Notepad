@@ -427,6 +427,33 @@ const PLANT_DATA = {
     { formato: '50kg', equipo: 'Ensacadora · 90 uds/h',   turnosCiclo: 1, hMes: 32, prodMes: 2880,   metaMes: 1620 },
   ],
 
+  // ---------------- PRINCIPIOS BÁSICOS DE DISTRIBUCIÓN (Asignación #6 — parte b) ----------------
+  // Documentación justificativa del layout (no modifica dimensiones ni posiciones).
+  principios: {
+    criterio: 'REFRESH S.A. es una planta de PROCESO QUÍMICO CONTINUO con cuello de botella físico (torre 1,500 kg/h, 24/7). El material fluye permanentemente: cualquier retroceso o cruce genera pérdidas irrecuperables de capacidad en el cuello de botella. Por eso el FLUJO domina la jerarquía (45 % combinado), la seguridad ATEX condiciona (20 %) y los principios espaciales/de adaptabilidad cierran porque ya quedaron resueltos por diseño.',
+    reglaDeOro: '"En un proceso químico continuo con cuello de botella, el flujo manda (45 %), la seguridad ATEX condiciona (20 %), la integración ejecuta (15 %) y la optimización espacial y la flexibilidad se resuelven por diseño (20 %). En una planta de taller (job shop) el orden sería casi el inverso — la flexibilidad sería #1. La jerarquía no es universal: depende del tipo de proceso."',
+    lista: [
+      { n: 1, nombre: 'Circulación o Recorrido', pct: 25,
+        porQue: 'En proceso continuo la secuencia de transformación es inalterable: el layout DEBE seguirla o la planta no funciona. Este principio no se aplicó al diseño — lo DICTÓ.',
+        como: 'Áreas ordenadas en la secuencia del material: silos (norte) → Nave A ①→⑧ → pasarela → Nave B ⑨ → paletizado ⑩ → bahías (sur). Sin retrocesos (única excepción: retorno de finos QC-3, línea neumática dedicada).' },
+      { n: 2, nombre: 'Mínima Distancia Recorrida', pct: 20,
+        porQue: 'Cada metro extra de slurry caliente (65–75 °C) o gránulo es pérdida térmica, riesgo de taponamiento y costo de bombeo — multiplicado miles de veces al año.',
+        como: 'Flujo lineal Norte→Sur sin cruces. Pasarela A–B RECTA (se evaluó una "L" y se descartó). Equipos consecutivos adyacentes. Bifurcación de envasado al FINAL para compartir el 100 % de la línea.' },
+      { n: 3, nombre: 'Satisfacción y Seguridad', pct: 20,
+        porQue: 'El polvo de detergente es ATEX: mezclar fuentes de ignición con zonas de polvo es inaceptable. La seguridad condiciona qué puede ir junto a qué.',
+        como: 'Segregación en 5 edificios (caldera/generador en Edif. C). Pasillos 2.00 m segregados de montacargas 3.50 m. SENADIS: giros 1.50×1.50 m, puestos accesibles. Semáforos, espejos, portones cortafuego 2.40 m.' },
+      { n: 4, nombre: 'Integración de Conjunto', pct: 15,
+        porQue: 'La planta funciona como UN organismo (hombres+máquinas+servicios+materiales), pero esa integración es CONSECUENCIA de los principios 1–3, no la causa del trazado.',
+        como: 'Rack aéreo lleva servicios del Edif. C a Nave A (vapor 8 barg, aire 7 barg, agua DI). SCADA central integra todos los PLC. Edif. D equidistante de ambas naves (65 personas pico/turno); taller con portón directo a Nave A.' },
+      { n: 5, nombre: 'Espacio Cúbico', pct: 12,
+        porQue: 'La vertical se aprovechó como HERRAMIENTA para servir al flujo (gravedad), no como objetivo: el terreno de 10,000 m² no era restricción.',
+        como: 'Nave A con 22 m libres; mezzanines +4.50/+3.20 m; tolvas elevadas descargan POR GRAVEDAD al envasado; transportadores aéreos a +8 m; los cangilones suben la MP 14 m y todo el proceso desciende por gravedad.' },
+      { n: 6, nombre: 'Flexibilidad', pct: 8,
+        porQue: 'En proceso continuo de UN producto, la reordenación interna es inherentemente baja (la torre de 80–120 t no se mueve). Se resolvió por RESERVA DE ESPACIO, no por movilidad.',
+        como: 'Expansión del 30 % (3,000 m²) al ESTE colindante con ambas naves: duplica capacidad sin demoler. La bifurcación admite un 3er módulo. Servicios con margen 40 %+ (gen 1,500 kW, trafo 1,500 kVA, 600 kVAr). Los 6 formatos se ajustan con el calendario, sin tocar el layout.' },
+    ],
+  },
+
   // ---------------- DATOS ELÉCTRICOS (ELEC-REF-001) ----------------
   electrico: {
     coordinacion: {
