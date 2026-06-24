@@ -24,6 +24,7 @@
 | Edificio D — Operativo | **25 × 12 m** | Laboratorio QC, comedor, baños/lockers H y M, taller mecánico/eléctrico |
 | Edificio E — Corporativo | **20 × 10 m** | Recepción, oficinas, sala de juntas |
 | Patio de Silos Exterior | **15 × 10 m (techado)** | 4 silos Ø2.50 m + elevadores de cangilones |
+| Zona de Descarga de Materia Prima | **15 × 6 m (techado)** | 2 posiciones de descarga (camión cisterna/tolva) + fosa de recepción + filtro colector de polvo (ATEX 22). Al norte/oeste del patio de silos. Subproceso ① |
 | Estacionamientos | **30 puestos** | Incluye puestos accesibles (SENADIS) |
 | Bahías de despacho | **4 bahías** | Salida de producto terminado al SUR |
 | Área de expansión futura | **3,000 m² (30 % del terreno)** | Lado ESTE |
@@ -50,6 +51,7 @@ Orientación: norte arriba. **Acceso de camiones de materia prima por el NORTE; 
 | 10 | Paletizador Robot | Brazo robótico | 2.2 × 2.2 m | **75 HP, 480 V 3Ø** · pallets 1.20 × 1.00 m |
 | 11 | Checkweigher + Detector de metales | Compartidos en línea | 1.6 × 1.0 m | **120/208 V** desde TTD |
 | 12 | Estación de Cuarentena QC | Área de bloqueo de lote | 5.0 × 3.0 m, Nave B | 120/208 V (báscula de verificación) |
+| 13 | Zona de Descarga de Materia Prima | Fosa de recepción + filtro colector de polvo + 2 posiciones de descarga | 15 × 6 m (techado), al norte del patio de silos | 480 V 3Ø (filtro colector y compuertas neumáticas). Etapa ① del flujo: camiones cisterna/tolva → fosa → elevadores de cangilones → 4 silos |
 
 **Regla operativa clave:** la línea de envasado es UNA sola con bifurcación final (distribuidor de flujo). **Solo UN módulo (A o B) opera a la vez, nunca simultáneo.**
 
@@ -183,7 +185,7 @@ ISA-5.1 · ISO 10628 · DIN 28000 (P&ID) — NEC 2023/NFPA 70 y Código Eléctri
 
 ## 13. EL SIMULADOR (para citarlo en el escrito/PPT)
 
-App web de 5 pestañas (HTML/CSS/JS + Three.js + SVG): (1) Plano 2D con cotas, capas de flujo/QC/mezzanines, recorrido narrado de 10 pasos y checklist normativo 7/7; (2) Plano 3D orbital con animación de partículas por fase; (3) P&ID interactivo con variables de proceso en vivo y mando de válvulas; (4) Unifilar con 4 estudios (armónicos IEEE 519, selectividad, calculadora NEC, monitoreo ISO 50001); (5) Simulación de producción con calendario de 21 turnos, lógica TOC, sistema QC automático/manual y KPIs (incluye % no conforme y OEE). Verificado con 65 pruebas automatizadas.
+App web de 5 pestañas (HTML/CSS/JS + Three.js + SVG): (1) Plano 2D con cotas, capas de flujo/QC/mezzanines, recorrido narrado de 10 pasos, checklist normativo 7/7, panel de principios de distribución (parte b) y la Zona de Descarga de Materia Prima (Subproceso ①); (2) Plano 3D orbital con animación de partículas por fase, mezzanines y zona de descarga (camiones, fosa, filtro colector); (3) P&ID interactivo con variables de proceso en vivo y mando de válvulas; (4) Unifilar con 4 estudios (armónicos IEEE 519, selectividad, calculadora NEC, monitoreo ISO 50001); (5) Simulación de producción con calendario de 21 turnos, lógica TOC, sistema QC automático/manual y KPIs (incluye % no conforme y OEE). Todos los elementos son clickeables con ficha técnica. Verificado con 70 pruebas automatizadas. Repo: `Crysthian04/Creacion-de-Notepad`, carpeta `asignacion-6-distribucion-planta/`.
 
 ## 14. ⚠ CONFLICTOS YA RESUELTOS — VALORES CANÓNICOS (no usar los antiguos)
 
