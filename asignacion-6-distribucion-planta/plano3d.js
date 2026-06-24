@@ -313,6 +313,37 @@ const Plano3D = {
     };
     camion(16, 88.5); camion(29, 88.5); camion(35.5, 88.5);
     camion(60, 4.5, Math.PI / 2);
+
+    // ---- Zona de Descarga de Materia Prima (Subproceso ①): 2 camiones + fosa + filtro colector ----
+    camion(33.4, 22, Math.PI); camion(42.1, 22, Math.PI);
+    // fosa de recepción (cilindro corto semienterrado, centrado)
+    const [fx, fz] = this.aXZ(37.75, 25.5);
+    const fosa = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 0.6, 16), new THREE.MeshLambertMaterial({ color: 0x607d8b }));
+    fosa.position.set(fx, 0.3, fz);
+    fosa.userData.id = 'descargaMp';
+    this.clicables.push(fosa);
+    this.escena.add(fosa);
+    this.mallasEquipo.descargaMp = fosa;
+    // filtro colector de polvo (cilindro vertical + tolva cónica inferior)
+    const [flx, flz] = this.aXZ(34.5, 25.5);
+    const filtroMat = new THREE.MeshLambertMaterial({ color: 0xb8bec2 });
+    const filtroCil = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 3, 14), filtroMat);
+    filtroCil.position.set(flx, 2.3, flz);
+    filtroCil.userData.id = 'descargaMp';
+    const filtroCono = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.9, 14), filtroMat);
+    filtroCono.rotation.x = Math.PI;
+    filtroCono.position.set(flx, 0.55, flz);
+    filtroCono.userData.id = 'descargaMp';
+    this.clicables.push(filtroCil);
+    this.escena.add(filtroCil);
+    this.escena.add(filtroCono);
+    // ducto fosa → base de los elevadores de cangilones / silos
+    const [dx1, dz1] = this.aXZ(39, 25.6);
+    const [dx2, dz2] = this.aXZ(47, 26.2);
+    const ducto = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(dx2 - dx1, dz2 - dz1), 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0x9e9e9e }));
+    ducto.position.set((dx1 + dx2) / 2, 0.6, (dz1 + dz2) / 2);
+    ducto.rotation.y = -Math.atan2(dz2 - dz1, dx2 - dx1);
+    this.escena.add(ducto);
   },
 
   // ---------------- Animación del flujo de producto ----------------

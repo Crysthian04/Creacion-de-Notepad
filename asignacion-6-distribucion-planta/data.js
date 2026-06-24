@@ -122,6 +122,18 @@ const PLANT_DATA = {
 
   // ---------------- EQUIPOS PRINCIPALES ----------------
   equipos: {
+    descargaMp: {
+      id: 'descargaMp', tipo: 'equipo', nombre: 'Zona de Descarga de Materia Prima', etapa: 1,
+      marca: '2 posiciones de descarga + fosa de recepción + filtro colector de polvo',
+      pos: { x: 30.5, y: 20.5, w: 15, h: 7.8 }, alturaEq: 6, edificio: 'patioSilos',
+      dims: '15.00 × 6.00 m (techado)', peso: '—',
+      alimentacion: '480 V, 3Ø — filtro colector de polvo y compuertas neumáticas de descarga',
+      consumos: 'Aire comprimido (descarga neumática) · aspiración del filtro de mangas',
+      materiales: 'Fosa de recepción con reja · filtro colector de polvo (mangas) · zona ATEX 22',
+      velocidad: 'Recepción de materia prima a granel desde camiones cisterna/tolva',
+      conexiones: { aguasArriba: 'Camiones de materia prima (acceso norte)', aguasAbajo: 'Elevadores de cangilones → 4 silos Ø2.50 m → dosificación' },
+      faseProducto: 'Sólido / líquido a granel (recepción) — Subproceso ①',
+    },
     silos: {
       id: 'silos', tipo: 'equipo', nombre: 'Silos de Materia Prima (4)', etapa: 1,
       marca: '4 silos Ø2.50 m + elevadores de cangilones',
