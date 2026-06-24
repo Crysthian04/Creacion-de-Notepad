@@ -213,10 +213,39 @@ const Plano2D = {
     svg.appendChild(gSilos);
     this.cota(gCotas, 47.45, 23.4, 49.95, 23.4, 'Ø2.50', 0.8);
 
+    // ---- Zona de Descarga de Materia Prima (Subproceso ①, al oeste/norte de los silos) ----
+    const gDesc = svgEl('g', {});
+    const dz = PLANT_DATA.equipos.descargaMp.pos;
+    gDesc.appendChild(svgEl('rect', { x: dz.x, y: dz.y, width: dz.w, height: dz.h, fill: '#e3e3e3', class: 'equipo-rect cuerpo', rx: 0.3, 'stroke-dasharray': '1.2 0.6' }));
+    gDesc.appendChild(svgEl('text', { x: dz.x + dz.w / 2, y: dz.y - 0.5, class: 'etiq-svg', 'font-size': 0.85, 'text-anchor': 'middle', 'font-weight': 700 }, 'ZONA DE DESCARGA DE MATERIA PRIMA'));
+    // 2 posiciones de descarga (camión tolva/cisterna)
+    const camion2d = (cx) => {
+      gDesc.appendChild(svgEl('rect', { x: cx - 0.8, y: 21.2, width: 1.6, height: 0.8, fill: '#3565a0' }));            // cabina
+      gDesc.appendChild(svgEl('rect', { x: cx - 0.85, y: 22.0, width: 1.7, height: 2.2, fill: '#eeeeee', stroke: '#37474f', 'stroke-width': 0.12 })); // tolva/cisterna
+      gDesc.appendChild(svgEl('circle', { cx: cx - 0.95, cy: 23.9, r: 0.2, fill: '#263238' }));
+      gDesc.appendChild(svgEl('circle', { cx: cx + 0.95, cy: 23.9, r: 0.2, fill: '#263238' }));
+    };
+    camion2d(33.4); camion2d(42.1);
+    // Fosa de recepción (centrada entre las 2 posiciones)
+    gDesc.appendChild(svgEl('circle', { cx: 37.75, cy: 25.5, r: 0.85, fill: '#90a4ae', stroke: '#37474f', 'stroke-width': 0.14 }));
+    gDesc.appendChild(svgEl('circle', { cx: 37.75, cy: 25.5, r: 0.45, fill: '#607d8b' }));
+    gDesc.appendChild(svgEl('text', { x: 37.75, y: 27.0, class: 'etiq-svg', 'font-size': 0.6, 'text-anchor': 'middle' }, 'FOSA DE RECEPCIÓN'));
+    // Filtro colector de polvo (cuadrado) + línea punteada hacia la fosa
+    gDesc.appendChild(svgEl('rect', { x: 34.05, y: 25.05, width: 0.9, height: 0.9, fill: '#cfd8dc', stroke: '#37474f', 'stroke-width': 0.12 }));
+    gDesc.appendChild(svgEl('path', { d: 'M 34.95 25.5 L 36.9 25.5', stroke: '#37474f', 'stroke-width': 0.1, 'stroke-dasharray': '0.4 0.3' }));
+    gDesc.appendChild(svgEl('text', { x: 34.5, y: 24.6, class: 'etiq-svg', 'font-size': 0.5, 'text-anchor': 'middle' }, 'FILTRO COLECTOR DE POLVO'));
+    // Conexión punteada fosa → elevadores de cangilones → silos
+    gDesc.appendChild(svgEl('path', { d: 'M 38.6 25.6 L 44 25.9 L 46.4 26.4', stroke: '#8d6e63', 'stroke-width': 0.16, fill: 'none', 'stroke-dasharray': '0.6 0.4', 'marker-end': 'url(#flecha2d)' }));
+    gDesc.appendChild(svgEl('text', { x: 41.3, y: 25.0, class: 'etiq-svg', 'font-size': 0.5, 'text-anchor': 'middle' }, 'elevadores de cangilones'));
+    hacerInteractivo(gDesc, 'descargaMp');
+    svg.appendChild(gDesc);
+    this.cota(gCotas, 30.5, 19.4, 45.5, 19.4, '15.00', 0.8);
+    this.cota(gCotas, 29.5, 26.5, 29.5, 20.5, '6.00', 0.8);
+
     // ---- Equipos dentro de naves ----
     this.nodosEquipo = {};
     for (const eq of Object.values(PLANT_DATA.equipos)) {
-      if (eq.id === 'silos') continue;
+      if (eq.id === 'silos' || eq.id === 'descargaMp') continue;
       const g = svgEl('g', {});
       const p = eq.pos;
       const esTanque = eq.id === 'tk101' || eq.id === 'tk102';
