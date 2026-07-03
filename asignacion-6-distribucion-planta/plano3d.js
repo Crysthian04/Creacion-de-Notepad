@@ -344,6 +344,31 @@ const Plano3D = {
     ducto.position.set((dx1 + dx2) / 2, 0.6, (dz1 + dz2) / 2);
     ducto.rotation.y = -Math.atan2(dz2 - dz1, dx2 - dx1);
     this.escena.add(ducto);
+
+    // ---- Entradas de personal (planos v2): puertas peatonales + recorridos verdes ----
+    const matPuerta = new THREE.MeshLambertMaterial({ color: 0x2e7d32 });
+    const puerta3d = (x, y, girada) => {
+      const [qx, qz] = this.aXZ(x, y);
+      const hoja = new THREE.Mesh(new THREE.BoxGeometry(girada ? 0.25 : 1.4, 2.2, girada ? 1.4 : 0.25), matPuerta);
+      hoja.position.set(qx, 1.1, qz);
+      this.escena.add(hoja);
+      const marco = new THREE.Mesh(new THREE.BoxGeometry(girada ? 0.35 : 1.8, 2.5, girada ? 1.8 : 0.35),
+        new THREE.MeshLambertMaterial({ color: 0xffffff }));
+      marco.position.set(qx, 1.25, qz);
+      this.escena.add(marco);
+    };
+    puerta3d(29, 14, true);   // Entrada Administrativo — fachada este del Edificio E
+    puerta3d(43, 69.2, true); // Entrada Técnico — fachada oeste del Edificio D
+    // recorridos peatonales verdes punteados a nivel de piso
+    const rutaPersonal = (pts) => {
+      const puntos = pts.map(([x, y]) => { const [cx, cz] = this.aXZ(x, y); return new THREE.Vector3(cx, 0.15, cz); });
+      const geo = new THREE.BufferGeometry().setFromPoints(puntos);
+      const linea = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: 0x2e7d32, dashSize: 1, gapSize: 0.7 }));
+      linea.computeLineDistances();
+      this.escena.add(linea);
+    };
+    rutaPersonal([[42, 14], [29.8, 14]]);
+    rutaPersonal([[56, 14], [65.5, 14], [65.5, 61], [42.7, 61], [42.7, 68.5]]);
   },
 
   // ---------------- Animación del flujo de producto ----------------

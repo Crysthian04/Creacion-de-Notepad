@@ -291,6 +291,48 @@ const Plano2D = {
     });
     svg.appendChild(gSeg);
 
+    // ---- Entradas de personal (planos v2): puertas peatonales + recorridos verdes ----
+    const gPers = svgEl('g', {});
+    const defsPers = svgEl('defs', {});
+    const mVerde = svgEl('marker', { id: 'flechaVerde', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 5, markerHeight: 5, orient: 'auto-start-reverse' });
+    mVerde.appendChild(svgEl('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#2e7d32' }));
+    defsPers.appendChild(mVerde);
+    gPers.appendChild(defsPers);
+    // recorrido administrativo: estacionamiento → puerta este del Edificio E
+    gPers.appendChild(svgEl('path', { d: 'M 42 14 L 29.8 14', fill: 'none', stroke: '#2e7d32', 'stroke-width': 0.3, 'stroke-dasharray': '1 0.7', 'marker-end': 'url(#flechaVerde)' }));
+    // recorrido técnico: estacionamiento → corredor este → puerta oeste del Edificio D
+    gPers.appendChild(svgEl('path', { d: 'M 56 14 L 65.5 14 L 65.5 61 L 42.7 61 L 42.7 68.5', fill: 'none', stroke: '#2e7d32', 'stroke-width': 0.3, 'stroke-dasharray': '1 0.7', 'marker-end': 'url(#flechaVerde)' }));
+    // puerta peatonal: hoja + arco de abatimiento (símbolo ISO)
+    const puerta = (x, y, rot, id, titulo, sub, filas, etiqueta, ex, ey, anchoEtiq) => {
+      const gp = svgEl('g', { class: 'clicable', transform: `rotate(${rot} ${x} ${y})` });
+      gp.appendChild(svgEl('rect', { x: x - 0.25, y: y - 0.9, width: 0.5, height: 1.8, fill: '#fff', stroke: '#2e7d32', 'stroke-width': 0.2 }));
+      gp.appendChild(svgEl('line', { x1: x, y1: y - 0.9, x2: x + 1.6, y2: y - 0.9, stroke: '#2e7d32', 'stroke-width': 0.22 }));
+      gp.appendChild(svgEl('path', { d: `M ${x + 1.6} ${y - 0.9} A 1.6 1.6 0 0 1 ${x} ${y + 0.7}`, fill: 'none', stroke: '#2e7d32', 'stroke-width': 0.15, 'stroke-dasharray': '0.4 0.3' }));
+      const ge = svgEl('g', { class: 'clicable' });
+      ge.appendChild(gp);
+      ge.appendChild(svgEl('text', { x: ex, y: ey, 'font-size': 0.9, fill: '#2e7d32', 'font-weight': 700, 'text-anchor': anchoEtiq || 'start' }, etiqueta));
+      if (sub) ge.appendChild(svgEl('text', { x: ex, y: ey + 1.1, 'font-size': 0.7, fill: '#2e7d32', 'text-anchor': anchoEtiq || 'start' }, '🚶 ' + sub));
+      ge.addEventListener('mouseenter', (e) => mostrarTooltip(e, `<b>${titulo}</b><br>${sub}`));
+      ge.addEventListener('mousemove', moverTooltip);
+      ge.addEventListener('mouseleave', ocultarTooltip);
+      ge.addEventListener('click', (e) => { e.stopPropagation(); abrirFichaLibre(titulo, 'Planos v2 — entradas de personal', filas); });
+      gPers.appendChild(ge);
+    };
+    puerta(29.3, 14, 0, 'entradaAdmin', 'Entrada Personal Administrativo', '', [
+      ['Ubicación', 'Puerta peatonal en el Edificio E (Corporativo), hacia los estacionamientos'],
+      ['Recorrido', 'Recorrido peatonal verde desde el parking directo a recepción'],
+      ['Regla de circulación', 'El personal administrativo NO cruza zonas de proceso'],
+      ['Accesibilidad', 'Junto a los puestos accesibles SENADIS del estacionamiento'],
+    ], '🚶 ENTRADA PERSONAL ADMINISTRATIVO', 9, 20.4);
+    puerta(43, 69.2, 90, 'entradaTecnico', 'Entrada Personal Técnico', 'vía vestidores/lockers → Nave A', [
+      ['Ubicación', 'Puerta peatonal en la fachada oeste del Edificio D, junto a Baños/Lockers'],
+      ['Flujo', 'Ingresa → se cambia en lockers/vestidores → accede a la planta (Nave A)'],
+      ['Recorrido', 'Recorrido peatonal verde por el corredor este, segregado del tráfico de montacargas'],
+      ['Higiene industrial', 'Garantiza que el personal entre a la zona de proceso con vestimenta adecuada (ATEX/BPM)'],
+    ], 'ENTRADA PERSONAL TÉCNICO (fachada oeste)', 43.5, 77.7);
+    gPers.appendChild(svgEl('text', { x: 66.3, y: 40, 'font-size': 0.8, fill: '#2e7d32', 'font-weight': 600, transform: 'rotate(-90 66.3 40)' }, 'recorrido peatonal de personal'));
+    svg.appendChild(gPers);
+
     // ---- Capa de flujo de proceso ①→⑩ ----
     const gFlujo = svgEl('g', { style: 'display:none' });
     this.gFlujo = gFlujo;
@@ -375,6 +417,12 @@ const Plano2D = {
       else gLey.appendChild(svgEl('rect', { x, y: y - 0.7, width: 3.5, height: 0.7, fill: color, opacity: 0.8 }));
       gLey.appendChild(svgEl('text', { x: x + 4.2, y, class: 'etiq-svg', 'font-size': 1 }, texto));
     }
+    // leyenda: entradas de personal (planos v2)
+    gLey.appendChild(svgEl('line', { x1: 80.5, y1: 95.15, x2: 83.5, y2: 95.15, stroke: '#2e7d32', 'stroke-width': 0.45, 'stroke-dasharray': '1 0.7' }));
+    gLey.appendChild(svgEl('text', { x: 84.2, y: 95.5, class: 'etiq-svg', 'font-size': 0.85 }, 'Recorrido peatonal de personal'));
+    gLey.appendChild(svgEl('line', { x1: 80.6, y1: 96.6, x2: 82.4, y2: 96.6, stroke: '#2e7d32', 'stroke-width': 0.25 }));
+    gLey.appendChild(svgEl('path', { d: 'M 82.4 96.6 A 1.8 1.8 0 0 1 80.6 98.4', fill: 'none', stroke: '#2e7d32', 'stroke-width': 0.15, 'stroke-dasharray': '0.4 0.3' }));
+    gLey.appendChild(svgEl('text', { x: 84.2, y: 97.5, class: 'etiq-svg', 'font-size': 0.85 }, 'Puerta peatonal'));
     svg.appendChild(gLey);
 
     // Cotas del terreno
