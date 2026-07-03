@@ -31,6 +31,7 @@
 | Pasillos peatonales | 2.00 m (línea verde discontinua) | Área de giro peatonal 1.50 × 1.50 m |
 | Pasillos de montacargas | 3.50 m (línea naranja discontinua) | Con espejos convexos y semáforos acústico-luminosos |
 | Portones | Doble hoja 2.40 m con sello cortafuego hermético | |
+| Entradas de personal (planos v2) | Administrativo: puerta peatonal en Edificio E (lado sur, desde estacionamientos) · Técnico: fachada oeste del Edificio D junto a lockers/vestidores → Nave A | Leyenda: "recorrido peatonal de personal" (verde punteada) y "puerta peatonal". Ver sección 15.1 |
 | Mezzanines (complemento) | Nave A: plataforma técnica a **+4.50 m** · Nave B: a **+3.20 m** | Con tuberías elevadas |
 
 Orientación: norte arriba. **Acceso de camiones de materia prima por el NORTE; despacho de producto terminado por el SUR.**
@@ -205,3 +206,46 @@ Existieron versiones previas del proyecto (repos viejos) con valores distintos. 
 | THDv | **18.7→3.2 % (A) · 15.3→2.9 % (B)** | 24.5→2.8 % (THD-I) |
 
 **Si la persona te comparte documentos viejos con los valores de la columna ❌, corrígelos a la columna ✅.**
+
+## 15. ACTUALIZACIÓN DEL PROYECTO FINAL (WORD) — DOCUMENTACIÓN OFICIAL ADICIONAL
+
+**NOTA:** Todo lo de esta sección es DOCUMENTACIÓN del proyecto final Word. NO modifica layout, dimensiones ni valores canónicos existentes. **Los planos 2D/3D v2 (con entradas de personal) son ahora los oficiales.**
+
+### 15.1 ENTRADAS DE PERSONAL (respuesta a observaciones de la profesora — YA en planos v2)
+
+- **Entrada Personal Administrativo:** puerta peatonal en Edificio E (Corporativo), lado sur hacia estacionamientos, con recorrido peatonal verde desde el parking. El personal administrativo NO cruza zonas de proceso.
+- **Entrada Personal Técnico:** puerta peatonal en fachada oeste del Edificio D, junto a Baños/Lockers. Flujo: ingresa → se cambia en lockers/vestidores → accede a Nave A.
+- Leyenda nueva en planos: **"recorrido peatonal de personal"** (línea verde punteada) y **"puerta peatonal"**.
+
+### 15.2 MÉTODO DE DESCARGA DE MP (explícito)
+
+Sólidos a granel (carbonato, sulfato, silicato) llegan en camión → descargan en la **fosa de recepción** (zona de descarga 15×6 m techada, ATEX 22, con filtro colector de polvo) → **elevadores de cangilones** → 4 silos exteriores. Tensoactivos líquidos (LAS/AES): llegan en cisterna → se bombean a tanques.
+
+### 15.3 JUSTIFICACIÓN PASARELA A-B (defensa ante observación de la profesora)
+
+La pasarela de 3.00 m es un **corredor técnico cerrado dedicado al transporte del producto** (banda + servidumbre de mantenimiento de 1.2 m), NO una vía de circulación general de personas. El tránsito de personal usa los pasillos peatonales de 2.00 m.
+
+### 15.4 PARTE E — PRESUPUESTO (Asignación #7, aprobado por la profesora)
+
+**CAPEX total: USD $12,859,000** = Subtotal $11,690,000 + contingencia 10 %.
+Por categoría: Mano de obra **$3.0M (25.7 %)** · Instalaciones y equipos **$5.38M (46.0 %**, torre GEA $3.2M la mayor partida) · Instalaciones externas **$1.98M (16.9 %)** · Logística **$0.5M (4.3 %)** · Ambiental y seguridad **$0.83M (7.1 %)**.
+Nota: es CAPEX; el OPEX se proyecta por separado.
+
+### 15.5 PARTE E — 15 ACTIVIDADES DE SEGURIDAD (con norma y responsable)
+
+1. Inspección ATEX diaria (NFPA 652) · 2. EPP obligatorio (NFPA 70E/COPANIT) · 3. LOTO (NEC/OSHA) · 4. Capacitación y simulacros (Ley 67) · 5. Mantenimiento preventivo de críticos (ISO 55000) · 6. Señalización de pasillos (SENADIS) · 7. Control de tráfico de montacargas · 8. Sistema contra incendios (NFPA 10/654) · 9. Monitoreo de emisiones (MiAmbiente) · 10. Químicos y SDS (GHS) · 11. Puesta a tierra ≤5 Ω (NEC 250) · 12. Control de visitantes · 13. Ergonomía (ISO 45001) · 14. Recipientes a presión — caldera 8 barg (ASME/NFPA 85) · 15. Residuos y 5S (ISO 14001).
+
+### 15.6 ORGANIGRAMA OFICIAL (de Asignación #2, conservado en el proyecto final)
+
+**Director de Planta → 8 gerencias:** Operaciones (supervisores de turno, operadores, auxiliares, ings. de procesos, analistas de mejora continua) · Seguridad y Salud Ocupacional (supervisores de seguridad) · Ingeniería (jefe de mantenimiento, planeador, ing. confiabilidad, supervisores, técnicos, automatizadores) · Proyectos (supervisor) · Calidad (ing. calidad, analistas de fórmulas, inspectores) · Logística y Cadena de Suministro (compras, distribución y ventas, almacén) · RR.HH. (gente, planilla) · Gestión (analista de gestión y procesos).
+
+### 15.7 MISIÓN / VISIÓN / VALORES OFICIALES (versión final mejorada)
+
+- **Misión:** "Fabricar productos de limpieza de alta calidad al mejor precio del mercado, con compromiso en higiene, sostenibilidad y eficiencia."
+- **Visión:** "Ser una empresa líder en la fabricación de productos de limpieza y cuidado de la ropa a nivel nacional en Panamá."
+- **Valores (6 pilares):** Innovación aplicada · Responsabilidad ambiental · Integridad · Accesibilidad · Confiabilidad · Transparencia en la fórmula.
+
+### 15.8 CONCLUSIONES Y RECOMENDACIONES DEL PROYECTO (6+6, resumen)
+
+**Conclusiones clave:** 81 % hogares panameños año 1 · torre como decisión determinante · selección GEA/ROVEMA/H&B por integración y soporte LATAM · distribución por producto en 10,000 m²/5 edificios · seguridad integral SENADIS+ATEX · CAPEX $12.9M viable.
+**Recomendaciones clave:** monitorear aire comprimido S-2 (91 % de uso, primer servicio a ampliar) · expansión planificada (2ª línea de envasado → 2º spray dryer año 3–5) · activar mantenimiento predictivo (QUAT²RO®) · gestión activa de tolvas pre-miércoles · contratos de largo plazo con proveedores LATAM · certificación progresiva ISO 9001/14001/50001.
