@@ -1,0 +1,54 @@
+{
+  "fecha": "01/07/2026",
+  "bien_o_servicio": "BIEN",
+  "negociador": "ALDAIR GÓMEZ/CRISTIAN BATISTA",
+  "req_numero": "REQ-2026-55837",
+  "req_descripcion": "DISCOS REBANADORES DE LA UBE",
+
+  "proveedores": [
+    {
+      "nombre": "BOX TO BOX",
+      "legalmente_constituido": "SI",
+      "legalmente_constituido_ponderado": 20,
+      "cumplimiento_especificaciones": "SI",
+      "cumplimiento_especificaciones_ponderado": 25,
+      "precio": 6998.90,
+      "precio_ponderado": 10,
+      "terminos_pago": "60 días",
+      "terminos_pago_ponderado": 20,
+      "tiempo_respuesta": "15 días",
+      "tiempo_respuesta_ponderado": 5
+    },
+    {
+      "nombre": "LO TRADING",
+      "legalmente_constituido": "SI",
+      "legalmente_constituido_ponderado": 20,
+      "cumplimiento_especificaciones": "SI",
+      "cumplimiento_especificaciones_ponderado": 25,
+      "precio": 6111.45,
+      "precio_ponderado": 20,
+      "terminos_pago": "60 días",
+      "terminos_pago_ponderado": 20,
+      "tiempo_respuesta": "30 días",
+      "tiempo_respuesta_ponderado": 5
+    },
+    {
+      "nombre": "LENEXA MANUFACTURING COMPANY, LLC",
+      "legalmente_constituido": "SI",
+      "legalmente_constituido_ponderado": 20,
+      "cumplimiento_especificaciones": "SI",
+      "cumplimiento_especificaciones_ponderado": 25,
+      "precio": 6208.35,
+      "precio_ponderado": 15,
+      "terminos_pago": "60 días",
+      "terminos_pago_ponderado": 20,
+      "tiempo_respuesta": "30 días",
+      "tiempo_respuesta_ponderado": 5
+    }
+  ],
+
+  "proveedor_sugerido": "BOX TO BOX",
+  "proveedor_autorizado": "BOX TO BOX",
+
+  "observaciones": "Se escoge el proveedor BTB Logistics and Services Corp (Box to Box) para la adquisición de los Discos Rebanadores de la UBE (REQ-2026-55837) dado que, al evaluar las cotizaciones recibidas en términos de precio y tiempo de entrega, representa la opción más conveniente en términos operativos. Box to Box actúa como broker local para la gestión de estas piezas de origen extranjero, ofreciendo un precio de $6,998.90 USD con un tiempo de entrega de 12 a 15 días hábiles, siendo el más corto entre las ofertas recibidas. Si bien LO Trading presenta el precio más bajo ($6,111.45 USD) y Lenexa Manufacturing Company, LLC ofrece una alternativa directa del fabricante ($6,208.35 USD), sus tiempos de entrega de 3 a 4 semanas y 5 a 6 semanas respectivamente no se ajustan a la urgencia operativa identificada, por lo que se prioriza la disponibilidad oportuna sobre el costo, seleccionando la opción que mejor equilibra precio y tiempo de respuesta para la operación."
+}
