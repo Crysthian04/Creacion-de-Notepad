@@ -40,14 +40,15 @@ ojo". El proceso de verificación fue:
 - El mismo generador emite el libro en dos modos a partir de **las mismas
   plantillas de fórmula**: `estructuradas` (XLOOKUP, entregable) y
   `compatibles` (INDEX/MATCH + rangos A1 acotados).
-- La variante compatible se recalculó con LibreOffice: **9.181 fórmulas, 0
+- La variante compatible se recalculó con LibreOffice: **9.841 fórmulas, 0
   errores** (`#REF!`, `#VALUE!`, `#NAME?`, etc.).
-- Cada valor recalculado se comparó contra el motor Python: **4.519
-  comparaciones automáticas, 0 desviaciones** — las 19 columnas calculadas de
-  las 200 órdenes, las 336 filas de REGLA-5, todo PERFIL_HH (REGLA-6 y 9),
-  los 6 bloques de ADHERENCIA (REGLA-7), BACKLOG por tramos (REGLA-3),
-  COSTOS por mes (REGLA-8), EQUIPOS_CRITICOS y los 9 chequeos de VALIDACION
-  (REGLA-10).
+- Cada valor recalculado se comparó contra el motor Python: **4.979
+  comparaciones automáticas, 0 desviaciones** — las 21 columnas calculadas de
+  las 200 órdenes (incluidas HHA/HHD), las 336 filas de REGLA-5, todo
+  PERFIL_HH (REGLA-6 y 9), los 6 bloques de ADHERENCIA (REGLA-7), BACKLOG por
+  tramos (REGLA-3), COSTOS por mes (REGLA-8), EQUIPOS_CRITICOS, los 9 chequeos
+  de VALIDACION (REGLA-10) y la zona de datos del gráfico de carga de
+  PLAN_SEMANAL.
 
 Como ambos modos salen del mismo motor de plantillas (`class Refs`), verificar
 la variante compatible verifica la lógica de la entregable; la única
@@ -117,7 +118,52 @@ mueven con la fecha real en que se abra el archivo. Los datos de ejemplo están
 anclados al **2026-07-19**; si los números relativos al día cambian, regenere
 con `--fecha-ancla 2026-07-19` o verifique contra `--resumen` del mismo día.
 
-### 8. Higiene de fórmulas
+### 8. v1.1.0 — HHA/HHD y gráfico de carga por técnico
+
+**Columnas `HHA` y `HHD` en `tblOrdenes`** (calculadas, mismo valor repetido
+en todas las filas del mismo técnico/semana/día):
+
+- `HHA` = `SUMIFS(horas_estimadas; tecnico_asignado; semana; dia_semana)` con
+  referencias estructuradas — total de horas asignadas al técnico ese día.
+- `HHD` = `horas_jornada × factor_productividad − HHA` (7 × 0,87 = **6,09 h**
+  con los parámetros por defecto). Puede ser negativa: **HHD < 0 se marca en
+  rojo** con formato condicional = técnico sobreasignado ese día.
+- Ambas quedan vacías en órdenes sin técnico asignado.
+
+**Gráfico de carga en `PLAN_SEMANAL`**, fijo en la parte superior de la hoja
+(paneles inmovilizados en la fila de datos de la grilla: selectores, gráfico y
+encabezados no se mueven al desplazarse):
+
+- Barras verticales **apiladas** por técnico: porción **verde** = dentro de
+  capacidad (`MIN(HHA_sel, capacidad)`), porción **roja** = sobreasignación
+  (`MAX(0, HHA_sel − capacidad)`). Etiquetas de datos visibles en ambas
+  series, ceros incluidos (un técnico sin carga muestra "0" de inmediato).
+- **Serie de línea de capacidad** = `factor_productividad × Σ
+  horas_disponibles` del técnico en la selección (REGLA-5). Con un día
+  concreto seleccionado eso es exactamente `horas_jornada ×
+  factor_productividad` (6,09) salvo vacaciones/ausencia (0); con día
+  "(todos)" escala a la semana completa (30,45 h con 5 días), manteniendo la
+  línea comparable con las barras. Ambos ejes comparten escala fija.
+- Eje de categorías: técnicos **ordenados por especialidad** (MEC → ELE → AUT
+  → OP); la etiqueta añade el turno (`Técnico 01 (T1)`) cuando hay semana y
+  día concretos seleccionados, porque el turno depende del día.
+- **Conectado a los mismos selectores que filtran la grilla** (semana, día,
+  turno, coordinador, área y especialidad — este último se añadió en v1.1.0
+  también a la grilla): la zona de datos `P3:V15` recalcula con `SUMIFS` al
+  cambiar cualquier selector y el gráfico se redibuja. Al filtrar por
+  especialidad, los técnicos de otras especialidades se excluyen con `NA()`
+  (sin barra ni etiqueta, como haría un pivote).
+
+**Por qué no es un PivotChart OOXML:** openpyxl no puede construir
+`pivotCacheDefinition`, `pivotCacheRecords` ni `slicerCache` (§4). Escribir
+ese XML a mano sería frágil e inverificable con las herramientas de este
+repositorio. El gráfico por fórmulas entrega el mismo comportamiento
+(actualización con cada filtro) con el mismo mecanismo sin macros del resto
+del libro, y sí es verificable: sus celdas se comparan contra el motor Python.
+Nota: los "slicers" de este libro son los selectores desplegables de la fila 3
+(el sustituto documentado desde v1.0.0).
+
+### 9. Higiene de fórmulas
 
 Prohibidos y ausentes (auditado por script sobre el archivo final): `OFFSET`,
 `INDIRECT`, referencias de columna completa (`A:A`), enlaces externos, VBA y
@@ -197,6 +243,48 @@ SI) · S31: 0,20 (16,8 % → SI).
 | EJECUCION sin par en ORDENES (OT-000990/991/992) | 3 |
 | ORDENES sin par en EJECUCION (quedan `Pendiente`) | 39 |
 
+### Caso manual de HHA/HHD y del gráfico de carga (v1.1.0)
+
+**Técnico 01 (MEC), semana S29** — capacidad diaria = 7 × 0,87 = **6,09 h**:
+
+| día | órdenes asignadas | HHA | HHD | color |
+|---|---|---:|---:|---|
+| lunes | 6 h | 6 | **+0,09** | — |
+| martes | 8 h | 8 | **−1,91** | 🔴 |
+| miércoles | 10 h | 10 | **−3,91** | 🔴 |
+| jueves | (sin órdenes) | — | — | — |
+| viernes | 7 h | 7 | **−0,91** | 🔴 |
+
+Compruébelo filtrando `ORDENES` por `tecnico_asignado = Técnico 01` y
+`semana = S29`: todas las filas del martes repiten HHA = 8 y HHD = −1,91 en
+rojo.
+
+**El gráfico refleja los mismos números.** Con los selectores por defecto
+(semana = S29, resto "(todos)") la barra de cada técnico suma su HHA semanal
+contra la capacidad de la semana (30,45 h = 5 días × 7 h × 0,87):
+
+| técnico | HHA S29 | capacidad | verde (dentro) | rojo (sobre) |
+|---|---:|---:|---:|---:|
+| Técnico 01 (MEC) | **31** = 6+8+10+7 | 30,45 | 30,45 | **0,55** |
+| Técnico 02 (MEC) | 22 | 30,45 | 22 | 0 |
+| Técnico 03 (MEC) | 26 | 30,45 | 26 | 0 |
+| Técnico 04 (MEC) | 18 | 30,45 | 18 | 0 |
+| Técnico 05 (ELE) | 22 | 30,45 | 22 | 0 |
+| Técnico 06 (ELE) | **40** | 30,45 | 30,45 | **9,55** |
+| Técnico 07 (ELE) | 15 | **24,36** | 15 | 0 |
+| Técnico 08 (AUT) | 27 | 30,45 | 27 | 0 |
+| Técnico 09 (AUT) | 18 | 30,45 | 18 | 0 |
+| Técnico 10 (OP) | 20 | 30,45 | 20 | 0 |
+| Técnico 11 (OP) | 10 | 30,45 | 10 | 0 |
+| Técnico 12 (OP) | 15 | 30,45 | 15 | 0 |
+
+Detalles que amarran el caso: Técnico 06 es el sobreasignado visible de la
+semana (porción roja de 9,55); Técnico 07 tiene capacidad 24,36 = 4 días ×
+6,09 por su ausencia "X" del viernes (REGLA-5); las etiquetas muestran la
+porción de cada serie (Técnico 01: "30,45" en verde y "0,55" en rojo — la
+altura total de la barra es su HHA = 31). Si además selecciona día = lunes,
+la línea de capacidad baja a 6,09 y la barra de Técnico 01 marca 6.
+
 ### Otros números verificables
 
 - **Costos redondos:** `costo_plan` = horas × 25 USD (preventiva) o × 40 USD
@@ -211,10 +299,11 @@ SI) · S31: 0,20 (16,8 % → SI).
 
 `INICIO` · `PARAMETROS` (Tabla 10 + listas de validación + nombres `p_*`) ·
 `1_IMPORTAR_ORDENES` · `2_IMPORTAR_EJECUCION` (aloja `tblEjecucion`) ·
-`ORDENES` (`tblOrdenes`, 37 columnas: 12 importadas, 5 editables en azul, 20
-calculadas) · `TECNICOS` · `ASIGNACIONES` (turno por desplegable, REGLA-5) ·
-`PERFIL_HH` (REGLA-6 + matriz semáforo + REGLA-9) · `PLAN_SEMANAL` (selectores
-+ autofiltro + área de impresión) · `ADHERENCIA` (REGLA-7, 6 desgloses +
+`ORDENES` (`tblOrdenes`, 39 columnas: 12 importadas, 5 editables en azul, 22
+calculadas incl. HHA/HHD) · `TECNICOS` · `ASIGNACIONES` (turno por
+desplegable, REGLA-5) · `PERFIL_HH` (REGLA-6 + matriz semáforo + REGLA-9) ·
+`PLAN_SEMANAL` (6 selectores + gráfico de carga fijo + autofiltro + área de
+impresión) · `ADHERENCIA` (REGLA-7, 6 desgloses +
 gráfico vs meta) · `COSTOS` (REGLA-8, plan/real/desvío por área y línea, por
 mes + gráfico) · `BACKLOG` (REGLA-3, tramos 0-30/31-60/61-90/>90) ·
 `EQUIPOS_CRITICOS` (equipo × mes) · `VALIDACION` (REGLA-10) · 5 catálogos
@@ -222,7 +311,8 @@ mes + gráfico) · `BACKLOG` (REGLA-3, tramos 0-30/31-60/61-90/>90) ·
 
 Formato condicional obligatorio implementado: semáforo de carga en PERFIL_HH,
 escala <90/90–95/>95 en ADHERENCIA, backlog > 90 días en rojo (ORDENES y
-BACKLOG) y órdenes del plan sin técnico en amarillo (ORDENES).
+BACKLOG), órdenes del plan sin técnico en amarillo (ORDENES) y HHD negativa
+en rojo (ORDENES, sobreasignación).
 
 ## Limitaciones conocidas
 

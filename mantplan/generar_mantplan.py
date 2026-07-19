@@ -34,6 +34,7 @@ from datetime import date, timedelta
 
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference, Series
+from openpyxl.chart.label import DataLabelList
 from openpyxl.formatting.rule import CellIsRule, ColorScaleRule, FormulaRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -42,7 +43,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 # ══════════════════════════════════════════════════════════════════════════
 # 1. PARÁMETROS (Tabla 10) Y CATÁLOGOS SINTÉTICOS
@@ -539,6 +540,20 @@ def calcular_esperado(datos):
             "costo_servicio": servicio, "costo_materiales": materiales, "costo_total": total,
         })
 
+    # HHA/HHD: agregado por técnico × semana × día, repetido en cada fila
+    hha_por_dia = {}
+    for o in enriquecidas:
+        if o["tecnico_asignado"]:
+            k = (o["tecnico_asignado"], o["semana"], o["dia_semana"])
+            hha_por_dia[k] = hha_por_dia.get(k, 0) + (o["horas_estimadas"] or 0)
+    for o in enriquecidas:
+        if o["tecnico_asignado"]:
+            o["HHA"] = hha_por_dia[(o["tecnico_asignado"], o["semana"], o["dia_semana"])]
+            o["HHD"] = HORAS_JORNADA * FACTOR_PRODUCTIVIDAD - o["HHA"]
+        else:
+            o["HHA"] = ""
+            o["HHD"] = ""
+
     for a in datos["asignaciones"]:
         a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"])
         a["coordinador"] = COORD_POR_AREA[a["area"]]
@@ -594,9 +609,21 @@ def calcular_esperado(datos):
         equipos_tot[o["equipo"]] = equipos_tot.get(o["equipo"], 0) + o["costo_total"]
     equipos_orden = sorted(equipos_tot, key=lambda q: -equipos_tot[q])
 
+    # Carga y capacidad semanal por técnico (zona de datos del gráfico de carga)
+    carga_tecnicos, capacidad_tecnicos = {}, {}
+    for sem in datos["semanas"]:
+        for _tid, nombre, _esp, _area in TECNICOS:
+            carga_tecnicos[(sem, nombre)] = sum(
+                o["horas_estimadas"] or 0 for o in enriquecidas
+                if o["tecnico_asignado"] == nombre and o["semana"] == sem)
+            capacidad_tecnicos[(sem, nombre)] = FACTOR_PRODUCTIVIDAD * sum(
+                a["horas_disponibles"] for a in datos["asignaciones"]
+                if a["tecnico"] == nombre and a["semana"] == sem)
+
     return {"ordenes": enriquecidas, "perfil": perfil, "adherencia": adherencia,
             "ratio9": ratio9, "backlog_aging": backlog_aging, "meses": meses,
             "costos": costos, "equipos_orden": equipos_orden, "equipos_tot": equipos_tot,
+            "carga_tecnicos": carga_tecnicos, "capacidad_tecnicos": capacidad_tecnicos,
             "validacion": regla_10_validacion(datos["ordenes"], datos["ejecucion"])}
 
 
@@ -671,7 +698,7 @@ CAMPOS_ORDENES = [
     "estado", "semana", "anio", "mes", "dia_semana", "clasificacion",
     "linea", "area", "coordinador", "especialidad", "actividad",
     "backlog_dias", "estado_backlog", "en_plan",
-    "tecnico_asignado", "turno_asignado",
+    "tecnico_asignado", "turno_asignado", "HHA", "HHD",
     "costo_servicio", "costo_materiales", "costo_total",
     "permiso_requerido", "bloqueo_energia", "link_checklist", "abrir_checklist",
     "observaciones",
@@ -741,6 +768,18 @@ def formulas_ordenes(R):
                          f'{f("tecnico_asignado", fila)}')
                 return (f'=IF({f("tecnico_asignado", fila)}="","",'
                         + R.busca(clave, "tblAsignaciones", "clave", "turno", '""') + ")")
+            if campo == "HHA":
+                # Horas Hombre Asignadas: total del técnico en ese día de esa
+                # semana, repetido en todas sus filas (agregado por SUMIFS).
+                t = f("tecnico_asignado", fila)
+                return (f'=IF({t}="","",SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+                        f'{R.col("tblOrdenes", "tecnico_asignado")},{t},'
+                        f'{R.col("tblOrdenes", "semana")},{f("semana", fila)},'
+                        f'{R.col("tblOrdenes", "dia_semana")},{f("dia_semana", fila)}))')
+            if campo == "HHD":
+                # Horas Hombre Disponibles del día; negativo = sobreasignación.
+                h = f("HHA", fila)
+                return f'=IF({h}="","",p_horas_jornada*p_factor_productividad-{h})'
             if campo == "costo_servicio":
                 return "=" + R.busca(f("id_operacion", fila), "tblEjecucion",
                                      "id_operacion", "precio", "0")
@@ -885,6 +924,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "  · El libro recalcula automáticamente al abrir (sin macros).",
         "  · Las fórmulas usan XLOOKUP (Excel 2021/365). Para Excel 2016 vea la hoja _COMPATIBILIDAD.",
         "  · Los filtros se hacen con los autofiltros de cada tabla y con los selectores de PLAN_SEMANAL.",
+        "  · ORDENES: HHA/HHD agregan las horas del técnico en ese día; HHD negativo (rojo) = sobreasignado.",
+        "  · PLAN_SEMANAL: el gráfico de carga por técnico responde a los mismos selectores que la grilla.",
     ]
     for i, txt in enumerate(filas_ini, start=3):
         celda(ws, i, 1, txt, font=F_SEC if txt.endswith(":") else F_TXT)
@@ -1011,6 +1052,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                 fmt = FMT_DINERO
             elif campo == "backlog_dias":
                 fmt = "0"
+            elif campo in ("HHA", "HHD"):
+                fmt = "0.00"
             celda(ws, fila, j, v, font=fnt, fmt=fmt)
     agregar_tabla(ws, O)
     ws.freeze_panes = "D4"
@@ -1027,6 +1070,11 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         f"{col_tec}{O.fila_ini}:{col_tec}{O.fila_fin}",
         FormulaRule(formula=[f'AND(${col_plan}{O.fila_ini}=TRUE,${col_tec}{O.fila_ini}="")'],
                     fill=FILL_AMAR))
+    # HHD negativo = técnico sobreasignado ese día
+    col_hhd = let("HHD")
+    ws.conditional_formatting.add(
+        f"{col_hhd}{O.fila_ini}:{col_hhd}{O.fila_fin}",
+        CellIsRule(operator="lessThan", formula=["0"], fill=FILL_ROJO))
     anchos = {"descripcion_general": 30, "descripcion_operacion": 30, "fecha_inicio": 12,
               "id_operacion": 15, "tecnico_asignado": 14, "estado_backlog": 14}
     for campo in CAMPOS_ORDENES:
@@ -1154,39 +1202,114 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # ------------------------------------------------------- PLAN_SEMANAL
     ws = wb.create_sheet("PLAN_SEMANAL")
     ws.sheet_properties.tabColor = "7030A0"
-    celda(ws, 1, 1, "PLAN SEMANAL — elija criterios y use el autofiltro de la fila 8. "
-                    "\"(todos)\" desactiva un criterio; \"-\" significa vacío.", font=F_SEC)
+    celda(ws, 1, 1, "PLAN SEMANAL — el gráfico de carga y la grilla responden a los mismos "
+                    "selectores. \"(todos)\" desactiva un criterio; \"-\" significa vacío.", font=F_SEC)
     criterios = [("semana", 2, ["(todos)"] + semanas, semanas[1]),
                  ("día", 4, ["(todos)"] + list(DIAS), "(todos)"),
                  ("turno", 6, ["(todos)"] + list(TURNOS), "(todos)"),
                  ("coordinador", 8, ["(todos)"] + sorted(set(COORD_POR_AREA.values())), "(todos)"),
-                 ("área", 10, ["(todos)"] + list(COORD_POR_AREA), "(todos)")]
+                 ("área", 10, ["(todos)"] + list(COORD_POR_AREA), "(todos)"),
+                 ("especialidad", 12, ["(todos)"] + list(ESPECIALIDADES), "(todos)")]
     for nombre, colc, lista, defecto in criterios:
         celda(ws, 3, colc - 1, nombre + ":", font=F_SEC)
         celda(ws, 3, colc, defecto, font=F_EDIT, fill=FILL_GRIS)
         dv = DataValidation(type="list", formula1='"' + ",".join(lista) + '"', allow_blank=False)
         ws.add_data_validation(dv)
         dv.add(f"{get_column_letter(colc)}3")
-    fila_ini_esp, fila_fin_esp = 9, 8 + n_ord
-    crit = (f'$A$9:$A${fila_fin_esp},IF($B$3="(todos)","*",$B$3),'
-            f'$B$9:$B${fila_fin_esp},IF($D$3="(todos)","*",$D$3),'
-            f'$C$9:$C${fila_fin_esp},IF($F$3="(todos)","*",$F$3),'
-            f'$D$9:$D${fila_fin_esp},IF($H$3="(todos)","*",$H$3),'
-            f'$E$9:$E${fila_fin_esp},IF($J$3="(todos)","*",$J$3)')
+    FILA_GRILLA = 25  # encabezado de la grilla; el gráfico vive arriba, en la zona fija
+    fila_ini_esp, fila_fin_esp = FILA_GRILLA + 1, FILA_GRILLA + n_ord
+    crit = (f'$A${fila_ini_esp}:$A${fila_fin_esp},IF($B$3="(todos)","*",$B$3),'
+            f'$B${fila_ini_esp}:$B${fila_fin_esp},IF($D$3="(todos)","*",$D$3),'
+            f'$C${fila_ini_esp}:$C${fila_fin_esp},IF($F$3="(todos)","*",$F$3),'
+            f'$D${fila_ini_esp}:$D${fila_fin_esp},IF($H$3="(todos)","*",$H$3),'
+            f'$E${fila_ini_esp}:$E${fila_fin_esp},IF($J$3="(todos)","*",$J$3),'
+            f'$F${fila_ini_esp}:$F${fila_fin_esp},IF($L$3="(todos)","*",$L$3)')
     celda(ws, 5, 1, "órdenes:", font=F_SEC)
     celda(ws, 5, 2, f"=COUNTIFS({crit})")
     celda(ws, 5, 3, "HH:", font=F_SEC)
-    celda(ws, 5, 4, f"=SUMIFS($J$9:$J${fila_fin_esp},{crit})", fmt=FMT_HH)
-    cab_plan = ["semana", "dia", "turno", "coordinador", "area", "tecnico", "id_operacion",
-                "descripcion_operacion", "equipo", "horas", "estado", "en_plan"]
-    encabezados(ws, 8, cab_plan)
+    celda(ws, 5, 4, f"=SUMIFS($K${fila_ini_esp}:$K${fila_fin_esp},{crit})", fmt=FMT_HH)
+
+    # Zona de datos del gráfico (columnas P:V, dentro de la zona fija).
+    # Es el sustituto sin macros del PivotChart: SUMIFS contra tblOrdenes
+    # gobernados por los mismos selectores que filtran la grilla.
+    celda(ws, 2, 16, "datos del gráfico de carga — no editar", font=F_NOTA)
+    encabezados(ws, 3, ["tecnico", "especialidad", "etiqueta", "hha_seleccion",
+                        "dentro_capacidad", "sobreasignacion", "capacidad"], col_ini=16)
+    fila_tec0 = 4
+    for i, (_tid, nombre, esp_t, _area) in enumerate(TECNICOS):
+        fr = fila_tec0 + i
+        celda(ws, fr, 16, nombre)
+        celda(ws, fr, 17, esp_t)
+        turno_sel = R.busca(f'$B$3&"|"&$D$3&"|"&$P{fr}', "tblAsignaciones", "clave", "turno", '""')
+        celda(ws, fr, 18, f'=IF(OR($B$3="(todos)",$D$3="(todos)"),$P{fr},'
+                          f'$P{fr}&" ("&{turno_sel}&")")')
+        celda(ws, fr, 19,
+              f'=IF(AND($L$3<>"(todos)",$Q{fr}<>$L$3),NA(),'
+              f'SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+              f'{R.col("tblOrdenes", "tecnico_asignado")},$P{fr},'
+              f'{R.col("tblOrdenes", "semana")},IF($B$3="(todos)","*",$B$3),'
+              f'{R.col("tblOrdenes", "dia_semana")},IF($D$3="(todos)","*",$D$3),'
+              f'{R.col("tblOrdenes", "turno_asignado")},IF($F$3="(todos)","*",$F$3),'
+              f'{R.col("tblOrdenes", "coordinador")},IF($H$3="(todos)","*",$H$3),'
+              f'{R.col("tblOrdenes", "area")},IF($J$3="(todos)","*",$J$3)))', fmt=FMT_HH)
+        celda(ws, fr, 20, f"=IF(ISNA($S{fr}),NA(),MIN($S{fr},$V{fr}))", fmt=FMT_HH)
+        celda(ws, fr, 21, f"=IF(ISNA($S{fr}),NA(),MAX(0,$S{fr}-$V{fr}))", fmt=FMT_HH)
+        celda(ws, fr, 22,
+              f'=IF(AND($L$3<>"(todos)",$Q{fr}<>$L$3),NA(),'
+              f'p_factor_productividad*SUMIFS({R.col("tblAsignaciones", "horas_disponibles")},'
+              f'{R.col("tblAsignaciones", "tecnico")},$P{fr},'
+              f'{R.col("tblAsignaciones", "semana")},IF($B$3="(todos)","*",$B$3),'
+              f'{R.col("tblAsignaciones", "dia")},IF($D$3="(todos)","*",$D$3)))', fmt=FMT_HH)
+    fila_tec1 = fila_tec0 + len(TECNICOS) - 1
+
+    # Gráfico: barras apiladas (verde dentro de capacidad, rojo sobreasignado)
+    # + serie de línea con la capacidad productiva (REGLA-5 × factor).
+    y_max = max([v for v in esperado["carga_tecnicos"].values()]
+                + [v for v in esperado["capacidad_tecnicos"].values()]) + 5
+    barras = BarChart()
+    barras.type = "col"
+    barras.grouping = "stacked"
+    barras.overlap = 100
+    barras.gapWidth = 60
+    barras.title = "Carga por técnico vs capacidad (según selectores)"
+    barras.add_data(Reference(ws, min_col=20, min_row=3, max_row=fila_tec1), titles_from_data=True)
+    barras.add_data(Reference(ws, min_col=21, min_row=3, max_row=fila_tec1), titles_from_data=True)
+    cats_tec = Reference(ws, min_col=18, min_row=fila_tec0, max_row=fila_tec1)
+    barras.set_categories(cats_tec)
+    barras.series[0].graphicalProperties.solidFill = "63BE7B"   # dentro de capacidad
+    barras.series[1].graphicalProperties.solidFill = "F8696B"   # sobreasignación
+    for s in barras.series:
+        s.dLbls = DataLabelList(showVal=True)  # etiquetas visibles, ceros incluidos
+    barras.y_axis.scaling.min = 0
+    barras.y_axis.scaling.max = y_max
+    barras.y_axis.title = "HH"
+    capacidad = LineChart()
+    capacidad.add_data(Reference(ws, min_col=22, min_row=3, max_row=fila_tec1), titles_from_data=True)
+    capacidad.set_categories(cats_tec)
+    capacidad.series[0].graphicalProperties.line.solidFill = "1F4E78"
+    capacidad.series[0].graphicalProperties.line.width = 25000
+    capacidad.series[0].smooth = False
+    capacidad.y_axis.axId = 200
+    capacidad.y_axis.delete = True
+    # Misma escala fija en ambos ejes para que la línea sea comparable con las barras
+    capacidad.y_axis.scaling.min = 0
+    capacidad.y_axis.scaling.max = y_max
+    barras += capacidad
+    barras.legend.position = "b"
+    barras.height, barras.width = 8.5, 30
+    ws.add_chart(barras, "A7")
+
+    cab_plan = ["semana", "dia", "turno", "coordinador", "area", "especialidad", "tecnico",
+                "id_operacion", "descripcion_operacion", "equipo", "horas", "estado", "en_plan"]
+    encabezados(ws, FILA_GRILLA, cab_plan)
     origen = {"semana": "semana", "dia": "dia_semana", "turno": "turno_asignado",
-              "coordinador": "coordinador", "area": "area", "tecnico": "tecnico_asignado",
-              "id_operacion": "id_operacion", "descripcion_operacion": "descripcion_operacion",
-              "equipo": "equipo", "horas": "horas_estimadas", "estado": "estado", "en_plan": "en_plan"}
+              "coordinador": "coordinador", "area": "area", "especialidad": "especialidad",
+              "tecnico": "tecnico_asignado", "id_operacion": "id_operacion",
+              "descripcion_operacion": "descripcion_operacion", "equipo": "equipo",
+              "horas": "horas_estimadas", "estado": "estado", "en_plan": "en_plan"}
     for i in range(n_ord):
         fo = O.fila_ini + i
-        fe = 9 + i
+        fe = fila_ini_esp + i
         for j, c in enumerate(cab_plan, start=1):
             ref = f"'ORDENES'!${O.letra(origen[c])}{fo}"
             if c == "horas":
@@ -1195,15 +1318,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                 celda(ws, fe, j, f"={ref}")
             else:
                 celda(ws, fe, j, f'=IF({ref}="","-",{ref})')
-    ws.auto_filter.ref = f"A8:L{fila_fin_esp}"
-    ws.freeze_panes = "A9"
-    ws.print_area = f"A1:L{fila_fin_esp}"
+    ws.auto_filter.ref = f"A{FILA_GRILLA}:M{fila_fin_esp}"
+    # Paneles inmovilizados: selectores, gráfico y encabezados quedan fijos
+    ws.freeze_panes = f"A{fila_ini_esp}"
+    ws.print_area = f"A1:M{fila_fin_esp}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
-    for j, wdt in enumerate([9, 11, 8, 14, 13, 13, 15, 34, 9, 7, 11, 9]):
+    for j, wdt in enumerate([9, 11, 8, 14, 13, 12, 13, 15, 30, 9, 7, 11, 9]):
         ws.column_dimensions[get_column_letter(j + 1)].width = wdt
+    for j, wdt in enumerate([13, 12, 20, 13, 15, 15, 11]):
+        ws.column_dimensions[get_column_letter(16 + j)].width = wdt
 
     # --------------------------------------------------------- ADHERENCIA
     ws = wb.create_sheet("ADHERENCIA")
@@ -1609,6 +1735,24 @@ def imprimir_resumen(datos, esperado):
     print("\nBACKLOG esperado (pendientes por tramo):")
     for tramo, (n, hh) in esperado["backlog_aging"].items():
         print(f"  {tramo:>6}: {n} órdenes · {hh:.0f} h")
+    sem1 = semanas[1]
+    print(f"\nCARGA SEMANAL POR TÉCNICO (gráfico de PLAN_SEMANAL, selector por defecto {sem1}):")
+    for _tid, nombre, esp_t, _area in TECNICOS:
+        c = esperado["carga_tecnicos"][(sem1, nombre)]
+        cap = esperado["capacidad_tecnicos"][(sem1, nombre)]
+        print(f"  {nombre} ({esp_t}): HHA {c:>5.1f} · capacidad {cap:>6.2f} · "
+              f"dentro {min(c, cap):>6.2f} · sobre {max(0, c - cap):>5.2f}")
+    print(f"\nHHA/HHD por día — Técnico 01, semana {sem1} "
+          f"(capacidad diaria = 7 × 0,87 = {HORAS_JORNADA * FACTOR_PRODUCTIVIDAD:.2f} h):")
+    for dia in DIAS[:5]:
+        ords = [o for o in esperado["ordenes"] if o["tecnico_asignado"] == "Técnico 01"
+                and o["semana"] == sem1 and o["dia_semana"] == dia]
+        if not ords:
+            print(f"  {dia:10}: sin órdenes")
+            continue
+        hha = ords[0]["HHA"]
+        print(f"  {dia:10}: {' + '.join(str(o['horas_estimadas']) for o in ords)} h "
+              f"→ HHA {hha} · HHD {HORAS_JORNADA * FACTOR_PRODUCTIVIDAD - hha:+.2f}")
     print("\nVALIDACION esperada (REGLA-10):")
     for k, v in esperado["validacion"].items():
         print(f"  {k}: {v}")
