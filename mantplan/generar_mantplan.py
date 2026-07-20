@@ -35,6 +35,7 @@ from datetime import date, timedelta
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference, Series
 from openpyxl.chart.label import DataLabelList
+from openpyxl.chart.marker import Marker
 from openpyxl.formatting.rule import CellIsRule, ColorScaleRule, FormulaRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -43,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 # ══════════════════════════════════════════════════════════════════════════
 # 1. PARÁMETROS (Tabla 10) Y CATÁLOGOS SINTÉTICOS
@@ -380,6 +381,15 @@ def generar_datos(hoy):
             nueva(lunes_sem[si] + timedelta(days=j % 5), h, "TERCERO", "preventiva",
                   "plan_tercero", si=si, ceco="CC-310", act="ACT-05", tipo="TIPO-P2")
 
+    # Conflicto deliberado: una orden MEC de la semana en que TEC-04 está de
+    # vacaciones queda asignada a él → HHD = −HHA (demo de indisponibilidad)
+    for o in ordenes:
+        if (o["_grupo"] == "plan" and o["_si"] == 2
+                and o["puesto_trabajo"] == "PU-MEC" and o["tecnico_asignado"]):
+            o["tecnico_asignado"] = "Técnico 04"
+            o["observaciones"] = "Demo: asignada a técnico de vacaciones (HHD = −HHA)"
+            break
+
     # Segunda operación 0020 para 4 órdenes del plan (demo de operaciones)
     for o in [x for x in ordenes if x["_grupo"] == "plan"][::40][:4]:
         consecutivo[0] += 1
@@ -510,6 +520,8 @@ def calcular_esperado(datos):
     asig_por_clave = {}
     for a in datos["asignaciones"]:
         asig_por_clave.setdefault((a["semana"], a["dia"], a["tecnico"]), a)
+        a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"])
+        a["coordinador"] = COORD_POR_AREA[a["area"]]
 
     enriquecidas = []
     for o in datos["ordenes"]:
@@ -549,14 +561,14 @@ def calcular_esperado(datos):
     for o in enriquecidas:
         if o["tecnico_asignado"]:
             o["HHA"] = hha_por_dia[(o["tecnico_asignado"], o["semana"], o["dia_semana"])]
-            o["HHD"] = HORAS_JORNADA * FACTOR_PRODUCTIVIDAD - o["HHA"]
+            # HHD contra la disponibilidad real del técnico ese día (REGLA-5):
+            # sin asignación o con VAC/X la disponibilidad es 0 y HHD = −HHA.
+            asig = asig_por_clave.get((o["semana"], o["dia_semana"], o["tecnico_asignado"]))
+            disp = asig["horas_disponibles"] if asig else 0
+            o["HHD"] = FACTOR_PRODUCTIVIDAD * disp - o["HHA"]
         else:
             o["HHA"] = ""
             o["HHD"] = ""
-
-    for a in datos["asignaciones"]:
-        a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"])
-        a["coordinador"] = COORD_POR_AREA[a["area"]]
 
     perfil = {}
     for esp in ESPECIALIDADES:
@@ -777,9 +789,16 @@ def formulas_ordenes(R):
                         f'{R.col("tblOrdenes", "semana")},{f("semana", fila)},'
                         f'{R.col("tblOrdenes", "dia_semana")},{f("dia_semana", fila)}))')
             if campo == "HHD":
-                # Horas Hombre Disponibles del día; negativo = sobreasignación.
+                # Horas Hombre Disponibles del día contra la disponibilidad
+                # REAL del técnico (tblAsignaciones vía REGLA-5): un técnico
+                # de vacaciones/ausente aporta 0 y su HHD queda en −HHA.
+                # Negativo = sobreasignación (misma fuente que la línea de
+                # capacidad del gráfico de PLAN_SEMANAL).
                 h = f("HHA", fila)
-                return f'=IF({h}="","",p_horas_jornada*p_factor_productividad-{h})'
+                clave = (f'{f("semana", fila)}&"|"&{f("dia_semana", fila)}&"|"&'
+                         f'{f("tecnico_asignado", fila)}')
+                disp = R.busca(clave, "tblAsignaciones", "clave", "horas_disponibles", "0")
+                return f'=IF({h}="","",p_factor_productividad*{disp}-{h})'
             if campo == "costo_servicio":
                 return "=" + R.busca(f("id_operacion", fila), "tblEjecucion",
                                      "id_operacion", "precio", "0")
@@ -1283,17 +1302,17 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     barras.y_axis.scaling.min = 0
     barras.y_axis.scaling.max = y_max
     barras.y_axis.title = "HH"
+    # Serie de capacidad como línea combinada SOBRE EL MISMO eje de valores
+    # que las barras (mismos axId por defecto → ejes compartidos), con
+    # marcador visible y sin etiquetas de datos.
     capacidad = LineChart()
     capacidad.add_data(Reference(ws, min_col=22, min_row=3, max_row=fila_tec1), titles_from_data=True)
     capacidad.set_categories(cats_tec)
-    capacidad.series[0].graphicalProperties.line.solidFill = "1F4E78"
-    capacidad.series[0].graphicalProperties.line.width = 25000
-    capacidad.series[0].smooth = False
-    capacidad.y_axis.axId = 200
-    capacidad.y_axis.delete = True
-    # Misma escala fija en ambos ejes para que la línea sea comparable con las barras
-    capacidad.y_axis.scaling.min = 0
-    capacidad.y_axis.scaling.max = y_max
+    s_cap = capacidad.series[0]
+    s_cap.graphicalProperties.line.solidFill = "1F4E78"
+    s_cap.graphicalProperties.line.width = 25000
+    s_cap.smooth = False
+    s_cap.marker = Marker(symbol="circle", size=6)
     barras += capacidad
     barras.legend.position = "b"
     barras.height, barras.width = 8.5, 30
@@ -1743,7 +1762,7 @@ def imprimir_resumen(datos, esperado):
         print(f"  {nombre} ({esp_t}): HHA {c:>5.1f} · capacidad {cap:>6.2f} · "
               f"dentro {min(c, cap):>6.2f} · sobre {max(0, c - cap):>5.2f}")
     print(f"\nHHA/HHD por día — Técnico 01, semana {sem1} "
-          f"(capacidad diaria = 7 × 0,87 = {HORAS_JORNADA * FACTOR_PRODUCTIVIDAD:.2f} h):")
+          f"(disponibilidad normal = 7 h × 0,87 = {HORAS_JORNADA * FACTOR_PRODUCTIVIDAD:.2f} h):")
     for dia in DIAS[:5]:
         ords = [o for o in esperado["ordenes"] if o["tecnico_asignado"] == "Técnico 01"
                 and o["semana"] == sem1 and o["dia_semana"] == dia]
@@ -1752,7 +1771,13 @@ def imprimir_resumen(datos, esperado):
             continue
         hha = ords[0]["HHA"]
         print(f"  {dia:10}: {' + '.join(str(o['horas_estimadas']) for o in ords)} h "
-              f"→ HHA {hha} · HHD {HORAS_JORNADA * FACTOR_PRODUCTIVIDAD - hha:+.2f}")
+              f"→ HHA {hha} · HHD {ords[0]['HHD']:+.2f}")
+    demo = next((o for o in esperado["ordenes"]
+                 if str(o.get("observaciones", "")).startswith("Demo:")), None)
+    if demo:
+        print(f"  Conflicto demo: {demo['id_operacion']} asignada a {demo['tecnico_asignado']} "
+              f"({demo['semana']} {demo['dia_semana']}, turno \"{demo['turno_asignado']}\") → "
+              f"disponibilidad 0 → HHA {demo['HHA']} · HHD {demo['HHD']:+.2f}")
     print("\nVALIDACION esperada (REGLA-10):")
     for k, v in esperado["validacion"].items():
         print(f"  {k}: {v}")

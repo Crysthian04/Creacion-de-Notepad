@@ -14,20 +14,24 @@ están implementadas dos veces y verificadas una contra la otra:
 
 ## Contenido de esta carpeta
 
-| Archivo | Qué es |
-|---|---|
-| `MantPlan.xlsx` | El libro entregable, con 200 órdenes sintéticas ancladas al **2026-07-19** |
-| `generar_mantplan.py` | Motor de reglas en Python + generador determinista del libro |
-| `README.md` | Este documento |
+| Archivo | Qué es | Cuándo usarlo |
+|---|---|---|
+| `MantPlan.xlsx` | Libro principal: `XLOOKUP` + referencias estructuradas | **Excel 2021 / Microsoft 365** |
+| `MantPlan_compatible.xlsx` | Mismo libro y mismos datos con `INDEX/MATCH` + rangos A1 acotados | **Excel 2016 o anterior, y LibreOffice** |
+| `generar_mantplan.py` | Motor de reglas en Python + generador determinista de ambos libros | — |
+| `README.md` | Este documento | — |
+
+Ambos libros llevan las mismas 200 órdenes sintéticas ancladas al
+**2026-07-20** y producen números idénticos (verificado, ver §1).
 
 ## Cómo regenerarlo
 
 ```bash
 pip install openpyxl
-python generar_mantplan.py                       # MantPlan.xlsx (XLOOKUP + refs estructuradas)
-python generar_mantplan.py --fecha-ancla 2026-07-19   # fija el "hoy" de los datos de ejemplo
-python generar_mantplan.py --refs compatibles    # variante INDEX/MATCH + rangos A1
-python generar_mantplan.py --resumen             # imprime todos los números esperados
+python generar_mantplan.py                                        # MantPlan.xlsx (principal)
+python generar_mantplan.py --salida MantPlan_compatible.xlsx --refs compatibles
+python generar_mantplan.py --fecha-ancla 2026-07-20               # fija el "hoy" de los datos
+python generar_mantplan.py --resumen                              # imprime los números esperados
 ```
 
 ## Decisiones técnicas
@@ -60,11 +64,12 @@ diferencia es la función de búsqueda usada.
   `VLOOKUP` dentro de `IFERROR`. En el XML se almacena como `_xlfn.XLOOKUP`,
   que es la forma canónica con la que Excel guarda las funciones
   posteriores a 2007 (la interfaz oculta el prefijo).
-- **Requiere Excel 2021 o Microsoft 365.** Para Excel 2016 o anterior: la hoja
-  `_COMPATIBILIDAD` documenta el equivalente `INDEX/MATCH` de cada lookup con
-  un ejemplo vivo, y `--refs compatibles` regenera el libro completo en esa
-  variante. LibreOffice < 24.8 tampoco evalúa `XLOOKUP`; para esos entornos
-  vale la misma variante.
+- **Requiere Excel 2021 o Microsoft 365.** Para Excel 2016 o anterior y para
+  LibreOffice (< 24.8 no evalúa `XLOOKUP`) está **`MantPlan_compatible.xlsx`**,
+  versionado en esta carpeta desde v1.2.0: mismo libro, mismos datos, cero
+  `XLOOKUP` (solo `INDEX/MATCH` + rangos A1 acotados). La hoja
+  `_COMPATIBILIDAD` del libro principal documenta además el equivalente
+  `INDEX/MATCH` de cada lookup con un ejemplo vivo.
 
 ### 3. Cálculo automático y caché de resultados
 
@@ -115,20 +120,29 @@ implicaría sustituir la pareja ISOWEEKNUM/WEEKDAY).
 
 Tal como exige el modelo. Consecuencia: FUTURO / MES CORRIENTE / BACKLOG se
 mueven con la fecha real en que se abra el archivo. Los datos de ejemplo están
-anclados al **2026-07-19**; si los números relativos al día cambian, regenere
-con `--fecha-ancla 2026-07-19` o verifique contra `--resumen` del mismo día.
+anclados al **2026-07-20**; si los números relativos al día cambian, regenere
+con `--fecha-ancla 2026-07-20` o verifique contra `--resumen` del mismo día.
 
-### 8. v1.1.0 — HHA/HHD y gráfico de carga por técnico
+### 8. v1.1.0 / v1.2.0 — HHA/HHD y gráfico de carga por técnico
 
 **Columnas `HHA` y `HHD` en `tblOrdenes`** (calculadas, mismo valor repetido
 en todas las filas del mismo técnico/semana/día):
 
 - `HHA` = `SUMIFS(horas_estimadas; tecnico_asignado; semana; dia_semana)` con
   referencias estructuradas — total de horas asignadas al técnico ese día.
-- `HHD` = `horas_jornada × factor_productividad − HHA` (7 × 0,87 = **6,09 h**
-  con los parámetros por defecto). Puede ser negativa: **HHD < 0 se marca en
-  rojo** con formato condicional = técnico sobreasignado ese día.
+- `HHD` = `factor_productividad × horas_disponibles − HHA`, donde
+  `horas_disponibles` se busca en `tblAsignaciones` por la clave
+  `semana|dia|tecnico` (con 0 si no hay asignación). Es la **misma fuente que
+  la línea de capacidad del gráfico**, así que HHD respeta la disponibilidad
+  real del técnico (REGLA-5): con turno normal la capacidad diaria es 7 ×
+  0,87 = **6,09 h**; con `VAC`/`X` o sin asignación es 0 y **HHD = −HHA**.
+  Puede ser negativa: **HHD < 0 se marca en rojo** con formato condicional =
+  técnico sobreasignado ese día. *(Corregido en v1.2.0: antes usaba
+  `horas_jornada × factor` fijo e ignoraba vacaciones y ausencias.)*
 - Ambas quedan vacías en órdenes sin técnico asignado.
+- Los datos de ejemplo incluyen un conflicto deliberado para probarlo:
+  **OT-000026** está asignada al Técnico 04 en su semana de vacaciones
+  (S31, turno "VAC") → HHA 10, **HHD = −10,00**.
 
 **Gráfico de carga en `PLAN_SEMANAL`**, fijo en la parte superior de la hoja
 (paneles inmovilizados en la fila de datos de la grilla: selectores, gráfico y
@@ -143,7 +157,11 @@ encabezados no se mueven al desplazarse):
   concreto seleccionado eso es exactamente `horas_jornada ×
   factor_productividad` (6,09) salvo vacaciones/ausencia (0); con día
   "(todos)" escala a la semana completa (30,45 h con 5 días), manteniendo la
-  línea comparable con las barras. Ambos ejes comparten escala fija.
+  línea comparable con las barras. *(v1.2.0: la línea va combinada sobre el
+  **mismo eje de valores** que las barras apiladas — `bar += line` en
+  openpyxl con ejes compartidos —, con marcador circular visible y sin
+  etiquetas de datos; en v1.1.0 iba a un eje secundario oculto y Excel no la
+  dibujaba.)*
 - Eje de categorías: técnicos **ordenados por especialidad** (MEC → ELE → AUT
   → OP); la etiqueta añade el turno (`Técnico 01 (T1)`) cuando hay semana y
   día concretos seleccionados, porque el turno depende del día.
@@ -173,40 +191,40 @@ nombres definidos huérfanos. Los 12 nombres definidos (`p_*` para parámetros,
 ## Datos de ejemplo y verificación a mano
 
 200 órdenes · 163 filas de ejecución (3 huérfanas a propósito) · 12 técnicos ·
-336 asignaciones · 4 semanas de plan **S28–S31** (ancla 2026-07-19).
+336 asignaciones · 4 semanas de plan **S29–S32** (ancla 2026-07-20).
 
 ### PERFIL_HH esperado (REGLA-6) — jornada 7 h, productividad 0,87
 
-Cuenta rápida de referencia: **MEC S28 = 4 técnicos × 5 días × 7 h = 140 h
+Cuenta rápida de referencia: **MEC S29 = 4 técnicos × 5 días × 7 h = 140 h
 disponibles; × 0,87 = 121,8 productivas; 82 prev + 20 corr = 102 planificadas;
 holgura 19,8; carga 102/121,8 = 83,7 % → verde.**
 
 | esp | semana | disp | prod | prev | corr | plan | holgura | % carga |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| MEC | S28 | 140 | 121,80 | 82 | 20 | 102 | 19,80 | 83,7 % 🟢 |
-| MEC | S29 | 140 | 121,80 | 80 | 25 | 105 | 16,80 | 86,2 % 🟡 |
-| MEC | S30 | 105 | 91,35 | 80 | 20 | 100 | −8,65 | **109,5 % 🔴** |
-| MEC | S31 | 140 | 121,80 | 72 | 14 | 86 | 35,80 | 70,6 % 🟢 |
-| ELE | S28 | 105 | 91,35 | 60 | 15 | 75 | 16,35 | 82,1 % 🟢 |
-| ELE | S29 | 98 | 85,26 | 65 | 20 | 85 | 0,26 | 99,7 % 🟡 |
-| ELE | S30 | 105 | 91,35 | 60 | 10 | 70 | 21,35 | 76,6 % 🟢 |
-| ELE | S31 | 105 | 91,35 | 52 | 10 | 62 | 29,35 | 67,9 % 🟢 |
-| AUT | S28 | 70 | 60,90 | 40 | 10 | 50 | 10,90 | 82,1 % 🟢 |
-| AUT | S29 | 70 | 60,90 | 45 | 10 | 55 | 5,90 | 90,3 % 🟡 |
-| AUT | S30 | 70 | 60,90 | 35 | 7 | 42 | 18,90 | 69,0 % 🟢 |
-| AUT | S31 | 70 | 60,90 | 30 | 6 | 36 | 24,90 | 59,1 % 🟢 |
-| OP | S28 | 105 | 91,35 | 30 | 8 | 38 | 53,35 | 41,6 % 🟢 |
-| OP | S29 | 105 | 91,35 | 36 | 9 | 45 | 46,35 | 49,3 % 🟢 |
-| OP | S30 | 105 | 91,35 | 28 | 9 | 37 | 54,35 | 40,5 % 🟢 |
-| OP | S31 | 105 | 91,35 | 24 | 6 | 30 | 61,35 | 32,8 % 🟢 |
-| TERCERO | S29 | 0 | 0 | 16 | 0 | 16 | −16,00 | — |
-| TERCERO | S30 | 0 | 0 | 12 | 0 | 12 | −12,00 | — |
+| MEC | S29 | 140 | 121,80 | 82 | 20 | 102 | 19,80 | 83,7 % 🟢 |
+| MEC | S30 | 140 | 121,80 | 80 | 25 | 105 | 16,80 | 86,2 % 🟡 |
+| MEC | S31 | 105 | 91,35 | 80 | 20 | 100 | −8,65 | **109,5 % 🔴** |
+| MEC | S32 | 140 | 121,80 | 72 | 14 | 86 | 35,80 | 70,6 % 🟢 |
+| ELE | S29 | 105 | 91,35 | 60 | 15 | 75 | 16,35 | 82,1 % 🟢 |
+| ELE | S30 | 98 | 85,26 | 65 | 20 | 85 | 0,26 | 99,7 % 🟡 |
+| ELE | S31 | 105 | 91,35 | 60 | 10 | 70 | 21,35 | 76,6 % 🟢 |
+| ELE | S32 | 105 | 91,35 | 52 | 10 | 62 | 29,35 | 67,9 % 🟢 |
+| AUT | S29 | 70 | 60,90 | 40 | 10 | 50 | 10,90 | 82,1 % 🟢 |
+| AUT | S30 | 70 | 60,90 | 45 | 10 | 55 | 5,90 | 90,3 % 🟡 |
+| AUT | S31 | 70 | 60,90 | 35 | 7 | 42 | 18,90 | 69,0 % 🟢 |
+| AUT | S32 | 70 | 60,90 | 30 | 6 | 36 | 24,90 | 59,1 % 🟢 |
+| OP | S29 | 105 | 91,35 | 30 | 8 | 38 | 53,35 | 41,6 % 🟢 |
+| OP | S30 | 105 | 91,35 | 36 | 9 | 45 | 46,35 | 49,3 % 🟢 |
+| OP | S31 | 105 | 91,35 | 28 | 9 | 37 | 54,35 | 40,5 % 🟢 |
+| OP | S32 | 105 | 91,35 | 24 | 6 | 30 | 61,35 | 32,8 % 🟢 |
+| TERCERO | S30 | 0 | 0 | 16 | 0 | 16 | −16,00 | — |
+| TERCERO | S31 | 0 | 0 | 12 | 0 | 12 | −12,00 | — |
 
 Casos preparados a propósito:
 
-- **TEC-04 (MEC) de vacaciones toda la S30** (`VAC` → REGLA-5 = 0 h): MEC baja
+- **TEC-04 (MEC) de vacaciones toda la S31** (`VAC` → REGLA-5 = 0 h): MEC baja
   de 140 a 105 h disponibles y la carga se dispara a 109,5 % (rojo).
-- **TEC-07 (ELE) ausente el viernes de S29** (`X`): ELE 98 h en vez de 105.
+- **TEC-07 (ELE) ausente el viernes de S30** (`X`): ELE 98 h en vez de 105.
 - **TERCERO** no tiene capacidad interna (sin filas en ASIGNACIONES): la
   columna `% carga` queda vacía (denominador 0 protegido).
 
@@ -214,20 +232,22 @@ Casos preparados a propósito:
 
 | semana | cerradas/total | conteo | HH cerradas/total | horas |
 |---|---|---:|---|---:|
-| S28 | 30/34 | 88,2 % | 229/265 | 86,4 % |
-| S29 | 19/37 | 51,4 % | 161/306 | 52,6 % |
-| S30 | 0/33 | 0,0 % | 0/261 | 0,0 % |
-| S31 | 0/29 | 0,0 % | 0/214 | 0,0 % |
+| S29 | 30/34 | 88,2 % | 229/265 | 86,4 % |
+| S30 | 19/37 | 51,4 % | 161/306 | 52,6 % |
+| S31 | 0/33 | 0,0 % | 0/261 | 0,0 % |
+| S32 | 0/29 | 0,0 % | 0/214 | 0,0 % |
 
 ### REGLA-9 esperada (meta: correctivo ≤ 20 %)
 
-S28: ratio 0,25 (20,0 % → SI) · S29: 0,26 (20,9 % → NO) · S30: 0,21 (17,6 % →
-SI) · S31: 0,20 (16,8 % → SI).
+S29: ratio 0,25 (20,0 % → SI) · S30: 0,26 (20,9 % → NO) · S31: 0,21 (17,6 % →
+SI) · S32: 0,20 (16,8 % → SI).
 
-### BACKLOG esperado (pendientes por tramo, al 2026-07-19)
+### BACKLOG esperado (pendientes por tramo, al 2026-07-20)
 
-0–30: 22 órdenes / 181 h · 31–60: 21 / 80 h · 61–90: 9 / 48 h · **>90: 14 /
-80 h** (resaltadas en rojo).
+0–30: 9 órdenes / 75 h · 31–60: 21 / 80 h · 61–90: 9 / 48 h · **>90: 14 /
+80 h** (resaltadas en rojo). El tramo 0–30 depende del día en que se abra el
+libro (`HOY()`, §7): con el ancla en lunes solo la semana pasada aporta
+pendientes recientes.
 
 ### VALIDACION esperada (REGLA-10)
 
@@ -243,9 +263,10 @@ SI) · S31: 0,20 (16,8 % → SI).
 | EJECUCION sin par en ORDENES (OT-000990/991/992) | 3 |
 | ORDENES sin par en EJECUCION (quedan `Pendiente`) | 39 |
 
-### Caso manual de HHA/HHD y del gráfico de carga (v1.1.0)
+### Caso manual de HHA/HHD y del gráfico de carga (v1.1.0/v1.2.0)
 
-**Técnico 01 (MEC), semana S29** — capacidad diaria = 7 × 0,87 = **6,09 h**:
+**Técnico 01 (MEC), semana S30** — capacidad diaria con turno normal =
+7 × 0,87 = **6,09 h**:
 
 | día | órdenes asignadas | HHA | HHD | color |
 |---|---|---:|---:|---|
@@ -256,14 +277,17 @@ SI) · S31: 0,20 (16,8 % → SI).
 | viernes | 7 h | 7 | **−0,91** | 🔴 |
 
 Compruébelo filtrando `ORDENES` por `tecnico_asignado = Técnico 01` y
-`semana = S29`: todas las filas del martes repiten HHA = 8 y HHD = −1,91 en
-rojo.
+`semana = S30`: todas las filas del martes repiten HHA = 8 y HHD = −1,91 en
+rojo. El caso extremo es **OT-000026** (Técnico 04, S31 lunes, turno "VAC"):
+disponibilidad 0 → HHA 10 y **HHD = −10,00** — la sobreasignación es la orden
+completa porque el técnico está de vacaciones.
 
 **El gráfico refleja los mismos números.** Con los selectores por defecto
-(semana = S29, resto "(todos)") la barra de cada técnico suma su HHA semanal
-contra la capacidad de la semana (30,45 h = 5 días × 7 h × 0,87):
+(semana = S30, resto "(todos)") la barra de cada técnico suma su HHA semanal
+contra la capacidad de la semana (30,45 h = 5 días × 7 h × 0,87), y la línea
+de capacidad con marcadores pasa por esos mismos valores:
 
-| técnico | HHA S29 | capacidad | verde (dentro) | rojo (sobre) |
+| técnico | HHA S30 | capacidad | verde (dentro) | rojo (sobre) |
 |---|---:|---:|---:|---:|
 | Técnico 01 (MEC) | **31** = 6+8+10+7 | 30,45 | 30,45 | **0,55** |
 | Técnico 02 (MEC) | 22 | 30,45 | 22 | 0 |
@@ -316,8 +340,8 @@ en rojo (ORDENES, sobreasignación).
 
 ## Limitaciones conocidas
 
-- `XLOOKUP` exige Excel 2021/365 (mitigado con `_COMPATIBILIDAD` y
-  `--refs compatibles`).
+- `XLOOKUP` exige Excel 2021/365 en el libro principal; para Excel 2016 y
+  LibreOffice use `MantPlan_compatible.xlsx` (versionado en esta carpeta).
 - Sin caché de resultados hasta el primer abrir-y-guardar en Excel (§3).
 - Slicers y tablas dinámicas nativas quedan fuera del alcance de un libro
   generado sin macros (§4); la web (entregable B) cubre esa interactividad.
