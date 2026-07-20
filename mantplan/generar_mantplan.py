@@ -44,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -355,7 +355,6 @@ def generar_datos(hoy):
                                "OP": "PU-OP", "TERCERO": "PU-TER"}.get(esp, esp),
             "cod_actividad": act, "tipo_ot": tipo,
             "fecha_inicio": fecha, "horas_estimadas": horas,
-            "horas_ajustadas": None,
             "costo_plan": (horas or 0) * tarifa,
             "tecnico_asignado": tecnico or "",
             "permiso_requerido": "", "bloqueo_energia": "", "link_checklist": "",
@@ -404,16 +403,15 @@ def generar_datos(hoy):
             o["observaciones"] = "Demo: asignada a técnico de vacaciones (HHD = −HHA)"
             break
 
-    # Ajustes manuales de horas (v2): el planificador corrige el estándar del
-    # ERP y el ajuste manda en todos los cálculos (horas_efectivas).
+    # Ajustes manuales de horas (v2.1: viven en tblAjustes, con clave).
+    # Aquí solo se eligen las órdenes; la lista de ajustes se arma al final,
+    # cuando ya existen los id_operacion.
     aj1 = next(o for o in ordenes if o["_grupo"] == "plan" and o["_si"] == 1
                and o["tecnico_asignado"] == "Técnico 01" and o["horas_estimadas"] == 8)
-    aj1["horas_ajustadas"] = 12
-    aj1["observaciones"] = "Ajuste: 8 → 12 h por alcance real"
+    aj1["observaciones"] = "Ajuste 8 → 12 h en hoja AJUSTES"
     aj2 = next(o for o in ordenes if o["_grupo"] == "plan" and o["_si"] == 1
                and o["puesto_trabajo"] == "PU-ELE" and o["horas_estimadas"] == 6)
-    aj2["horas_ajustadas"] = 4
-    aj2["observaciones"] = "Ajuste: 6 → 4 h por alcance real"
+    aj2["observaciones"] = "Ajuste 6 → 4 h en hoja AJUSTES"
 
     # Segunda operación 0020 para 4 órdenes del plan (demo de operaciones)
     for o in [x for x in ordenes if x["_grupo"] == "plan"][::40][:4]:
@@ -481,6 +479,21 @@ def generar_datos(hoy):
     for o in ordenes:
         o["id_operacion"] = o["orden"] + (o["operacion"] or "0010")
 
+    # tblAjustes de ejemplo: 2 aplicados + 1 duplicado + 1 huérfano (demos de
+    # los chequeos de VALIDACION; ante duplicados gana la primera fila).
+    ajustes = [
+        {"id_operacion": aj1["id_operacion"], "horas_ajustadas": 12,
+         "motivo": "Alcance real mayor al estándar del ERP", "fecha_ajuste": hoy},
+        {"id_operacion": aj2["id_operacion"], "horas_ajustadas": 4,
+         "motivo": "Alcance menor: tarea parcial", "fecha_ajuste": hoy},
+        {"id_operacion": aj1["id_operacion"], "horas_ajustadas": 14,
+         "motivo": "Duplicado (demo): se ignora, gana la primera fila",
+         "fecha_ajuste": hoy},
+        {"id_operacion": "OT-0009990010", "horas_ajustadas": 6,
+         "motivo": "Huérfano (demo): la orden no existe en ORDENES",
+         "fecha_ajuste": hoy},
+    ]
+
     # --- EJECUCION --------------------------------------------------------
     ejecucion = []
     prioridades = ("1-ALTA", "2-MEDIA", "3-BAJA")
@@ -534,7 +547,7 @@ def generar_datos(hoy):
 
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
-            "edge_regla8": edge_regla8}
+            "ajustes": ajustes, "edge_regla8": edge_regla8}
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -553,6 +566,9 @@ def calcular_esperado(datos):
         asig_por_clave.setdefault((a["semana"], a["dia"], a["tecnico"]), a)
         a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"])
         a["coordinador"] = COORD_POR_AREA[a["area"]]
+    aj_por_id = {}
+    for a in datos["ajustes"]:
+        aj_por_id.setdefault(a["id_operacion"], a["horas_ajustadas"])  # gana la primera
 
     enriquecidas = []
     for o in datos["ordenes"]:
@@ -566,7 +582,7 @@ def calcular_esperado(datos):
         dia = DIAS[f.weekday()] if f else ""
         tec = o["tecnico_asignado"]
         asig = asig_por_clave.get((semana, dia, tec)) if tec else None
-        aj = o.get("horas_ajustadas")
+        aj = aj_por_id.get(o["id_operacion"])
         efectivas = aj if aj is not None else (
             o["horas_estimadas"] if o["horas_estimadas"] is not None else "")
         enriquecidas.append({**o,
@@ -678,11 +694,38 @@ def calcular_esperado(datos):
                 a["horas_disponibles"] for a in datos["asignaciones"]
                 if a["tecnico"] == nombre and a["semana"] == sem)
 
-    ajustadas = [o for o in datos["ordenes"] if o.get("horas_ajustadas") is not None]
+    # Estado esperado de cada fila de tblAjustes (aplicado/duplicado/huérfano)
+    ids_ordenes = {o["id_operacion"] for o in datos["ordenes"]}
+    est_por_id = {}
+    for o in datos["ordenes"]:
+        est_por_id.setdefault(o["id_operacion"], o["horas_estimadas"])
+    desc_por_id = {}
+    for o in datos["ordenes"]:
+        desc_por_id.setdefault(o["id_operacion"], o["descripcion_operacion"])
+    ajustes_esperado, aplicados = [], set()
+    for a in datos["ajustes"]:
+        i = a["id_operacion"]
+        if i not in ids_ordenes:
+            estado_a, desv = "huérfano", ""
+        elif i in aplicados:
+            estado_a, desv = "duplicado (se ignora)", ""
+        else:
+            aplicados.add(i)
+            est = est_por_id[i]
+            estado_a = "aplicado"
+            desv = a["horas_ajustadas"] - est if est is not None else ""
+        ajustes_esperado.append({
+            "estado_ajuste": estado_a, "desviacion_h": desv,
+            "descripcion": desc_por_id.get(i, "(no encontrada)")})
     validacion_extra = {
-        "ajustadas": len(ajustadas),
-        "desviacion_horas": sum(o["horas_ajustadas"] - (o["horas_estimadas"] or 0)
-                                for o in ajustadas),
+        "ajustadas": sum(1 for o in datos["ordenes"] if o["id_operacion"] in aj_por_id),
+        "desviacion_horas": sum(x["desviacion_h"] for x in ajustes_esperado
+                                if x["desviacion_h"] != ""),
+        "huerfanos": sum(1 for a in datos["ajustes"]
+                         if a["id_operacion"] not in ids_ordenes),
+        "duplicados_ajustes": sum(1 for a in datos["ajustes"]
+                                  if sum(1 for b in datos["ajustes"]
+                                         if b["id_operacion"] == a["id_operacion"]) > 1),
     }
 
     return {"ordenes": enriquecidas, "perfil": perfil, "adherencia": adherencia,
@@ -690,7 +733,7 @@ def calcular_esperado(datos):
             "costos": costos, "equipos_orden": equipos_orden, "equipos_tot": equipos_tot,
             "carga_tecnicos": carga_tecnicos, "capacidad_tecnicos": capacidad_tecnicos,
             "serie_semanas": serie_semanas, "semanas_con_datos": semanas_con_datos,
-            "validacion_extra": validacion_extra,
+            "validacion_extra": validacion_extra, "ajustes_esperado": ajustes_esperado,
             "validacion": regla_10_validacion(datos["ordenes"], datos["ejecucion"])}
 
 
@@ -764,7 +807,7 @@ CAMPOS_ORDENES = [
     "orden", "operacion", "descripcion_general", "descripcion_operacion",
     "equipo", "centro_costo", "puesto_trabajo", "cod_actividad", "tipo_ot",
     "fecha_inicio", "horas_estimadas", "costo_plan",
-    "horas_ajustadas", "horas_efectivas",
+    "horas_efectivas",
     "estado", "semana", "anio", "mes", "dia_semana", "clasificacion",
     "linea", "area", "coordinador", "especialidad", "actividad",
     "backlog_dias", "estado_backlog", "en_plan",
@@ -773,8 +816,13 @@ CAMPOS_ORDENES = [
     "permiso_requerido", "bloqueo_energia", "link_checklist", "abrir_checklist",
     "observaciones", "id_operacion",
 ]
-CAMPOS_EDITABLES = {"horas_ajustadas", "tecnico_asignado", "permiso_requerido",
+CAMPOS_EDITABLES = {"tecnico_asignado", "permiso_requerido",
                     "bloqueo_energia", "link_checklist", "observaciones"}
+# v2.1: los ajustes de duración viven en su propia tabla con clave, para que
+# sobrevivan a re-importaciones aunque cambie el orden de las filas.
+CAMPOS_AJUSTES = ["id_operacion", "horas_ajustadas", "motivo", "fecha_ajuste",
+                  "descripcion", "estado_ajuste", "desviacion_h"]
+CAP_AJUSTES = 300
 CAMPOS_EJECUCION = ["orden", "operacion", "estado_sistema", "prioridad",
                     "estado_instalacion", "precio", "costo_real", "costo_plan_total",
                     "estado_usuario", "id_operacion"]
@@ -800,9 +848,14 @@ def formulas_ordenes(R):
                 return (f'=IF({vacia},"",{f("orden", fila)}&'
                         f'IF({f("operacion", fila)}="","0010",{f("operacion", fila)}))')
             if campo == "horas_efectivas":
-                aj = f("horas_ajustadas", fila)
+                # v2.1: el ajuste se busca por clave en tblAjustes; si no hay
+                # ajuste, cae al estándar del ERP. XLOOKUP usa horas_estimadas
+                # como si_no_encontrado; el modo compatible usa IFERROR.
                 he = f("horas_estimadas", fila)
-                return f'=IF({vacia},"",IF({aj}<>"",{aj},IF({he}="","",{he})))'
+                ajuste = R.busca(f("id_operacion", fila), "tblAjustes",
+                                 "id_operacion", "horas_ajustadas",
+                                 f'IF({he}="","",{he})')
+                return f'=IF({vacia},"",{ajuste})'
             if campo == "estado":
                 interna = R.busca(f("id_operacion", fila), "tblEjecucion",
                                   "id_operacion", "estado_sistema", '""')
@@ -969,6 +1022,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     TAB = {
         "tblOrdenes": Tabla("tblOrdenes", "ORDENES", 3, CAMPOS_ORDENES, CAP_FILAS),
         "tblEjecucion": Tabla("tblEjecucion", "2_IMPORTAR_EJECUCION", 8, CAMPOS_EJECUCION, CAP_FILAS),
+        "tblAjustes": Tabla("tblAjustes", "AJUSTES", 3, CAMPOS_AJUSTES, CAP_AJUSTES),
         "tblTecnicos": Tabla("tblTecnicos", "TECNICOS", 3,
                              ["id", "nombre", "especialidad", "area", "coordinador", "activo"], len(TECNICOS)),
         "tblAsignaciones": Tabla("tblAsignaciones", "ASIGNACIONES", 3, CAMPOS_ASIGNACIONES, n_asig),
@@ -1009,6 +1063,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "     un solo bloque contiguo A:L. Hay 1.200 filas provisionadas con las fórmulas ya escritas.",
         "  3. Pegue la segunda exportación (estados y costos) en 2_IMPORTAR_EJECUCION.",
         "  4. Complete TECNICOS y los turnos de ASIGNACIONES; asigne técnicos en ORDENES.",
+        "     Los ajustes de duración van en AJUSTES por id_operacion: se re-aplican solos",
+        "     tras cada re-importación, sin importar el orden de las filas.",
         "  5. Revise VALIDACION y trabaje con PERFIL_HH, PLAN_SEMANAL, ADHERENCIA, COSTOS y BACKLOG.",
         "",
         "CONVENCIONES:",
@@ -1082,7 +1138,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "y péguela EN UN SOLO PASO en ORDENES!A4 (o desde la primera fila libre). Nada más que hacer:",
         "las columnas calculadas ya están escritas en las 1.200 filas provisionadas de la tabla.",
         "operacion es opcional: si su ERP no maneja operaciones, déjela vacía y el sistema asume \"0010\".",
-        "horas_ajustadas (columna M de ORDENES) es del planificador y NO se pega: sobrevive a la re-importación.",
+        "Los ajustes de duración NO van aquí: se registran en la hoja AJUSTES por id_operacion",
+        "y se re-aplican solos tras re-importar, aunque cambie el orden de las filas.",
         "La validación de REGLA-10 (hoja VALIDACION) reporta problemas pero nunca bloquea la importación.",
         "Puede usar esta hoja como borrador para reordenar columnas antes de pegar.",
     ]
@@ -1226,6 +1283,47 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     dv.add(f"F{A.fila_ini}:F{A.fila_fin}")
     for colw, w in (("A", 9), ("B", 11), ("C", 13), ("D", 13), ("E", 12), ("F", 8),
                     ("G", 15), ("H", 16), ("I", 26)):
+        ws.column_dimensions[colw].width = w
+
+    # ------------------------------------------------------------ AJUSTES
+    # v2.1: los ajustes de duración van por id_operacion, no por posición de
+    # fila, para sobrevivir a re-importaciones con otro orden de filas.
+    ws = wb.create_sheet("AJUSTES")
+    ws.sheet_properties.tabColor = "4472C4"
+    AJ = TAB["tblAjustes"]
+    celda(ws, 1, 1, "AJUSTES DE DURACIÓN (tblAjustes) — por id_operacion. Se re-aplican solos "
+                    "tras cada re-importación, sin importar el orden de las filas. Ante "
+                    "duplicados gana la primera fila. Azul = editable.", font=F_SEC)
+    encabezados(ws, AJ.fila_enc, AJ.campos)
+    for i in range(CAP_AJUSTES):
+        a = datos["ajustes"][i] if i < len(datos["ajustes"]) else {}
+        fila = AJ.fila_ini + i
+        celda(ws, fila, 1, a.get("id_operacion"), font=F_EDIT)
+        celda(ws, fila, 2, a.get("horas_ajustadas"), font=F_EDIT, fmt="0.0")
+        celda(ws, fila, 3, a.get("motivo"), font=F_EDIT)
+        celda(ws, fila, 4, a.get("fecha_ajuste"), font=F_EDIT, fmt=FMT_FECHA)
+        idr = R.this("tblAjustes", "id_operacion", fila)
+        celda(ws, fila, 5, f'=IF({idr}="","",'
+              + R.busca(idr, "tblOrdenes", "id_operacion", "descripcion_operacion",
+                        '"(no encontrada)"') + ")")
+        celda(ws, fila, 6,
+              f'=IF({idr}="","",IF(ISNA(MATCH({idr},{R.col("tblOrdenes", "id_operacion")},0)),'
+              f'"huérfano",IF(COUNTIF($A$4:$A{fila},{idr})>1,"duplicado (se ignora)",'
+              f'"aplicado")))')
+        est_lu = R.busca(idr, "tblOrdenes", "id_operacion", "horas_estimadas", '""')
+        celda(ws, fila, 7,
+              f'=IF({R.this("tblAjustes", "estado_ajuste", fila)}<>"aplicado","",'
+              f'IF({est_lu}="","",{R.this("tblAjustes", "horas_ajustadas", fila)}-{est_lu}))',
+              fmt="+0.0;-0.0;0")
+    agregar_tabla(ws, AJ)
+    ws.conditional_formatting.add(
+        f"F{AJ.fila_ini}:F{AJ.fila_fin}",
+        CellIsRule(operator="equal", formula=['"huérfano"'], fill=FILL_AMAR))
+    ws.conditional_formatting.add(
+        f"F{AJ.fila_ini}:F{AJ.fila_fin}",
+        CellIsRule(operator="equal", formula=['"duplicado (se ignora)"'], fill=FILL_ROJO))
+    ws.freeze_panes = "A4"
+    for colw, w in (("A", 16), ("B", 15), ("C", 46), ("D", 13), ("E", 34), ("F", 20), ("G", 12)):
         ws.column_dimensions[colw].width = w
 
     # ---------------------------------------------------------- PERFIL_HH
@@ -1669,7 +1767,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     encabezados(ws, 3, ["chequeo", "resultado", "detalle"])
     oid, eid = R.col("tblOrdenes", "id_operacion"), R.col("tblEjecucion", "id_operacion")
     orden_c = R.col("tblOrdenes", "orden")
-    aj_c = R.col("tblOrdenes", "horas_ajustadas")
+    ajid = R.col("tblAjustes", "id_operacion")
     # Todos los chequeos ignoran las filas provisionadas vacías (orden = "").
     chequeos = [
         ("Órdenes duplicadas por id_operacion",
@@ -1703,13 +1801,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ("Órdenes sin par en EJECUCION",
          f"=SUMPRODUCT(--({oid}<>\"\"),--ISNA(MATCH({oid},{eid},0)))",
          "Quedan como \"Pendiente\" (comportamiento esperado)."),
-        ("Órdenes con ajuste manual de horas",
-         f'=COUNTIF({aj_c},"<>")',
-         "horas_ajustadas informada: el cálculo usa horas_efectivas."),
+        ("Órdenes con ajuste manual de horas (tblAjustes)",
+         f"=SUMPRODUCT(--({oid}<>\"\"),--ISNUMBER(MATCH({oid},{ajid},0)))",
+         "Órdenes cuyo id_operacion tiene ajuste en la hoja AJUSTES."),
         ("Desviación total de horas (ajustadas − estándar ERP)",
-         f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},{aj_c},"<>")'
-         f'-SUMIFS({R.col("tblOrdenes", "horas_estimadas")},{aj_c},"<>")',
-         "Suma de (horas_efectivas − horas_estimadas) en las órdenes ajustadas."),
+         f'=SUM({R.col("tblAjustes", "desviacion_h")})',
+         "Suma de desviacion_h de AJUSTES (solo filas aplicadas)."),
+        ("Ajustes huérfanos (id_operacion no existe en ORDENES)",
+         f"=SUMPRODUCT(--({ajid}<>\"\"),--ISNA(MATCH({ajid},{oid},0)))",
+         "Típicamente órdenes ya cerradas o purgadas; el ajuste no se aplica."),
+        ("id_operacion duplicados dentro de tblAjustes",
+         f"=SUMPRODUCT(--({ajid}<>\"\"),--(COUNTIF({ajid},{ajid})>1))",
+         "Se aplica la primera fila; las demás se ignoran (ver estado_ajuste)."),
     ]
     for i, (nombre, formula, detalle) in enumerate(chequeos):
         fr = 4 + i
@@ -1823,6 +1926,10 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         if campo == "actividad":
             return "=" + R.busca_im(a1("cod_actividad"), "tblActividades", "codigo",
                                     "descripcion", f'"{SIN_CATALOGO}"')
+        if campo == "horas_efectivas":
+            est = a1("horas_estimadas")
+            return "=" + R.busca_im(a1("id_operacion"), "tblAjustes", "id_operacion",
+                                    "horas_ajustadas", f'IF({est}="","",{est})')
         if campo == "turno_asignado":
             clave = f'{a1("semana")}&"|"&{a1("dia_semana")}&"|"&{a1("tecnico_asignado")}'
             return f'=IF({a1("tecnico_asignado")}="","",' + \
@@ -1837,8 +1944,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         raise KeyError(campo)
 
     campos_comp = ["estado", "clasificacion", "linea", "area", "coordinador",
-                   "especialidad", "actividad", "turno_asignado", "costo_servicio",
-                   "costo_materiales"]
+                   "especialidad", "actividad", "horas_efectivas", "turno_asignado",
+                   "costo_servicio", "costo_materiales"]
     FX = formulas_ordenes(Rx)
     for i, campo in enumerate(campos_comp):
         fr = 5 + i
@@ -1897,15 +2004,14 @@ def imprimir_resumen(datos, esperado):
         if o["fecha_inicio"] and o["fecha_inicio"].month in (12, 1) and o["_grupo"] == "futuro":
             print(f"  {o['id_operacion']}: fecha {o['fecha_inicio']} → semana {o['semana']} "
                   f"(anio YEAR = {o['anio']})")
-    print("\nAjustes manuales (horas_efectivas):")
-    for o in esperado["ordenes"]:
-        if o.get("horas_ajustadas") is not None:
-            print(f"  {o['id_operacion']}: estimadas {o['horas_estimadas']} → efectivas "
-                  f"{o['horas_efectivas']} ({o['semana']}, {o['especialidad']}, "
-                  f"{o['clasificacion']}, {o['tecnico_asignado'] or 'sin técnico'})")
+    print("\nAjustes manuales (tblAjustes → horas_efectivas por id_operacion):")
+    for a, ax in zip(datos["ajustes"], esperado["ajustes_esperado"]):
+        extra = f" · desviación {ax['desviacion_h']:+}" if ax["desviacion_h"] != "" else ""
+        print(f"  {a['id_operacion']}: {a['horas_ajustadas']} h → {ax['estado_ajuste']}{extra}")
     ve = esperado["validacion_extra"]
-    print(f"  VALIDACION → ajustadas: {ve['ajustadas']} · desviación total: "
-          f"{ve['desviacion_horas']:+.0f} h")
+    print(f"  VALIDACION → órdenes ajustadas: {ve['ajustadas']} · desviación total: "
+          f"{ve['desviacion_horas']:+.0f} h · huérfanos: {ve['huerfanos']} · "
+          f"duplicados en tblAjustes: {ve['duplicados_ajustes']}")
     print("\nBACKLOG esperado (pendientes por tramo):")
     for tramo, (n, hh) in esperado["backlog_aging"].items():
         print(f"  {tramo:>6}: {n} órdenes · {hh:.0f} h")

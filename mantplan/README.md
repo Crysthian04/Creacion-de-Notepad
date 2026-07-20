@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v2.0.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v2.1.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -44,10 +44,13 @@ python generar_mantplan.py --resumen                              # imprime los 
 - El generador emite el libro en dos modos desde **las mismas plantillas de
   fórmula** (`class Refs`): `estructuradas` (XLOOKUP, entregable principal) y
   `compatibles` (INDEX/MATCH + rangos A1 acotados).
-- La variante compatible se recalculó con LibreOffice: **51.623 fórmulas, 0
+- La variante compatible se recalculó con LibreOffice: **52.526 fórmulas, 0
   errores**.
-- Cada valor recalculado se comparó contra el motor Python: **7.587
-  comparaciones automáticas, 0 desviaciones**. Detalle en `VERIFICACION.md`.
+- Cada valor recalculado se comparó contra el motor Python: **7.604
+  comparaciones automáticas, 0 desviaciones**, incluida la hoja AJUSTES.
+- Caso de reordenamiento: un libro con las 200 filas de ORDENES invertidas
+  recalcula con los ajustes aplicados a las mismas órdenes (ver
+  `VERIFICACION.md` §3.4).
 
 ### 2. REGLA-2 v2: semana con año ISO, sin pliegue S53→S1
 
@@ -70,31 +73,46 @@ Esta versión **reemplaza la REGLA-2 del enunciado original**:
   `semana = 2026-S53`. Es la distinción correcta: `anio/mes` alimentan los
   reportes mensuales de costos; `semana` es la clave de planificación.
 
-### 3. `horas_ajustadas` / `horas_efectivas`: los ajustes sobreviven a la re-importación
+### 3. Ajustes de duración por clave: hoja `AJUSTES` (`tblAjustes`, v2.1)
 
-Flujo real: cada mes se pega la exportación del ERP y el planificador ajusta
-a mano la duración de algunas tareas.
+Flujo real mensual: se pega la exportación del ERP **en un solo bloque** sobre
+`ORDENES!A4` (columnas A:L) y los ajustes registrados en `AJUSTES` **se
+re-aplican solos por `id_operacion`, sin importar el orden de las filas** del
+nuevo export. (En v2.0 el ajuste vivía como columna de `tblOrdenes`, anclado a
+la posición de la fila: un export reordenado lo aplicaba a la orden
+equivocada sin error visible. Resuelto aquí.)
 
-- **`horas_ajustadas`** (columna M): editable, vacía por defecto, en azul.
-- **`horas_efectivas`** (columna N): calculada —
-  `IF(horas_ajustadas<>"", horas_ajustadas, IF(horas_estimadas="", "",
-  horas_estimadas))`. (El `IF` interno es un refinamiento sobre la fórmula
-  pedida: conserva el vacío cuando ambas están vacías en vez de mostrar 0.)
+- **`tblAjustes`** (300 filas): `id_operacion` (clave, editable),
+  `horas_ajustadas`, `motivo`, `fecha_ajuste` (editables) y tres columnas
+  calculadas: **`descripcion`** (trae la descripción de la orden desde
+  `tblOrdenes` para confirmar visualmente que se ajustó la orden correcta),
+  `estado_ajuste` (aplicado / huérfano / duplicado-se-ignora, con resaltado) y
+  `desviacion_h` (ajustadas − estándar ERP de esa orden). Las dos últimas son
+  adiciones sobre lo pedido: alimentan los chequeos de VALIDACION sin
+  fórmulas matriciales frágiles y dan feedback inmediato al usuario.
+- **`horas_efectivas`** en `tblOrdenes` (columna M, calculada) se resuelve por
+  búsqueda en ambos modos: `XLOOKUP(id_operacion; tblAjustes[id_operacion];
+  tblAjustes[horas_ajustadas]; horas_estimadas)` en el principal, y
+  `IFERROR(INDEX(…MATCH(…)); horas_estimadas)` en el compatible. Ante
+  `id_operacion` duplicado en AJUSTES gana la primera fila (semántica de
+  primera coincidencia de ambas funciones, replicada en el motor Python).
 - **Todos los cálculos de horas usan `horas_efectivas`**: HHA, HHD,
   PERFIL_HH (REGLA-6), adherencia por horas (REGLA-7), REGLA-9, gráfico de
-  carga, BACKLOG y EXPORTAR. `horas_estimadas` queda solo como referencia del
-  estándar del ERP.
-- `VALIDACION` reporta cuántas órdenes tienen ajuste manual y la desviación
-  total en horas contra el estándar (`Σ efectivas − Σ estimadas` sobre las
-  ajustadas).
-- **Por qué sobreviven:** la re-importación pega un solo bloque en A:L (§5) y
-  la columna M queda fuera del bloque.
-- **Limitación honesta:** el ajuste queda anclado a la **fila**, no al
-  `id_operacion`. Si el próximo export llega con las filas en otro orden, el
-  ajuste quedará sobre otra orden. La solución robusta (tabla de ajustes por
-  `id_operacion` que se re-aplica sola) necesita el entregable B o una
-  columna de lookup adicional; quedó fuera de este cambio y está señalada en
-  `VERIFICACION.md`.
+  carga, BACKLOG y EXPORTAR. `horas_estimadas` queda como referencia del ERP.
+- `VALIDACION` reporta: órdenes con ajuste, desviación total en horas,
+  **ajustes huérfanos** (id inexistente en ORDENES — típicamente órdenes ya
+  cerradas/purgadas) y **duplicados dentro de tblAjustes**.
+
+#### Nota de diseño: `horas_efectivas` nunca alimenta costo
+
+`horas_efectivas` alimenta exclusivamente **capacidad, carga y utilización**
+(HHA, HHD, PERFIL_HH, gráfico de carga). **Nunca alimenta costo.** La mano de
+obra propia es costo fijo de nómina, ya contabilizado fuera de la orden;
+ajustar las horas de una tarea cambia la utilización del técnico, no el
+gasto. El costo variable (materiales y servicios de terceros) vive en
+`costo_plan`, tomado del ERP sin recálculo. La mano de obra con desembolso
+incremental —horas extra, recargos, contratistas— se rastrea por separado y
+no se imputa al costo de la orden.
 
 ### 4. Hojas de reporte dimensionadas por los datos (capacidad 60 semanas)
 
@@ -172,9 +190,10 @@ definidos huérfanos.
 
 ## Datos de ejemplo y verificación a mano (ancla 2026-07-20)
 
-200 órdenes (tablas con capacidad 1.200) · 163 filas de ejecución (3
-huérfanas) · 12 técnicos · 336 asignaciones · semanas del plan
-**2026-S29 … 2026-S32** · serie completa de reportes: 2026-S08 … 2027-S01.
+200 órdenes (tablas con capacidad 1.200) · 161 filas de ejecución (3
+huérfanas) · 4 ajustes (2 aplicados + 2 demos de error) · 12 técnicos · 336
+asignaciones · semanas del plan **2026-S29 … 2026-S32** · serie completa de
+reportes: 2026-S08 … 2027-S01.
 
 ### Caso 1 — cruce de fin de año (REGLA-2 v2)
 
@@ -187,10 +206,14 @@ huérfanas) · 12 técnicos · 336 asignaciones · semanas del plan
 `2026-S53` y `2027-S01` aparecen como semanas distintas en la serie de
 PERFIL_HH/ADHERENCIA (las dos últimas filas visibles), sin mezcla.
 
-### Caso 2 — ajuste manual de horas (`horas_efectivas`)
+### Caso 2 — ajuste manual de horas (hoja `AJUSTES` → `horas_efectivas`)
 
-- **OT-000017** (MEC, preventiva, Técnico 01, martes 2026-S30):
-  `horas_estimadas` 8, `horas_ajustadas` **12** → `horas_efectivas` 12.
+`tblAjustes` trae 4 filas demo: dos aplicadas, un duplicado (se ignora, gana
+la primera) y un huérfano (id `OT-0009990010`, inexistente).
+
+- **OT-000017** (MEC, preventiva, Técnico 01, martes 2026-S30): ajuste por
+  clave `OT-0000170010` con `horas_ajustadas` **12** (estimadas 8) →
+  `horas_efectivas` 12.
   - PERFIL_HH MEC 2026-S30: prev **84** (80 + 4), planificada 109, carga
     **89,5 %** (con 8 h sería 86,2 %).
   - Gráfico de carga (selector 2026-S30): barra de Técnico 01 = **35** =
@@ -198,7 +221,11 @@ PERFIL_HH/ADHERENCIA (las dos últimas filas visibles), sin mezcla.
   - HHA del martes = **12**, HHD = 6,09 − 12 = **−5,91** (rojo).
 - **OT-000061** (ELE, preventiva, Técnico 05): 6 → **4** → ELE 2026-S30 prev
   63, carga 97,3 %.
-- `VALIDACION`: **2** órdenes con ajuste manual, desviación total **+2 h**.
+- `VALIDACION`: **2** órdenes con ajuste, desviación total **+2 h**,
+  **1** huérfano, **2** duplicados en tblAjustes.
+- **Reordenamiento** (VERIFICACION.md §3.4): con las 200 filas de ORDENES
+  invertidas, OT-000017 pasó de la fila 20 a la 187 y OT-000061 de la 64 a
+  la 143, y ambas conservaron sus horas efectivas (12 y 4).
 
 ### PERFIL_HH esperado (REGLA-6, semanas del plan)
 
@@ -258,8 +285,10 @@ capacidad interna (% carga vacío, denominador protegido).
 | Tipo de OT fuera de catálogo (`sin_clasificar`) | 2 |
 | EJECUCION sin par en ORDENES | 3 |
 | ORDENES sin par en EJECUCION (quedan `Pendiente`) | 41 |
-| **Órdenes con ajuste manual de horas** | **2** |
-| **Desviación total de horas (ajustadas − ERP)** | **+2** |
+| Órdenes con ajuste manual de horas (tblAjustes) | 2 |
+| Desviación total de horas (ajustadas − ERP) | +2 |
+| **Ajustes huérfanos (id no existe en ORDENES)** | **1** |
+| **id_operacion duplicados dentro de tblAjustes** | **2** |
 
 ### Carga por técnico (gráfico, selector 2026-S30)
 
@@ -276,16 +305,17 @@ costo plan es del ERP y no se recalcula con el ajuste manual; `precio` = 40 %
 del plan (REGLA-8 → materiales 60 %); dos órdenes históricas con `precio >
 plan` (materiales 0). Equipo de mayor gasto: EQ-110 (5.070 USD).
 
-## Estructura del libro (21 hojas)
+## Estructura del libro (22 hojas)
 
 `INICIO` · `PARAMETROS` · `1_IMPORTAR_ORDENES` (paso único de pegado) ·
 `2_IMPORTAR_EJECUCION` (`tblEjecucion`, 1.200 filas) · `ORDENES`
-(`tblOrdenes`, 1.200 filas × 41 columnas: 12 importadas A:L, 6 editables en
+(`tblOrdenes`, 1.200 filas × 40 columnas: 12 importadas A:L, 5 editables en
 azul, 23 calculadas; `id_operacion` al final) · `TECNICOS` · `ASIGNACIONES` ·
+`AJUSTES` (`tblAjustes`, 300 filas, ajustes de duración por `id_operacion`) ·
 `PERFIL_HH` (serie dinámica de 60 semanas + matriz semáforo + REGLA-9) ·
 `PLAN_SEMANAL` (6 selectores + gráfico de carga + grilla 1.200) ·
 `ADHERENCIA` (bloque semanal dinámico + 5 desgloses + gráfico) · `COSTOS` ·
-`BACKLOG` · `EQUIPOS_CRITICOS` · `VALIDACION` (9 chequeos REGLA-10 + 2 de
+`BACKLOG` · `EQUIPOS_CRITICOS` · `VALIDACION` (9 chequeos REGLA-10 + 4 de
 ajustes) · 5 catálogos `CAT_*` · `EXPORTAR` · `_COMPATIBILIDAD`.
 
 ## Limitaciones conocidas
@@ -295,5 +325,6 @@ ajustes) · 5 catálogos `CAT_*` · `EXPORTAR` · `_COMPATIBILIDAD`.
 - Sin caché de resultados hasta el primer abrir-y-guardar (§7).
 - Filas de semanas nuevas tras re-importar pueden requerir "Mostrar filas"
   (§4); capacidad máxima de la serie: 60 semanas.
-- `horas_ajustadas` está anclada a la fila, no al `id_operacion` (§3).
 - Área de impresión de PLAN_SEMANAL estática (§5).
+- Un ajuste en AJUSTES con `id_operacion` informado pero `horas_ajustadas`
+  vacía produce horas efectivas 0 en esa orden (visible en `desviacion_h`).
