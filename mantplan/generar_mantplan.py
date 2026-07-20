@@ -44,7 +44,11 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "1.2.0"
+VERSION = "2.0.0"
+
+# Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
+# una importación mensual grande no requiera tocar el libro.
+CAP_FILAS = 1200
 
 # ══════════════════════════════════════════════════════════════════════════
 # 1. PARÁMETROS (Tabla 10) Y CATÁLOGOS SINTÉTICOS
@@ -161,11 +165,20 @@ def regla_1_clasificacion(tipo_ot, catalogo_tipos):
 
 
 def regla_2_semana(fecha):
-    """REGLA-2: 'S' + semana ISO; si es S53 devuelve S1."""
+    """REGLA-2 (v2): 'AAAA-Snn' = año ISO + semana ISO, sin pliegue S53→S1.
+
+    Se usa el AÑO ISO (el del jueves de esa semana), no YEAR(fecha): difieren
+    exactamente en los días de cruce diciembre/enero, que es el error a
+    evitar (2027-01-01 pertenece a 2026-S53). La semana 53 es legítima en los
+    años ISO largos —2026 lo es— y se publica tal cual; el pliegue S53→S1 de
+    la especificación original mezclaba fines de diciembre con eneros.
+    El formato AAAA-Snn con semana a dos dígitos ordena cronológicamente
+    incluso como texto.
+    """
     if fecha is None:
         return ""
-    iso = fecha.isocalendar()[1]
-    return "S1" if iso == 53 else f"S{iso}"
+    iso = fecha.isocalendar()
+    return f"{iso[0]}-S{iso[1]:02d}"
 
 
 def regla_3_estado_backlog(backlog_dias, dias_backlog_max=DIAS_BACKLOG_MAX):
@@ -209,11 +222,11 @@ def regla_6_perfil_hh(hh_disponible, hh_preventiva, hh_correctiva, factor=FACTOR
 
 
 def regla_7_adherencia(ordenes):
-    """REGLA-7: adherencia por conteo y por horas sobre una lista de órdenes."""
+    """REGLA-7: adherencia por conteo y por horas (efectivas) sobre órdenes."""
     total = len(ordenes)
     cerradas = sum(1 for o in ordenes if o["estado"] == "Cerrada")
-    hh_total = sum(o["horas_estimadas"] or 0 for o in ordenes)
-    hh_cerr = sum((o["horas_estimadas"] or 0) for o in ordenes if o["estado"] == "Cerrada")
+    hh_total = sum(o["horas_efectivas"] or 0 for o in ordenes)
+    hh_cerr = sum((o["horas_efectivas"] or 0) for o in ordenes if o["estado"] == "Cerrada")
     return {
         "total": total,
         "cerradas": cerradas,
@@ -342,6 +355,7 @@ def generar_datos(hoy):
                                "OP": "PU-OP", "TERCERO": "PU-TER"}.get(esp, esp),
             "cod_actividad": act, "tipo_ot": tipo,
             "fecha_inicio": fecha, "horas_estimadas": horas,
+            "horas_ajustadas": None,
             "costo_plan": (horas or 0) * tarifa,
             "tecnico_asignado": tecnico or "",
             "permiso_requerido": "", "bloqueo_energia": "", "link_checklist": "",
@@ -390,14 +404,26 @@ def generar_datos(hoy):
             o["observaciones"] = "Demo: asignada a técnico de vacaciones (HHD = −HHA)"
             break
 
+    # Ajustes manuales de horas (v2): el planificador corrige el estándar del
+    # ERP y el ajuste manda en todos los cálculos (horas_efectivas).
+    aj1 = next(o for o in ordenes if o["_grupo"] == "plan" and o["_si"] == 1
+               and o["tecnico_asignado"] == "Técnico 01" and o["horas_estimadas"] == 8)
+    aj1["horas_ajustadas"] = 12
+    aj1["observaciones"] = "Ajuste: 8 → 12 h por alcance real"
+    aj2 = next(o for o in ordenes if o["_grupo"] == "plan" and o["_si"] == 1
+               and o["puesto_trabajo"] == "PU-ELE" and o["horas_estimadas"] == 6)
+    aj2["horas_ajustadas"] = 4
+    aj2["observaciones"] = "Ajuste: 6 → 4 h por alcance real"
+
     # Segunda operación 0020 para 4 órdenes del plan (demo de operaciones)
     for o in [x for x in ordenes if x["_grupo"] == "plan"][::40][:4]:
         consecutivo[0] += 1
         extra = dict(o)
-        extra.update({"operacion": "0020", "horas_estimadas": 2,
+        extra.update({"operacion": "0020", "horas_estimadas": 2, "horas_ajustadas": None,
                       "costo_plan": 2 * TARIFA[o["_clasif"] if o["_clasif"] in TARIFA else "preventiva"],
                       "descripcion_operacion": f"Segunda operación — {o['equipo']}",
-                      "link_checklist": "", "permiso_requerido": "", "bloqueo_energia": ""})
+                      "link_checklist": "", "permiso_requerido": "", "bloqueo_energia": "",
+                      "observaciones": ""})
         ordenes.append(extra)
 
     # Backlog pendiente (envejecimiento por tramos)
@@ -421,8 +447,13 @@ def generar_datos(hoy):
         nueva(hoy + timedelta(days=40), 6, "MEC", "preventiva", "futuro")
     for j in range(2):
         nueva(hoy + timedelta(days=100), 6, "ELE", "preventiva", "futuro")
-    # Semana ISO 53 → REGLA-2 la publica como S1
+    # Cruce de fin de año (REGLA-2 v2): tres órdenes que deben caer en semanas
+    # DISTINTAS y con año ISO correcto. 2026 es un año ISO de 53 semanas:
+    #   29-dic-2026 → 2026-S53 · 1-ene-2027 → 2026-S53 (año ISO ≠ YEAR)
+    #   5-ene-2027  → 2027-S01
     nueva(date(hoy.year, 12, 29), 4, "AUT", "preventiva", "futuro")
+    nueva(date(hoy.year + 1, 1, 1), 4, "MEC", "preventiva", "futuro")
+    nueva(date(hoy.year + 1, 1, 5), 4, "ELE", "preventiva", "futuro")
 
     # Casos borde para VALIDACION (REGLA-10) — se importan igual, solo se reportan
     dup = nueva(hoy - timedelta(days=50), 6, "MEC", "correctiva", "edge", orden_id="OT-000900")
@@ -535,7 +566,11 @@ def calcular_esperado(datos):
         dia = DIAS[f.weekday()] if f else ""
         tec = o["tecnico_asignado"]
         asig = asig_por_clave.get((semana, dia, tec)) if tec else None
+        aj = o.get("horas_ajustadas")
+        efectivas = aj if aj is not None else (
+            o["horas_estimadas"] if o["horas_estimadas"] is not None else "")
         enriquecidas.append({**o,
+            "horas_efectivas": efectivas,
             "estado": CAT_ESTADOS.get(e["estado_sistema"], "Pendiente") if e else "Pendiente",
             "semana": semana, "anio": f.year if f else "", "mes": f.month if f else "",
             "dia_semana": dia,
@@ -557,7 +592,7 @@ def calcular_esperado(datos):
     for o in enriquecidas:
         if o["tecnico_asignado"]:
             k = (o["tecnico_asignado"], o["semana"], o["dia_semana"])
-            hha_por_dia[k] = hha_por_dia.get(k, 0) + (o["horas_estimadas"] or 0)
+            hha_por_dia[k] = hha_por_dia.get(k, 0) + (o["horas_efectivas"] or 0)
     for o in enriquecidas:
         if o["tecnico_asignado"]:
             o["HHA"] = hha_por_dia[(o["tecnico_asignado"], o["semana"], o["dia_semana"])]
@@ -570,21 +605,32 @@ def calcular_esperado(datos):
             o["HHA"] = ""
             o["HHD"] = ""
 
+    # Serie cronológica de semanas presentes en los datos (capacidad: 60).
+    # Las etiquetas AAAA-Snn ordenan igual como texto que como fecha.
+    fechas = [o["fecha_inicio"] for o in datos["ordenes"] if o["fecha_inicio"]]
+    lunes_ini = min(fechas) - timedelta(days=min(fechas).weekday())
+    lunes_fin = max(fechas) - timedelta(days=max(fechas).weekday())
+    serie_semanas, lun = [], lunes_ini
+    while lun <= lunes_fin and len(serie_semanas) < 60:
+        serie_semanas.append(regla_2_semana(lun))
+        lun += timedelta(weeks=1)
+    semanas_con_datos = {o["semana"] for o in enriquecidas if o["semana"]}
+
     perfil = {}
     for esp in ESPECIALIDADES:
-        for sem in datos["semanas"]:
+        for sem in serie_semanas:
             hh_disp = sum(a["horas_disponibles"] for a in datos["asignaciones"]
                           if a["especialidad"] == esp and a["semana"] == sem)
-            hh_prev = sum(o["horas_estimadas"] or 0 for o in enriquecidas
+            hh_prev = sum(o["horas_efectivas"] or 0 for o in enriquecidas
                           if o["especialidad"] == esp and o["semana"] == sem
                           and o["clasificacion"] == "preventiva")
-            hh_corr = sum(o["horas_estimadas"] or 0 for o in enriquecidas
+            hh_corr = sum(o["horas_efectivas"] or 0 for o in enriquecidas
                           if o["especialidad"] == esp and o["semana"] == sem
                           and o["clasificacion"] == "correctiva")
             perfil[(esp, sem)] = regla_6_perfil_hh(hh_disp, hh_prev, hh_corr)
 
     adherencia = {}
-    for dim, valores in (("semana", datos["semanas"]),
+    for dim, valores in (("semana", serie_semanas),
                          ("area", [a for a in COORD_POR_AREA]),
                          ("especialidad", list(ESPECIALIDADES)),
                          ("coordinador", sorted(set(COORD_POR_AREA.values()))),
@@ -594,10 +640,10 @@ def calcular_esperado(datos):
             adherencia[(dim, v)] = regla_7_adherencia([o for o in enriquecidas if o[dim] == v])
 
     ratio9 = {}
-    for sem in datos["semanas"]:
-        prev = sum(o["horas_estimadas"] or 0 for o in enriquecidas
+    for sem in serie_semanas:
+        prev = sum(o["horas_efectivas"] or 0 for o in enriquecidas
                    if o["semana"] == sem and o["clasificacion"] == "preventiva")
-        corr = sum(o["horas_estimadas"] or 0 for o in enriquecidas
+        corr = sum(o["horas_efectivas"] or 0 for o in enriquecidas
                    if o["semana"] == sem and o["clasificacion"] == "correctiva")
         ratio9[sem] = (prev, corr, *regla_9_ratio(prev, corr))
 
@@ -606,7 +652,7 @@ def calcular_esperado(datos):
     for nombre, a, b in tramos:
         filas = [o for o in enriquecidas if o["estado"] == "Pendiente"
                  and o["backlog_dias"] != "" and a <= o["backlog_dias"] <= b]
-        backlog_aging[nombre] = (len(filas), sum(o["horas_estimadas"] or 0 for o in filas))
+        backlog_aging[nombre] = (len(filas), sum(o["horas_efectivas"] or 0 for o in filas))
 
     meses = sorted({(o["anio"], o["mes"]) for o in enriquecidas if o["mes"] != ""})
     costos = {}
@@ -626,16 +672,25 @@ def calcular_esperado(datos):
     for sem in datos["semanas"]:
         for _tid, nombre, _esp, _area in TECNICOS:
             carga_tecnicos[(sem, nombre)] = sum(
-                o["horas_estimadas"] or 0 for o in enriquecidas
+                o["horas_efectivas"] or 0 for o in enriquecidas
                 if o["tecnico_asignado"] == nombre and o["semana"] == sem)
             capacidad_tecnicos[(sem, nombre)] = FACTOR_PRODUCTIVIDAD * sum(
                 a["horas_disponibles"] for a in datos["asignaciones"]
                 if a["tecnico"] == nombre and a["semana"] == sem)
 
+    ajustadas = [o for o in datos["ordenes"] if o.get("horas_ajustadas") is not None]
+    validacion_extra = {
+        "ajustadas": len(ajustadas),
+        "desviacion_horas": sum(o["horas_ajustadas"] - (o["horas_estimadas"] or 0)
+                                for o in ajustadas),
+    }
+
     return {"ordenes": enriquecidas, "perfil": perfil, "adherencia": adherencia,
             "ratio9": ratio9, "backlog_aging": backlog_aging, "meses": meses,
             "costos": costos, "equipos_orden": equipos_orden, "equipos_tot": equipos_tot,
             "carga_tecnicos": carga_tecnicos, "capacidad_tecnicos": capacidad_tecnicos,
+            "serie_semanas": serie_semanas, "semanas_con_datos": semanas_con_datos,
+            "validacion_extra": validacion_extra,
             "validacion": regla_10_validacion(datos["ordenes"], datos["ejecucion"])}
 
 
@@ -703,23 +758,26 @@ class Refs:
                 f"MATCH({expr},{self.col(tabla, campo_clave)},0)),{defecto})")
 
 
+# v2: las 12 columnas importadas quedan contiguas desde A (pegado en un solo
+# bloque) e id_operacion pasa al final de la tabla.
 CAMPOS_ORDENES = [
-    "orden", "operacion", "id_operacion", "descripcion_general", "descripcion_operacion",
+    "orden", "operacion", "descripcion_general", "descripcion_operacion",
     "equipo", "centro_costo", "puesto_trabajo", "cod_actividad", "tipo_ot",
     "fecha_inicio", "horas_estimadas", "costo_plan",
+    "horas_ajustadas", "horas_efectivas",
     "estado", "semana", "anio", "mes", "dia_semana", "clasificacion",
     "linea", "area", "coordinador", "especialidad", "actividad",
     "backlog_dias", "estado_backlog", "en_plan",
     "tecnico_asignado", "turno_asignado", "HHA", "HHD",
     "costo_servicio", "costo_materiales", "costo_total",
     "permiso_requerido", "bloqueo_energia", "link_checklist", "abrir_checklist",
-    "observaciones",
+    "observaciones", "id_operacion",
 ]
-CAMPOS_EDITABLES = {"tecnico_asignado", "permiso_requerido", "bloqueo_energia",
-                    "link_checklist", "observaciones"}
-CAMPOS_EJECUCION = ["id_operacion", "orden", "operacion", "estado_sistema", "prioridad",
+CAMPOS_EDITABLES = {"horas_ajustadas", "tecnico_asignado", "permiso_requerido",
+                    "bloqueo_energia", "link_checklist", "observaciones"}
+CAMPOS_EJECUCION = ["orden", "operacion", "estado_sistema", "prioridad",
                     "estado_instalacion", "precio", "costo_real", "costo_plan_total",
-                    "estado_usuario"]
+                    "estado_usuario", "id_operacion"]
 CAMPOS_ASIGNACIONES = ["semana", "dia", "tecnico", "area", "especialidad", "turno",
                        "coordinador", "horas_disponibles", "clave"]
 CAMPOS_IMPORT_ORDENES = ["orden", "operacion", "descripcion_general", "descripcion_operacion",
@@ -737,16 +795,24 @@ def formulas_ordenes(R):
     def hecho(campo):
         def _g(fila):
             fe = f("fecha_inicio", fila)
+            vacia = f'{f("orden", fila)}=""'  # fila provisionada sin datos aún
             if campo == "id_operacion":
-                return f'={f("orden", fila)}&IF({f("operacion", fila)}="","0010",{f("operacion", fila)})'
+                return (f'=IF({vacia},"",{f("orden", fila)}&'
+                        f'IF({f("operacion", fila)}="","0010",{f("operacion", fila)}))')
+            if campo == "horas_efectivas":
+                aj = f("horas_ajustadas", fila)
+                he = f("horas_estimadas", fila)
+                return f'=IF({vacia},"",IF({aj}<>"",{aj},IF({he}="","",{he})))'
             if campo == "estado":
                 interna = R.busca(f("id_operacion", fila), "tblEjecucion",
                                   "id_operacion", "estado_sistema", '""')
-                return "=" + R.busca(interna, "tblEstados", "estado_sistema",
-                                     "estado_normalizado", '"Pendiente"')
+                return f'=IF({vacia},"",' + R.busca(interna, "tblEstados", "estado_sistema",
+                                                    "estado_normalizado", '"Pendiente"') + ")"
             if campo == "semana":
-                return (f'=IF({fe}="","","S"&IF(_xlfn.ISOWEEKNUM({fe})=53,1,'
-                        f'_xlfn.ISOWEEKNUM({fe})))')
+                # REGLA-2 v2: año ISO (el del jueves de la semana) + "-S" +
+                # semana ISO a dos dígitos. Sin pliegue S53→S1.
+                return (f'=IF({fe}="","",YEAR({fe}+4-WEEKDAY({fe},2))&"-S"&'
+                        f'TEXT(_xlfn.ISOWEEKNUM({fe}),"00"))')
             if campo == "anio":
                 return f'=IF({fe}="","",YEAR({fe}))'
             if campo == "mes":
@@ -754,17 +820,21 @@ def formulas_ordenes(R):
             if campo == "dia_semana":
                 return f'=IF({fe}="","",INDEX(lista_dias,WEEKDAY({fe},2)))'
             if campo == "clasificacion":
-                return "=" + R.busca(f("tipo_ot", fila), "tblTiposOT", "codigo",
-                                     "clasificacion", '"sin_clasificar"')
+                return f'=IF({f("tipo_ot", fila)}="","",' + \
+                    R.busca(f("tipo_ot", fila), "tblTiposOT", "codigo",
+                            "clasificacion", '"sin_clasificar"') + ")"
             if campo in ("linea", "area", "coordinador"):
-                return "=" + R.busca(f("centro_costo", fila), "tblCECO", "codigo",
-                                     campo, f'"{SIN_CATALOGO}"')
+                return f'=IF({f("centro_costo", fila)}="","",' + \
+                    R.busca(f("centro_costo", fila), "tblCECO", "codigo",
+                            campo, f'"{SIN_CATALOGO}"') + ")"
             if campo == "especialidad":
-                return "=" + R.busca(f("puesto_trabajo", fila), "tblPuestos", "codigo",
-                                     "especialidad", f'"{SIN_CATALOGO}"')
+                return f'=IF({f("puesto_trabajo", fila)}="","",' + \
+                    R.busca(f("puesto_trabajo", fila), "tblPuestos", "codigo",
+                            "especialidad", f'"{SIN_CATALOGO}"') + ")"
             if campo == "actividad":
-                return "=" + R.busca(f("cod_actividad", fila), "tblActividades", "codigo",
-                                     "descripcion", f'"{SIN_CATALOGO}"')
+                return f'=IF({f("cod_actividad", fila)}="","",' + \
+                    R.busca(f("cod_actividad", fila), "tblActividades", "codigo",
+                            "descripcion", f'"{SIN_CATALOGO}"') + ")"
             if campo == "backlog_dias":
                 return f'=IF({fe}="","",TODAY()-{fe})'
             if campo == "estado_backlog":
@@ -783,8 +853,9 @@ def formulas_ordenes(R):
             if campo == "HHA":
                 # Horas Hombre Asignadas: total del técnico en ese día de esa
                 # semana, repetido en todas sus filas (agregado por SUMIFS).
+                # v2: suma horas_efectivas (ajuste manual manda sobre el ERP).
                 t = f("tecnico_asignado", fila)
-                return (f'=IF({t}="","",SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+                return (f'=IF({t}="","",SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
                         f'{R.col("tblOrdenes", "tecnico_asignado")},{t},'
                         f'{R.col("tblOrdenes", "semana")},{f("semana", fila)},'
                         f'{R.col("tblOrdenes", "dia_semana")},{f("dia_semana", fila)}))')
@@ -800,14 +871,15 @@ def formulas_ordenes(R):
                 disp = R.busca(clave, "tblAsignaciones", "clave", "horas_disponibles", "0")
                 return f'=IF({h}="","",p_factor_productividad*{disp}-{h})'
             if campo == "costo_servicio":
-                return "=" + R.busca(f("id_operacion", fila), "tblEjecucion",
-                                     "id_operacion", "precio", "0")
+                return f'=IF({vacia},"",' + R.busca(f("id_operacion", fila), "tblEjecucion",
+                                                    "id_operacion", "precio", "0") + ")"
             if campo == "costo_materiales":
                 plan_total = R.busca(f("id_operacion", fila), "tblEjecucion",
                                      "id_operacion", "costo_plan_total", "0")
-                return f'=MAX(0,{plan_total}-{f("costo_servicio", fila)})'
+                return f'=IF({vacia},"",MAX(0,{plan_total}-{f("costo_servicio", fila)}))'
             if campo == "costo_total":
-                return f'={f("costo_servicio", fila)}+{f("costo_materiales", fila)}'
+                return (f'=IF({vacia},"",{f("costo_servicio", fila)}+'
+                        f'{f("costo_materiales", fila)})')
             if campo == "abrir_checklist":
                 lc = f("link_checklist", fila)
                 return f'=IF({lc}="","",HYPERLINK(p_ruta_base_checklists&{lc},"abrir"))'
@@ -895,8 +967,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     n_ord, n_ejec, n_asig = len(datos["ordenes"]), len(datos["ejecucion"]), len(datos["asignaciones"])
 
     TAB = {
-        "tblOrdenes": Tabla("tblOrdenes", "ORDENES", 3, CAMPOS_ORDENES, n_ord),
-        "tblEjecucion": Tabla("tblEjecucion", "2_IMPORTAR_EJECUCION", 8, CAMPOS_EJECUCION, n_ejec),
+        "tblOrdenes": Tabla("tblOrdenes", "ORDENES", 3, CAMPOS_ORDENES, CAP_FILAS),
+        "tblEjecucion": Tabla("tblEjecucion", "2_IMPORTAR_EJECUCION", 8, CAMPOS_EJECUCION, CAP_FILAS),
         "tblTecnicos": Tabla("tblTecnicos", "TECNICOS", 3,
                              ["id", "nombre", "especialidad", "area", "coordinador", "activo"], len(TECNICOS)),
         "tblAsignaciones": Tabla("tblAsignaciones", "ASIGNACIONES", 3, CAMPOS_ASIGNACIONES, n_asig),
@@ -933,7 +1005,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "",
         "FLUJO DE USO EN 5 PASOS:",
         "  1. Ajuste PARAMETROS y cargue los catálogos de su empresa (hojas CAT_*).",
-        "  2. Pegue la exportación de órdenes del ERP en 1_IMPORTAR_ORDENES y cópiela a la tabla ORDENES.",
+        "  2. Pegue la exportación de órdenes (12 columnas, en este orden) directamente en ORDENES!A4:",
+        "     un solo bloque contiguo A:L. Hay 1.200 filas provisionadas con las fórmulas ya escritas.",
         "  3. Pegue la segunda exportación (estados y costos) en 2_IMPORTAR_EJECUCION.",
         "  4. Complete TECNICOS y los turnos de ASIGNACIONES; asigne técnicos en ORDENES.",
         "  5. Revise VALIDACION y trabaje con PERFIL_HH, PLAN_SEMANAL, ADHERENCIA, COSTOS y BACKLOG.",
@@ -1005,11 +1078,13 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws.sheet_properties.tabColor = "ED7D31"
     celda(ws, 1, 1, "ZONA DE PEGADO — exportación de órdenes del ERP", font=F_TIT)
     notas = [
-        "Pegue aquí (desde la fila 9) la exportación de su ERP con estas cabeceras exactas.",
+        "Ordene la exportación de su ERP con estas 12 cabeceras exactas (misma disposición que ORDENES!A:L)",
+        "y péguela EN UN SOLO PASO en ORDENES!A4 (o desde la primera fila libre). Nada más que hacer:",
+        "las columnas calculadas ya están escritas en las 1.200 filas provisionadas de la tabla.",
         "operacion es opcional: si su ERP no maneja operaciones, déjela vacía y el sistema asume \"0010\".",
-        "Luego copie los valores dentro de la tabla ORDENES: orden y operacion → columnas A:B;",
-        "el resto (descripcion_general … costo_plan) → columnas D:M. Las demás columnas se calculan solas.",
+        "horas_ajustadas (columna M de ORDENES) es del planificador y NO se pega: sobrevive a la re-importación.",
         "La validación de REGLA-10 (hoja VALIDACION) reporta problemas pero nunca bloquea la importación.",
+        "Puede usar esta hoja como borrador para reordenar columnas antes de pegar.",
     ]
     for i, t in enumerate(notas, start=3):
         celda(ws, i, 1, t, font=F_NOTA)
@@ -1035,16 +1110,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         celda(ws, i, 1, t, font=F_NOTA)
     E = TAB["tblEjecucion"]
     encabezados(ws, E.fila_enc, CAMPOS_EJECUCION)
-    for i, e in enumerate(datos["ejecucion"]):
+    for i in range(CAP_FILAS):
+        e = datos["ejecucion"][i] if i < n_ejec else {}
         fila = E.fila_ini + i
-        celda(ws, fila, 1,
-              f'={R.this("tblEjecucion", "orden", fila)}&IF({R.this("tblEjecucion", "operacion", fila)}="",'
-              f'"0010",{R.this("tblEjecucion", "operacion", fila)})')
-        for j, campo in enumerate(CAMPOS_EJECUCION[1:], start=2):
-            celda(ws, fila, j, e[campo],
+        for j, campo in enumerate(CAMPOS_EJECUCION[:-1], start=1):
+            celda(ws, fila, j, e.get(campo),
                   fmt=FMT_DINERO if campo in ("precio", "costo_real", "costo_plan_total") else None)
+        ord_ref = R.this("tblEjecucion", "orden", fila)
+        op_ref = R.this("tblEjecucion", "operacion", fila)
+        celda(ws, fila, len(CAMPOS_EJECUCION),
+              f'=IF({ord_ref}="","",{ord_ref}&IF({op_ref}="","0010",{op_ref}))')
     agregar_tabla(ws, E)
-    for j, wdt in enumerate([16, 12, 10, 14, 11, 16, 10, 10, 15, 14]):
+    for j, wdt in enumerate([12, 10, 14, 11, 16, 10, 10, 15, 14, 16]):
         ws.column_dimensions[get_column_letter(j + 1)].width = wdt
 
     # ------------------------------------------------------------ ORDENES
@@ -1053,7 +1130,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     celda(ws, 1, 1, "ORDENES — tabla madre (tblOrdenes). Azul = editable; el resto se calcula solo.", font=F_SEC)
     encabezados(ws, O.fila_enc, CAMPOS_ORDENES)
     F_ORD = formulas_ordenes(R)
-    for i, o in enumerate(datos["ordenes"]):
+    for i in range(CAP_FILAS):  # capacidad completa: fórmulas listas para importar
+        o = datos["ordenes"][i] if i < n_ord else {}
         fila = O.fila_ini + i
         for j, campo in enumerate(CAMPOS_ORDENES, start=1):
             if campo in F_ORD:
@@ -1061,8 +1139,6 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                 fnt = F_TXT
             else:
                 v = o.get(campo)
-                if campo == "fecha_inicio" and v is None:
-                    v = None
                 fnt = F_EDIT if campo in CAMPOS_EDITABLES else F_TXT
             fmt = None
             if campo == "fecha_inicio":
@@ -1153,69 +1229,103 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ws.column_dimensions[colw].width = w
 
     # ---------------------------------------------------------- PERFIL_HH
+    # v2: dimensionado por los datos. Una serie de hasta 60 semanas se deriva
+    # por fórmula de MIN/MAX de tblOrdenes[fecha_inicio]; las filas/columnas
+    # de semanas sin órdenes se generan igual pero quedan ocultas.
+    CAP_SEM = 60
+    serie = esperado["serie_semanas"]
+    con_datos = esperado["semanas_con_datos"]
+    ocultas_k = {k for k in range(CAP_SEM)
+                 if k >= len(serie) or serie[k] not in con_datos}
+
     ws = wb.create_sheet("PERFIL_HH")
     ws.sheet_properties.tabColor = "7030A0"
-    celda(ws, 1, 1, "PERFIL DE HH (REGLA-6) — especialidad × semana", font=F_TIT)
+    celda(ws, 1, 1, "PERFIL DE HH (REGLA-6) — especialidad × semana. La serie de semanas se deriva "
+                    "de los datos (capacidad 60); las semanas sin órdenes están ocultas.", font=F_TIT)
+    # Serie de semanas (columnas N/O): lunes consecutivos desde la primera
+    # fecha presente hasta la última, y su etiqueta REGLA-2 (AAAA-Snn).
+    celda(ws, 3, 14, "lunes_semana", font=F_HDR, fill=FILL_HDR)
+    celda(ws, 3, 15, "semana (serie auto)", font=F_HDR, fill=FILL_HDR)
+    col_fecha = R.col("tblOrdenes", "fecha_inicio")
+    FILA_SERIE = 4
+    for k in range(CAP_SEM):
+        fr = FILA_SERIE + k
+        if k == 0:
+            celda(ws, fr, 14, f'=IF(COUNT({col_fecha})=0,"",MIN({col_fecha})'
+                              f'-WEEKDAY(MIN({col_fecha}),2)+1)', fmt=FMT_FECHA)
+        else:
+            celda(ws, fr, 14, f'=IF(N{fr - 1}="","",IF(N{fr - 1}+7>MAX({col_fecha}),"",'
+                              f'N{fr - 1}+7))', fmt=FMT_FECHA)
+        celda(ws, fr, 15, f'=IF(N{fr}="","",YEAR(N{fr}+4-WEEKDAY(N{fr},2))&"-S"&'
+                          f'TEXT(_xlfn.ISOWEEKNUM(N{fr}),"00"))')
+
     cab = ["especialidad", "semana", "hh_disponible", "hh_productiva", "hh_preventiva",
            "hh_correctiva", "hh_planificada", "holgura", "pct_carga"]
     encabezados(ws, 3, cab)
-    fila = 4
     filas_flat = {}
-    for esp in ESPECIALIDADES:
-        for sem in semanas:
-            filas_flat[(esp, sem)] = fila
-            celda(ws, fila, 1, esp)
-            celda(ws, fila, 2, sem)
+    for k in range(CAP_SEM):
+        for ei, esp_f in enumerate(ESPECIALIDADES):
+            fila = 4 + k * len(ESPECIALIDADES) + ei
+            filas_flat[(esp_f, k)] = fila
+            celda(ws, fila, 1, esp_f)
+            celda(ws, fila, 2, f"=$O${FILA_SERIE + k}")
             celda(ws, fila, 3, f'=SUMIFS({R.col("tblAsignaciones", "horas_disponibles")},'
                                f'{R.col("tblAsignaciones", "especialidad")},$A{fila},'
                                f'{R.col("tblAsignaciones", "semana")},$B{fila})', fmt=FMT_HH)
             celda(ws, fila, 4, f"=C{fila}*p_factor_productividad", fmt=FMT_HH)
-            celda(ws, fila, 5, f'=SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+            celda(ws, fila, 5, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
                                f'{R.col("tblOrdenes", "especialidad")},$A{fila},'
                                f'{R.col("tblOrdenes", "semana")},$B{fila},'
                                f'{R.col("tblOrdenes", "clasificacion")},"preventiva")', fmt=FMT_HH)
-            celda(ws, fila, 6, f'=SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+            celda(ws, fila, 6, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
                                f'{R.col("tblOrdenes", "especialidad")},$A{fila},'
                                f'{R.col("tblOrdenes", "semana")},$B{fila},'
                                f'{R.col("tblOrdenes", "clasificacion")},"correctiva")', fmt=FMT_HH)
             celda(ws, fila, 7, f"=E{fila}+F{fila}", fmt=FMT_HH)
             celda(ws, fila, 8, f"=D{fila}-G{fila}", fmt=FMT_HH)
             celda(ws, fila, 9, f'=IF(D{fila}=0,"",G{fila}/D{fila})', fmt=FMT_PCT)
-            fila += 1
-    ult_flat = fila - 1
+    ult_flat = 3 + CAP_SEM * len(ESPECIALIDADES)
     semaforo_carga(ws, f"I4:I{ult_flat}")
+    for k in ocultas_k:  # bloques de semanas sin datos, ocultos
+        for ei in range(len(ESPECIALIDADES)):
+            ws.row_dimensions[4 + k * len(ESPECIALIDADES) + ei].hidden = True
 
     fila_mat = ult_flat + 3
-    celda(ws, fila_mat - 1, 1, "MATRIZ % CARGA — semáforo: verde < 85 %, amarillo 85–100 %, rojo > 100 %",
-          font=F_SEC)
-    celda(ws, fila_mat, 1, "especialidad", font=F_HDR, fill=FILL_HDR)
-    for j, sem in enumerate(semanas):
-        celda(ws, fila_mat, 2 + j, sem, font=F_HDR, fill=FILL_HDR)
-    for i, esp in enumerate(ESPECIALIDADES):
-        celda(ws, fila_mat + 1 + i, 1, esp)
-        for j, sem in enumerate(semanas):
-            celda(ws, fila_mat + 1 + i, 2 + j, f"=$I${filas_flat[(esp, sem)]}", fmt=FMT_PCT)
-    semaforo_carga(ws, f"B{fila_mat + 1}:{get_column_letter(1 + len(semanas))}{fila_mat + len(ESPECIALIDADES)}")
+    celda(ws, fila_mat - 1, 1, "MATRIZ % CARGA — semana × especialidad. Semáforo: verde < 85 %, "
+                               "amarillo 85–100 %, rojo > 100 %. Semanas sin datos ocultas.", font=F_SEC)
+    celda(ws, fila_mat, 1, "semana", font=F_HDR, fill=FILL_HDR)
+    for i, esp_f in enumerate(ESPECIALIDADES):
+        celda(ws, fila_mat, 2 + i, esp_f, font=F_HDR, fill=FILL_HDR)
+    for k in range(CAP_SEM):
+        fr = fila_mat + 1 + k
+        celda(ws, fr, 1, f"=$O${FILA_SERIE + k}")
+        for i, esp_f in enumerate(ESPECIALIDADES):
+            celda(ws, fr, 2 + i, f"=$I${filas_flat[(esp_f, k)]}", fmt=FMT_PCT)
+        if k in ocultas_k:
+            ws.row_dimensions[fr].hidden = True
+    semaforo_carga(ws, f"B{fila_mat + 1}:{get_column_letter(1 + len(ESPECIALIDADES))}{fila_mat + CAP_SEM}")
 
-    fila_r9 = fila_mat + len(ESPECIALIDADES) + 3
+    fila_r9 = fila_mat + CAP_SEM + 3
     celda(ws, fila_r9 - 1, 1, "RATIO CORRECTIVO/PREVENTIVO POR SEMANA (REGLA-9) — meta: correctivo ≤ 20 % de las HH",
           font=F_SEC)
     encabezados(ws, fila_r9, ["semana", "hh_preventiva", "hh_correctiva", "ratio_corr_prev",
                               "pct_correctivo", "cumple_meta"])
-    for i, sem in enumerate(semanas):
-        fr = fila_r9 + 1 + i
-        celda(ws, fr, 1, sem)
-        celda(ws, fr, 2, f'=SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+    for k in range(CAP_SEM):
+        fr = fila_r9 + 1 + k
+        celda(ws, fr, 1, f"=$O${FILA_SERIE + k}")
+        celda(ws, fr, 2, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
                          f'{R.col("tblOrdenes", "semana")},$A{fr},'
                          f'{R.col("tblOrdenes", "clasificacion")},"preventiva")', fmt=FMT_HH)
-        celda(ws, fr, 3, f'=SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+        celda(ws, fr, 3, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
                          f'{R.col("tblOrdenes", "semana")},$A{fr},'
                          f'{R.col("tblOrdenes", "clasificacion")},"correctiva")', fmt=FMT_HH)
         celda(ws, fr, 4, f'=IF(B{fr}=0,"",C{fr}/B{fr})', fmt=FMT_PCT)
         celda(ws, fr, 5, f'=IF(B{fr}+C{fr}=0,"",C{fr}/(B{fr}+C{fr}))', fmt=FMT_PCT)
         celda(ws, fr, 6, f'=IF(E{fr}="","",IF(E{fr}<=1-p_meta_ratio_prev_corr,"SI","NO"))')
+        if k in ocultas_k:
+            ws.row_dimensions[fr].hidden = True
     for colw, w in (("A", 13), ("B", 13), ("C", 13), ("D", 14), ("E", 14), ("F", 14),
-                    ("G", 14), ("H", 12), ("I", 11)):
+                    ("G", 14), ("H", 12), ("I", 11), ("N", 13), ("O", 18)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------- PLAN_SEMANAL
@@ -1236,7 +1346,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ws.add_data_validation(dv)
         dv.add(f"{get_column_letter(colc)}3")
     FILA_GRILLA = 25  # encabezado de la grilla; el gráfico vive arriba, en la zona fija
-    fila_ini_esp, fila_fin_esp = FILA_GRILLA + 1, FILA_GRILLA + n_ord
+    fila_ini_esp, fila_fin_esp = FILA_GRILLA + 1, FILA_GRILLA + CAP_FILAS
     crit = (f'$A${fila_ini_esp}:$A${fila_fin_esp},IF($B$3="(todos)","*",$B$3),'
             f'$B${fila_ini_esp}:$B${fila_fin_esp},IF($D$3="(todos)","*",$D$3),'
             f'$C${fila_ini_esp}:$C${fila_fin_esp},IF($F$3="(todos)","*",$F$3),'
@@ -1264,7 +1374,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                           f'$P{fr}&" ("&{turno_sel}&")")')
         celda(ws, fr, 19,
               f'=IF(AND($L$3<>"(todos)",$Q{fr}<>$L$3),NA(),'
-              f'SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+              f'SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
               f'{R.col("tblOrdenes", "tecnico_asignado")},$P{fr},'
               f'{R.col("tblOrdenes", "semana")},IF($B$3="(todos)","*",$B$3),'
               f'{R.col("tblOrdenes", "dia_semana")},IF($D$3="(todos)","*",$D$3),'
@@ -1325,22 +1435,25 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
               "coordinador": "coordinador", "area": "area", "especialidad": "especialidad",
               "tecnico": "tecnico_asignado", "id_operacion": "id_operacion",
               "descripcion_operacion": "descripcion_operacion", "equipo": "equipo",
-              "horas": "horas_estimadas", "estado": "estado", "en_plan": "en_plan"}
-    for i in range(n_ord):
+              "horas": "horas_efectivas", "estado": "estado", "en_plan": "en_plan"}
+    for i in range(CAP_FILAS):
         fo = O.fila_ini + i
         fe = fila_ini_esp + i
+        vacia = f"'ORDENES'!${O.letra('orden')}{fo}=\"\""
         for j, c in enumerate(cab_plan, start=1):
             ref = f"'ORDENES'!${O.letra(origen[c])}{fo}"
             if c == "horas":
-                celda(ws, fe, j, f"=IF({ref}=\"\",0,{ref})", fmt="0")
+                celda(ws, fe, j, f'=IF({vacia},"",IF({ref}="",0,{ref}))', fmt="0")
             elif c == "en_plan":
-                celda(ws, fe, j, f"={ref}")
+                celda(ws, fe, j, f'=IF({vacia},"",{ref})')
             else:
-                celda(ws, fe, j, f'=IF({ref}="","-",{ref})')
+                celda(ws, fe, j, f'=IF({vacia},"",IF({ref}="","-",{ref}))')
     ws.auto_filter.ref = f"A{FILA_GRILLA}:M{fila_fin_esp}"
     # Paneles inmovilizados: selectores, gráfico y encabezados quedan fijos
     ws.freeze_panes = f"A{fila_ini_esp}"
-    ws.print_area = f"A1:M{fila_fin_esp}"
+    # El área de impresión cubre las filas con datos de ejemplo; ajústela tras
+    # una importación mayor (no puede ser dinámica sin OFFSET, que está prohibido).
+    ws.print_area = f"A1:M{FILA_GRILLA + n_ord}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
@@ -1355,7 +1468,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws.sheet_properties.tabColor = "7030A0"
     celda(ws, 1, 1, "ADHERENCIA (REGLA-7) — rojo < 90 %, amarillo 90–95 %, verde > 95 %", font=F_TIT)
 
-    def bloque_adh(fila0, titulo, campo, valores, con_meta=False):
+    def bloque_adh(fila0, titulo, campo, valores, con_meta=False, ocultar=()):
+        """valores: literales o fórmulas '=...' (etiquetas dinámicas de semana);
+        ocultar: offsets (0-based) de filas de datos que quedan ocultas."""
         celda(ws, fila0, 1, titulo, font=F_SEC)
         cabb = ["valor", "total_ot", "cerradas", "adherencia_conteo", "hh_total",
                 "hh_cerradas", "adherencia_horas"] + (["meta"] if con_meta else [])
@@ -1367,20 +1482,26 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             celda(ws, fr, 3, f'=COUNTIFS({R.col("tblOrdenes", campo)},$A{fr},'
                              f'{R.col("tblOrdenes", "estado")},"Cerrada")')
             celda(ws, fr, 4, f'=IF(B{fr}=0,"",C{fr}/B{fr})', fmt=FMT_PCT)
-            celda(ws, fr, 5, f'=SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+            celda(ws, fr, 5, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
                              f'{R.col("tblOrdenes", campo)},$A{fr})', fmt=FMT_HH)
-            celda(ws, fr, 6, f'=SUMIFS({R.col("tblOrdenes", "horas_estimadas")},'
+            celda(ws, fr, 6, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
                              f'{R.col("tblOrdenes", campo)},$A{fr},'
                              f'{R.col("tblOrdenes", "estado")},"Cerrada")', fmt=FMT_HH)
             celda(ws, fr, 7, f'=IF(E{fr}=0,"",F{fr}/E{fr})', fmt=FMT_PCT)
             if con_meta:
                 celda(ws, fr, 8, "=p_meta_adherencia", fmt="0%")
+            if i in ocultar:
+                ws.row_dimensions[fr].hidden = True
         ult = fila0 + 1 + len(valores)
         escala_adherencia(ws, f"D{fila0 + 2}:D{ult}")
         escala_adherencia(ws, f"G{fila0 + 2}:G{ult}")
         return ult + 2
 
-    f0 = bloque_adh(3, "POR SEMANA (semanas del plan)", "semana", semanas, con_meta=True)
+    # Bloque semanal dinámico: 60 etiquetas derivadas de la serie de PERFIL_HH;
+    # las semanas sin órdenes quedan ocultas (el gráfico solo traza visibles).
+    etiquetas_sem = [f"='PERFIL_HH'!$O${FILA_SERIE + k}" for k in range(CAP_SEM)]
+    f0 = bloque_adh(3, "POR SEMANA (serie derivada de los datos, hasta 60)", "semana",
+                    etiquetas_sem, con_meta=True, ocultar=ocultas_k)
     f1 = bloque_adh(f0, "POR ÁREA", "area", list(COORD_POR_AREA))
     f2 = bloque_adh(f1, "POR ESPECIALIDAD", "especialidad", list(ESPECIALIDADES))
     f3 = bloque_adh(f2, "POR COORDINADOR", "coordinador", sorted(set(COORD_POR_AREA.values())))
@@ -1390,9 +1511,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     grafico = LineChart()
     grafico.title = "Adherencia semanal vs meta"
     grafico.height, grafico.width = 8, 16
-    datos_ref = Reference(ws, min_col=4, min_row=4, max_row=4 + len(semanas))
-    meta_ref = Reference(ws, min_col=8, min_row=4, max_row=4 + len(semanas))
-    cats = Reference(ws, min_col=1, min_row=5, max_row=4 + len(semanas))
+    datos_ref = Reference(ws, min_col=4, min_row=4, max_row=4 + CAP_SEM)
+    meta_ref = Reference(ws, min_col=8, min_row=4, max_row=4 + CAP_SEM)
+    cats = Reference(ws, min_col=1, min_row=5, max_row=4 + CAP_SEM)
     grafico.add_data(datos_ref, titles_from_data=True)
     grafico.add_data(meta_ref, titles_from_data=True)
     grafico.set_categories(cats)
@@ -1484,7 +1605,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         fr = 4 + i
         celda(ws, fr, 1, nombre)
         celda(ws, fr, 2, f"=COUNTIFS({criterios_tramo(c1, c2)})")
-        celda(ws, fr, 3, f'=SUMIFS({R.col("tblOrdenes", "horas_estimadas")},{criterios_tramo(c1, c2)})',
+        celda(ws, fr, 3, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},{criterios_tramo(c1, c2)})',
               fmt=FMT_HH)
     ws.conditional_formatting.add("B7:C7", CellIsRule(operator="greaterThan", formula=["0"],
                                                       fill=FILL_ROJO))
@@ -1547,34 +1668,48 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     celda(ws, 1, 1, "VALIDACIÓN DE IMPORTACIÓN (REGLA-10) — reporta, nunca bloquea", font=F_TIT)
     encabezados(ws, 3, ["chequeo", "resultado", "detalle"])
     oid, eid = R.col("tblOrdenes", "id_operacion"), R.col("tblEjecucion", "id_operacion")
+    orden_c = R.col("tblOrdenes", "orden")
+    aj_c = R.col("tblOrdenes", "horas_ajustadas")
+    # Todos los chequeos ignoran las filas provisionadas vacías (orden = "").
     chequeos = [
         ("Órdenes duplicadas por id_operacion",
-         f"=SUMPRODUCT(--(COUNTIF({oid},{oid})>1))",
+         f"=SUMPRODUCT(--({oid}<>\"\"),--(COUNTIF({oid},{oid})>1))",
          "Filas de ORDENES cuyo id_operacion aparece más de una vez."),
         ("Órdenes sin fecha de inicio",
-         f'=SUMPRODUCT(--({R.col("tblOrdenes", "fecha_inicio")}=""))',
+         f'=SUMPRODUCT(--({orden_c}<>""),--({R.col("tblOrdenes", "fecha_inicio")}=""))',
          "Sin fecha no hay semana, backlog ni plan."),
         ("Órdenes sin horas estimadas",
-         f'=SUMPRODUCT(--({R.col("tblOrdenes", "horas_estimadas")}=""))',
+         f'=SUMPRODUCT(--({orden_c}<>""),--({R.col("tblOrdenes", "horas_estimadas")}=""))',
          "No cargan el perfil de HH (REGLA-6)."),
         ("Centros de costo fuera de catálogo",
-         f'=SUMPRODUCT(--ISNA(MATCH({R.col("tblOrdenes", "centro_costo")},{R.col("tblCECO", "codigo")},0)))',
+         f'=SUMPRODUCT(--({R.col("tblOrdenes", "centro_costo")}<>""),'
+         f'--ISNA(MATCH({R.col("tblOrdenes", "centro_costo")},{R.col("tblCECO", "codigo")},0)))',
          "Revisar CAT_CENTROS_COSTO."),
         ("Puestos de trabajo fuera de catálogo",
-         f'=SUMPRODUCT(--ISNA(MATCH({R.col("tblOrdenes", "puesto_trabajo")},{R.col("tblPuestos", "codigo")},0)))',
+         f'=SUMPRODUCT(--({R.col("tblOrdenes", "puesto_trabajo")}<>""),'
+         f'--ISNA(MATCH({R.col("tblOrdenes", "puesto_trabajo")},{R.col("tblPuestos", "codigo")},0)))',
          "Revisar CAT_PUESTOS."),
         ("Actividades fuera de catálogo",
-         f'=SUMPRODUCT(--ISNA(MATCH({R.col("tblOrdenes", "cod_actividad")},{R.col("tblActividades", "codigo")},0)))',
+         f'=SUMPRODUCT(--({R.col("tblOrdenes", "cod_actividad")}<>""),'
+         f'--ISNA(MATCH({R.col("tblOrdenes", "cod_actividad")},{R.col("tblActividades", "codigo")},0)))',
          "Revisar CAT_ACTIVIDADES."),
         ("Tipos de OT fuera de catálogo (sin_clasificar)",
-         f'=SUMPRODUCT(--ISNA(MATCH({R.col("tblOrdenes", "tipo_ot")},{R.col("tblTiposOT", "codigo")},0)))',
+         f'=SUMPRODUCT(--({R.col("tblOrdenes", "tipo_ot")}<>""),'
+         f'--ISNA(MATCH({R.col("tblOrdenes", "tipo_ot")},{R.col("tblTiposOT", "codigo")},0)))',
          "REGLA-1 las marca sin_clasificar; agregar el código a CAT_TIPOS_OT."),
         ("Registros de EJECUCION sin par en ORDENES",
-         f"=SUMPRODUCT(--ISNA(MATCH({eid},{oid},0)))",
+         f"=SUMPRODUCT(--({eid}<>\"\"),--ISNA(MATCH({eid},{oid},0)))",
          "Estados/costos que no encuentran su orden."),
         ("Órdenes sin par en EJECUCION",
-         f"=SUMPRODUCT(--ISNA(MATCH({oid},{eid},0)))",
+         f"=SUMPRODUCT(--({oid}<>\"\"),--ISNA(MATCH({oid},{eid},0)))",
          "Quedan como \"Pendiente\" (comportamiento esperado)."),
+        ("Órdenes con ajuste manual de horas",
+         f'=COUNTIF({aj_c},"<>")',
+         "horas_ajustadas informada: el cálculo usa horas_efectivas."),
+        ("Desviación total de horas (ajustadas − estándar ERP)",
+         f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},{aj_c},"<>")'
+         f'-SUMIFS({R.col("tblOrdenes", "horas_estimadas")},{aj_c},"<>")',
+         "Suma de (horas_efectivas − horas_estimadas) en las órdenes ajustadas."),
     ]
     for i, (nombre, formula, detalle) in enumerate(chequeos):
         fr = 4 + i
@@ -1633,8 +1768,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         dv = DataValidation(type="list", formula1='"' + ",".join(lista) + '"', allow_blank=False)
         ws.add_data_validation(dv)
         dv.add(f"{get_column_letter(colc)}3")
-    fila_aux0, fila_aux1 = 8, 7 + n_ord
-    for i in range(n_ord):
+    fila_aux0, fila_aux1 = 8, 7 + CAP_FILAS
+    for i in range(CAP_FILAS):
         fo = O.fila_ini + i
 
         def rr(campo):
@@ -1645,7 +1780,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                 f'{rr("en_plan")}=TRUE')
         texto = (f'{rr("id_operacion")}&" | "&{rr("dia_semana")}&" | "&'
                  f'IF({rr("tecnico_asignado")}="","(sin técnico)",{rr("tecnico_asignado")})&" | "&'
-                 f'{rr("descripcion_operacion")}&" ("&{rr("horas_estimadas")}&" h)"')
+                 f'{rr("descripcion_operacion")}&" ("&{rr("horas_efectivas")}&" h)"')
         celda(ws, fila_aux0 + i, 11, f"=IF(AND({cond}),{texto},\"\")")
     celda(ws, 5, 1, "texto (seleccione la celda A6, copie y pegue):", font=F_SEC)
     celda(ws, 6, 1,
@@ -1733,13 +1868,18 @@ def imprimir_resumen(datos, esperado):
     print(f"MantPlan — datos sintéticos anclados a HOY = {hoy.isoformat()}")
     print(f"Órdenes: {len(datos['ordenes'])} · Ejecución: {len(datos['ejecucion'])} · "
           f"Asignaciones: {len(datos['asignaciones'])} · Semanas del plan: {', '.join(semanas)}")
-    print("\nPERFIL_HH esperado (REGLA-6):")
-    print(f"{'esp':8}{'semana':8}{'disp':>7}{'prod':>9}{'prev':>7}{'corr':>7}{'plan':>7}{'holgura':>9}{'%carga':>9}")
-    for (esp, sem), p in esperado["perfil"].items():
-        pct = f"{p['pct_carga']:.1%}" if p["pct_carga"] is not None else "—"
-        print(f"{esp:8}{sem:8}{p['hh_disponible']:>7.0f}{p['hh_productiva']:>9.2f}"
-              f"{p['hh_preventiva']:>7.0f}{p['hh_correctiva']:>7.0f}{p['hh_planificada']:>7.0f}"
-              f"{p['holgura']:>9.2f}{pct:>9}")
+    print(f"Serie de semanas con datos: {len(esperado['serie_semanas'])} "
+          f"({esperado['serie_semanas'][0]} … {esperado['serie_semanas'][-1]}), "
+          f"{len(esperado['semanas_con_datos'])} con órdenes")
+    print("\nPERFIL_HH esperado (REGLA-6, solo semanas del plan; el libro genera hasta 60):")
+    print(f"{'esp':8}{'semana':10}{'disp':>7}{'prod':>9}{'prev':>7}{'corr':>7}{'plan':>7}{'holgura':>9}{'%carga':>9}")
+    for esp in ESPECIALIDADES:
+        for sem in semanas:
+            p = esperado["perfil"][(esp, sem)]
+            pct = f"{p['pct_carga']:.1%}" if p["pct_carga"] is not None else "—"
+            print(f"{esp:8}{sem:10}{p['hh_disponible']:>7.0f}{p['hh_productiva']:>9.2f}"
+                  f"{p['hh_preventiva']:>7.0f}{p['hh_correctiva']:>7.0f}{p['hh_planificada']:>7.0f}"
+                  f"{p['holgura']:>9.2f}{pct:>9}")
     print("\nADHERENCIA esperada por semana (REGLA-7):")
     for sem in semanas:
         a = esperado["adherencia"][("semana", sem)]
@@ -1747,10 +1887,25 @@ def imprimir_resumen(datos, esperado):
         ah = f"{a['adherencia_horas']:.1%}" if a["adherencia_horas"] is not None else "—"
         print(f"  {sem}: {a['cerradas']}/{a['total']} OT cerradas = {ac} · "
               f"{a['hh_cerradas']:.0f}/{a['hh_total']:.0f} HH = {ah}")
-    print("\nRATIO corr/prev esperado por semana (REGLA-9):")
-    for sem, (prev, corr, ratio, pct) in esperado["ratio9"].items():
+    print("\nRATIO corr/prev esperado por semana (REGLA-9, semanas del plan):")
+    for sem in semanas:
+        prev, corr, ratio, pct = esperado["ratio9"][sem]
         print(f"  {sem}: prev {prev:.0f} h · corr {corr:.0f} h · ratio {ratio:.2f} · "
               f"correctivo {pct:.1%} del total")
+    print("\nCruce de fin de año (REGLA-2 v2):")
+    for o in esperado["ordenes"]:
+        if o["fecha_inicio"] and o["fecha_inicio"].month in (12, 1) and o["_grupo"] == "futuro":
+            print(f"  {o['id_operacion']}: fecha {o['fecha_inicio']} → semana {o['semana']} "
+                  f"(anio YEAR = {o['anio']})")
+    print("\nAjustes manuales (horas_efectivas):")
+    for o in esperado["ordenes"]:
+        if o.get("horas_ajustadas") is not None:
+            print(f"  {o['id_operacion']}: estimadas {o['horas_estimadas']} → efectivas "
+                  f"{o['horas_efectivas']} ({o['semana']}, {o['especialidad']}, "
+                  f"{o['clasificacion']}, {o['tecnico_asignado'] or 'sin técnico'})")
+    ve = esperado["validacion_extra"]
+    print(f"  VALIDACION → ajustadas: {ve['ajustadas']} · desviación total: "
+          f"{ve['desviacion_horas']:+.0f} h")
     print("\nBACKLOG esperado (pendientes por tramo):")
     for tramo, (n, hh) in esperado["backlog_aging"].items():
         print(f"  {tramo:>6}: {n} órdenes · {hh:.0f} h")
