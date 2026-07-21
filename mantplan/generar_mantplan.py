@@ -44,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.2.0"
+VERSION = "2.3.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -85,14 +85,42 @@ DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "doming
 SIN_CATALOGO = "(sin catálogo)"
 
 CENTROS_COSTO = [
-    # codigo, descripcion, planta, area, linea, coordinador
-    ("CC-110", "Línea de producción 1", "PLANTA-1", "PRODUCCION", "L1", "Coordinador A"),
-    ("CC-120", "Línea de producción 2", "PLANTA-1", "PRODUCCION", "L2", "Coordinador A"),
-    ("CC-210", "Línea de empaque 3", "PLANTA-1", "EMPAQUE", "L3", "Coordinador B"),
-    ("CC-220", "Línea de empaque 4", "PLANTA-1", "EMPAQUE", "L4", "Coordinador B"),
-    ("CC-310", "Servicios generales", "PLANTA-1", "SERVICIOS", "SG", "Coordinador C"),
-    ("CC-320", "Taller central", "PLANTA-1", "SERVICIOS", "TC", "Coordinador C"),
+    # codigo, descripcion, planta, area, sub_area, linea, coordinador
+    # sub_area es el nivel jerárquico intermedio área → sub-área → CECO.
+    # Vacía = el CECO no subdivide su área y hereda el nombre del área
+    # (ver sub_area_efectiva). PRODUCCION y EMPAQUE se dejan SIN sub-área a
+    # propósito (prueban la herencia); SERVICIOS se subdivide en 4 sub-áreas.
+    ("CC-110", "Línea de producción 1", "PLANTA-1", "PRODUCCION", "", "L1", "Coordinador A"),
+    ("CC-120", "Línea de producción 2", "PLANTA-1", "PRODUCCION", "", "L2", "Coordinador A"),
+    ("CC-210", "Línea de empaque 3", "PLANTA-1", "EMPAQUE", "", "L3", "Coordinador B"),
+    ("CC-220", "Línea de empaque 4", "PLANTA-1", "EMPAQUE", "", "L4", "Coordinador B"),
+    ("CC-310", "Generación de vapor", "PLANTA-1", "SERVICIOS", "Vapor", "SG", "Coordinador C"),
+    ("CC-311", "Distribución de vapor", "PLANTA-1", "SERVICIOS", "Vapor", "SG", "Coordinador C"),
+    ("CC-320", "Torres de enfriamiento", "PLANTA-1", "SERVICIOS", "Refrigeración", "TC", "Coordinador C"),
+    ("CC-321", "Chillers", "PLANTA-1", "SERVICIOS", "Refrigeración", "TC", "Coordinador C"),
+    ("CC-330", "Planta de CO2", "PLANTA-1", "SERVICIOS", "CO2", "CO", "Coordinador C"),
+    ("CC-340", "Aire comprimido", "PLANTA-1", "SERVICIOS", "Aire comprimido", "AC", "Coordinador C"),
 ]
+# Índices dentro de la tupla de CENTROS_COSTO
+CECO_AREA, CECO_SUBAREA, CECO_LINEA, CECO_COORD = 3, 4, 5, 6
+
+
+def sub_area_efectiva(sub_area, area):
+    """Herencia: si el CECO no tiene sub-área, hereda el NOMBRE del área
+    (nunca el código del CECO). Espejo exacto de la columna calculada."""
+    return sub_area if sub_area else area
+
+
+# Sub-áreas efectivas, agrupadas por área en el orden del catálogo (para los
+# desgloses jerárquicos de los reportes).
+SUBAREAS_POR_AREA, SUBAREAS = {}, []
+for _c in CENTROS_COSTO:
+    _se = sub_area_efectiva(_c[CECO_SUBAREA], _c[CECO_AREA])
+    SUBAREAS_POR_AREA.setdefault(_c[CECO_AREA], [])
+    if _se not in SUBAREAS_POR_AREA[_c[CECO_AREA]]:
+        SUBAREAS_POR_AREA[_c[CECO_AREA]].append(_se)
+    if _se not in SUBAREAS:
+        SUBAREAS.append(_se)
 
 PUESTOS = [
     ("PU-MEC", "MEC", "Puesto mecánico"),
@@ -432,14 +460,15 @@ def generar_datos(hoy):
             esp = esp_ciclo[(k + j) % 4]
             clasif = "preventiva" if j % 4 == 3 else "correctiva"
             nueva(hoy - timedelta(days=dias_atras), (4, 6, 8)[j % 3], esp, clasif, "backlog",
-                  ceco=CENTROS_COSTO[(k + j) % 6][0])
+                  ceco=CENTROS_COSTO[(k + j) % len(CENTROS_COSTO)][0])
 
-    # Histórico cerrado (alimenta COSTOS y EQUIPOS_CRITICOS)
+    # Histórico cerrado (alimenta COSTOS y EQUIPOS_CRITICOS). Recorre los 10
+    # CECOs para dar datos a todas las sub-áreas de SERVICIOS.
     for j in range(15):
         esp = esp_ciclo[j % 4]
         clasif = "preventiva" if j % 2 == 0 else "correctiva"
         nueva(hoy - timedelta(days=40 + j * 7), (4, 6, 8)[j % 3], esp, clasif, "historico",
-              ceco=CENTROS_COSTO[j % 6][0])
+              ceco=CENTROS_COSTO[j % len(CENTROS_COSTO)][0])
 
     # Futuras lejanas (REGLA-3 FUTURO y límite dias_backlog_min de REGLA-4)
     for j in range(3):
@@ -592,9 +621,11 @@ def calcular_esperado(datos):
             "semana": semana, "anio": f.year if f else "", "mes": f.month if f else "",
             "dia_semana": dia,
             "clasificacion": regla_1_clasificacion(o["tipo_ot"], CAT_TIPOS),
-            "linea": ceco[4] if ceco else SIN_CATALOGO,
-            "area": ceco[3] if ceco else SIN_CATALOGO,
-            "coordinador": ceco[5] if ceco else SIN_CATALOGO,
+            "linea": ceco[CECO_LINEA] if ceco else SIN_CATALOGO,
+            "area": ceco[CECO_AREA] if ceco else SIN_CATALOGO,
+            "sub_area": sub_area_efectiva(ceco[CECO_SUBAREA], ceco[CECO_AREA])
+            if ceco else SIN_CATALOGO,
+            "coordinador": ceco[CECO_COORD] if ceco else SIN_CATALOGO,
             "especialidad": CAT_PUESTOS.get(o["puesto_trabajo"], SIN_CATALOGO),
             "actividad": CAT_ACTIVIDADES.get(o["cod_actividad"], SIN_CATALOGO),
             "backlog_dias": backlog if backlog is not None else "",
@@ -649,6 +680,7 @@ def calcular_esperado(datos):
     adherencia = {}
     for dim, valores in (("semana", serie_semanas),
                          ("area", [a for a in COORD_POR_AREA]),
+                         ("sub_area", SUBAREAS),
                          ("especialidad", list(ESPECIALIDADES)),
                          ("coordinador", sorted(set(COORD_POR_AREA.values()))),
                          ("tecnico_asignado", [t[1] for t in TECNICOS]),
@@ -678,6 +710,19 @@ def calcular_esperado(datos):
             filas = [o for o in enriquecidas if o["anio"] == anio and o["mes"] == mes and o["area"] == area]
             costos[(anio, mes, area)] = (sum(o["costo_plan"] or 0 for o in filas),
                                          sum(o["costo_total"] for o in filas))
+    costos_sub = {}       # costo_total real por (anio, mes, sub_area)
+    for anio, mes in meses:
+        for sa in SUBAREAS:
+            filas = [o for o in enriquecidas if o["anio"] == anio and o["mes"] == mes
+                     and o["sub_area"] == sa]
+            costos_sub[(anio, mes, sa)] = sum(o["costo_total"] for o in filas)
+    # Backlog (nº órdenes pendientes) por sub-área × tramo, para verificar
+    backlog_sub = {}
+    for sa in SUBAREAS:
+        for nombre, a, b in tramos:
+            backlog_sub[(sa, nombre)] = sum(
+                1 for o in enriquecidas if o["sub_area"] == sa and o["estado"] == "Pendiente"
+                and o["backlog_dias"] != "" and a <= o["backlog_dias"] <= b)
 
     equipos_tot = {}
     for o in enriquecidas:
@@ -763,6 +808,7 @@ def calcular_esperado(datos):
             "serie_semanas": serie_semanas, "semanas_con_datos": semanas_con_datos,
             "validacion_extra": validacion_extra, "ajustes_esperado": ajustes_esperado,
             "exportar": exportar, "exportar_fn": exportar_esperado,
+            "costos_sub": costos_sub, "backlog_sub": backlog_sub,
             "validacion": regla_10_validacion(datos["ordenes"], datos["ejecucion"])}
 
 
@@ -838,7 +884,7 @@ CAMPOS_ORDENES = [
     "fecha_inicio", "horas_estimadas", "costo_plan",
     "horas_efectivas",
     "estado", "semana", "anio", "mes", "dia_semana", "clasificacion",
-    "linea", "area", "coordinador", "especialidad", "actividad",
+    "linea", "area", "sub_area", "coordinador", "especialidad", "actividad",
     "backlog_dias", "estado_backlog", "en_plan",
     "tecnico_asignado", "turno_asignado", "HHA", "HHD",
     "costo_servicio", "costo_materiales", "costo_total",
@@ -909,6 +955,13 @@ def formulas_ordenes(R):
                 return f'=IF({f("centro_costo", fila)}="","",' + \
                     R.busca(f("centro_costo", fila), "tblCECO", "codigo",
                             campo, f'"{SIN_CATALOGO}"') + ")"
+            if campo == "sub_area":
+                # Herencia: sub-área del CECO; si está vacía hereda el NOMBRE
+                # del área (celda area ya calculada), nunca el código del CECO.
+                sub = R.busca(f("centro_costo", fila), "tblCECO", "codigo",
+                              "sub_area", '""')
+                return (f'=IF({f("centro_costo", fila)}="","",'
+                        f'IF(({sub})<>"",{sub},{f("area", fila)}))')
             if campo == "especialidad":
                 return f'=IF({f("puesto_trabajo", fila)}="","",' + \
                     R.busca(f("puesto_trabajo", fila), "tblPuestos", "codigo",
@@ -1056,7 +1109,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                              ["id", "nombre", "especialidad", "area", "coordinador", "activo"], len(TECNICOS)),
         "tblAsignaciones": Tabla("tblAsignaciones", "ASIGNACIONES", 3, CAMPOS_ASIGNACIONES, n_asig),
         "tblCECO": Tabla("tblCECO", "CAT_CENTROS_COSTO", 3,
-                         ["codigo", "descripcion", "planta", "area", "linea", "coordinador"], len(CENTROS_COSTO)),
+                         ["codigo", "descripcion", "planta", "area", "sub_area", "linea", "coordinador"],
+                         len(CENTROS_COSTO)),
         "tblPuestos": Tabla("tblPuestos", "CAT_PUESTOS", 3,
                             ["codigo", "especialidad", "descripcion"], len(PUESTOS)),
         "tblActividades": Tabla("tblActividades", "CAT_ACTIVIDADES", 3,
@@ -1471,7 +1525,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                  ("turno", 6, ["(todos)"] + list(TURNOS), "(todos)"),
                  ("coordinador", 8, ["(todos)"] + sorted(set(COORD_POR_AREA.values())), "(todos)"),
                  ("área", 10, ["(todos)"] + list(COORD_POR_AREA), "(todos)"),
-                 ("especialidad", 12, ["(todos)"] + list(ESPECIALIDADES), "(todos)")]
+                 ("especialidad", 12, ["(todos)"] + list(ESPECIALIDADES), "(todos)"),
+                 ("sub-área", 14, ["(todos)"] + SUBAREAS, "(todos)")]
     for nombre, colc, lista, defecto in criterios:
         celda(ws, 3, colc - 1, nombre + ":", font=F_SEC)
         celda(ws, 3, colc, defecto, font=F_EDIT, fill=FILL_GRIS)
@@ -1480,16 +1535,20 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         dv.add(f"{get_column_letter(colc)}3")
     FILA_GRILLA = 25  # encabezado de la grilla; el gráfico vive arriba, en la zona fija
     fila_ini_esp, fila_fin_esp = FILA_GRILLA + 1, FILA_GRILLA + CAP_FILAS
+    # grilla A..G = 7 dimensiones de filtro; H..N = datos. Los selectores están
+    # en B3,D3,F3,H3,J3,L3,N3 (semana, día, turno, coordinador, área,
+    # especialidad, sub-área).
     crit = (f'$A${fila_ini_esp}:$A${fila_fin_esp},IF($B$3="(todos)","*",$B$3),'
             f'$B${fila_ini_esp}:$B${fila_fin_esp},IF($D$3="(todos)","*",$D$3),'
             f'$C${fila_ini_esp}:$C${fila_fin_esp},IF($F$3="(todos)","*",$F$3),'
             f'$D${fila_ini_esp}:$D${fila_fin_esp},IF($H$3="(todos)","*",$H$3),'
             f'$E${fila_ini_esp}:$E${fila_fin_esp},IF($J$3="(todos)","*",$J$3),'
-            f'$F${fila_ini_esp}:$F${fila_fin_esp},IF($L$3="(todos)","*",$L$3)')
+            f'$F${fila_ini_esp}:$F${fila_fin_esp},IF($L$3="(todos)","*",$L$3),'
+            f'$G${fila_ini_esp}:$G${fila_fin_esp},IF($N$3="(todos)","*",$N$3)')
     celda(ws, 5, 1, "órdenes:", font=F_SEC)
     celda(ws, 5, 2, f"=COUNTIFS({crit})")
     celda(ws, 5, 3, "HH:", font=F_SEC)
-    celda(ws, 5, 4, f"=SUMIFS($K${fila_ini_esp}:$K${fila_fin_esp},{crit})", fmt=FMT_HH)
+    celda(ws, 5, 4, f"=SUMIFS($L${fila_ini_esp}:$L${fila_fin_esp},{crit})", fmt=FMT_HH)
 
     # Zona de datos del gráfico (columnas P:V, dentro de la zona fija).
     # Es el sustituto sin macros del PivotChart: SUMIFS contra tblOrdenes
@@ -1513,7 +1572,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
               f'{R.col("tblOrdenes", "dia_semana")},IF($D$3="(todos)","*",$D$3),'
               f'{R.col("tblOrdenes", "turno_asignado")},IF($F$3="(todos)","*",$F$3),'
               f'{R.col("tblOrdenes", "coordinador")},IF($H$3="(todos)","*",$H$3),'
-              f'{R.col("tblOrdenes", "area")},IF($J$3="(todos)","*",$J$3)))', fmt=FMT_HH)
+              f'{R.col("tblOrdenes", "area")},IF($J$3="(todos)","*",$J$3),'
+              f'{R.col("tblOrdenes", "sub_area")},IF($N$3="(todos)","*",$N$3)))', fmt=FMT_HH)
         celda(ws, fr, 20, f"=IF(ISNA($S{fr}),NA(),MIN($S{fr},$V{fr}))", fmt=FMT_HH)
         celda(ws, fr, 21, f"=IF(ISNA($S{fr}),NA(),MAX(0,$S{fr}-$V{fr}))", fmt=FMT_HH)
         celda(ws, fr, 22,
@@ -1561,12 +1621,13 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     barras.height, barras.width = 8.5, 30
     ws.add_chart(barras, "A7")
 
-    cab_plan = ["semana", "dia", "turno", "coordinador", "area", "especialidad", "tecnico",
-                "id_operacion", "descripcion_operacion", "equipo", "horas", "estado", "en_plan"]
+    cab_plan = ["semana", "dia", "turno", "coordinador", "area", "especialidad", "sub_area",
+                "tecnico", "id_operacion", "descripcion_operacion", "equipo", "horas",
+                "estado", "en_plan"]
     encabezados(ws, FILA_GRILLA, cab_plan)
     origen = {"semana": "semana", "dia": "dia_semana", "turno": "turno_asignado",
               "coordinador": "coordinador", "area": "area", "especialidad": "especialidad",
-              "tecnico": "tecnico_asignado", "id_operacion": "id_operacion",
+              "sub_area": "sub_area", "tecnico": "tecnico_asignado", "id_operacion": "id_operacion",
               "descripcion_operacion": "descripcion_operacion", "equipo": "equipo",
               "horas": "horas_efectivas", "estado": "estado", "en_plan": "en_plan"}
     for i in range(CAP_FILAS):
@@ -1581,17 +1642,17 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                 celda(ws, fe, j, f'=IF({vacia},"",{ref})')
             else:
                 celda(ws, fe, j, f'=IF({vacia},"",IF({ref}="","-",{ref}))')
-    ws.auto_filter.ref = f"A{FILA_GRILLA}:M{fila_fin_esp}"
+    ws.auto_filter.ref = f"A{FILA_GRILLA}:N{fila_fin_esp}"
     # Paneles inmovilizados: selectores, gráfico y encabezados quedan fijos
     ws.freeze_panes = f"A{fila_ini_esp}"
     # El área de impresión cubre las filas con datos de ejemplo; ajústela tras
     # una importación mayor (no puede ser dinámica sin OFFSET, que está prohibido).
-    ws.print_area = f"A1:M{FILA_GRILLA + n_ord}"
+    ws.print_area = f"A1:N{FILA_GRILLA + n_ord}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
-    for j, wdt in enumerate([9, 11, 8, 14, 13, 12, 13, 15, 30, 9, 7, 11, 9]):
+    for j, wdt in enumerate([9, 11, 8, 14, 13, 12, 14, 13, 15, 30, 9, 7, 11, 9]):
         ws.column_dimensions[get_column_letter(j + 1)].width = wdt
     for j, wdt in enumerate([13, 12, 20, 13, 15, 15, 11]):
         ws.column_dimensions[get_column_letter(16 + j)].width = wdt
@@ -1635,7 +1696,15 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     etiquetas_sem = [f"='PERFIL_HH'!$O${FILA_SERIE + k}" for k in range(CAP_SEM)]
     f0 = bloque_adh(3, "POR SEMANA (serie derivada de los datos, hasta 60)", "semana",
                     etiquetas_sem, con_meta=True, ocultar=ocultas_k)
-    f1 = bloque_adh(f0, "POR ÁREA", "area", list(COORD_POR_AREA))
+    fa = bloque_adh(f0, "POR ÁREA", "area", list(COORD_POR_AREA))
+    # POR SUB-ÁREA — jerárquico: las sub-áreas van agrupadas por su área madre
+    # (indicada en la columna I). Herencia mediante: un área sin subdividir
+    # aparece con su propio nombre como sub-área (fila idéntica al nivel área).
+    parent_of = {se: ar for ar, ses in SUBAREAS_POR_AREA.items() for se in ses}
+    f1 = bloque_adh(fa, "POR SUB-ÁREA (agrupada bajo su área madre — col. I)", "sub_area", SUBAREAS)
+    celda(ws, fa + 1, 9, "área madre", font=F_HDR, fill=FILL_HDR)
+    for i, sa in enumerate(SUBAREAS):
+        celda(ws, fa + 2 + i, 9, parent_of[sa], font=F_NOTA)
     f2 = bloque_adh(f1, "POR ESPECIALIDAD", "especialidad", list(ESPECIALIDADES))
     f3 = bloque_adh(f2, "POR COORDINADOR", "coordinador", sorted(set(COORD_POR_AREA.values())))
     f4 = bloque_adh(f3, "POR CLASIFICACIÓN", "clasificacion",
@@ -1653,7 +1722,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     grafico.y_axis.number_format = "0%"
     grafico.y_axis.scaling.min = 0
     ws.add_chart(grafico, "J3")
-    for colw, w in (("A", 16), ("B", 9), ("C", 9), ("D", 17), ("E", 9), ("F", 11), ("G", 16), ("H", 7)):
+    for colw, w in (("A", 18), ("B", 9), ("C", 9), ("D", 17), ("E", 9), ("F", 11),
+                    ("G", 16), ("H", 7), ("I", 14)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------------- COSTOS
@@ -1662,7 +1732,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     celda(ws, 1, 1, '="COSTOS ("&p_moneda&") — REGLA-8: real (servicio + materiales) contra plan"', font=F_TIT)
     meses = esperado["meses"]
     areas = list(COORD_POR_AREA)
-    lineas = [c[4] for c in CENTROS_COSTO]
+    lineas = [c[CECO_LINEA] for c in CENTROS_COSTO]
 
     def matriz_costos(fila0, titulo, campo_dim, valores, campo_valor):
         celda(ws, fila0, 1, titulo, font=F_SEC)
@@ -1705,7 +1775,11 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                   f"={cl}{(tot_real - len(areas)) + i}-{cl}{(tot_plan - len(areas)) + i}",
                   fmt=FMT_DINERO)
     ult_desv = fila0_desv + 1 + len(areas)
-    tot_lin = matriz_costos(ult_desv + 2, "REAL por línea", "linea", lineas, "costo_total")
+    tot_sub = matriz_costos(ult_desv + 2,
+                            "REAL por sub-área (herencia: un área sin subdividir aparece con su "
+                            "propio nombre; el TOTAL coincide con el de por área)",
+                            "sub_area", SUBAREAS, "costo_total")
+    tot_lin = matriz_costos(tot_sub + 2, "REAL por línea", "linea", lineas, "costo_total")
     grafico = BarChart()
     grafico.title = "Plan vs real por mes (todas las áreas)"
     grafico.height, grafico.width = 8, 18
@@ -1717,7 +1791,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     grafico.append(s2)
     grafico.set_categories(Reference(ws, min_col=2, max_col=1 + len(meses), min_row=5, max_row=5))
     ws.add_chart(grafico, f"A{tot_lin + 3}")
-    ws.column_dimensions["A"].width = 14
+    ws.column_dimensions["A"].width = 16
 
     # ------------------------------------------------------------ BACKLOG
     ws = wb.create_sheet("BACKLOG")
@@ -1759,8 +1833,10 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         return fila0 + 2 + len(valores) + 1
 
     f0 = matriz_backlog(10, "POR ESPECIALIDAD", "especialidad", list(ESPECIALIDADES))
-    matriz_backlog(f0, "POR ÁREA", "area", areas)
-    for colw, w in (("A", 16), ("B", 10), ("C", 13), ("D", 10), ("E", 10)):
+    f1 = matriz_backlog(f0, "POR ÁREA", "area", areas)
+    matriz_backlog(f1, "POR SUB-ÁREA (herencia: área sin subdividir con su propio nombre)",
+                   "sub_area", SUBAREAS)
+    for colw, w in (("A", 22), ("B", 10), ("C", 13), ("D", 10), ("E", 10)):
         ws.column_dimensions[colw].width = w
 
     # --------------------------------------------------- EQUIPOS_CRITICOS
@@ -1907,7 +1983,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     for etiqueta, colc, lista, defecto in [("semana", 2, ["(todos)"] + semanas, semanas[1]),
                                            ("turno", 4, ["(todos)"] + list(TURNOS), "(todos)"),
                                            ("coordinador", 6,
-                                            ["(todos)"] + sorted(set(COORD_POR_AREA.values())), "(todos)")]:
+                                            ["(todos)"] + sorted(set(COORD_POR_AREA.values())), "(todos)"),
+                                           ("sub-área", 8, ["(todos)"] + SUBAREAS, "(todos)")]:
         celda(ws, 3, colc - 1, etiqueta + ":", font=F_SEC)
         celda(ws, 3, colc, defecto, font=F_EDIT, fill=FILL_GRIS)
         dv = DataValidation(type="list", formula1='"' + ",".join(lista) + '"', allow_blank=False)
@@ -1944,6 +2021,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         scope = (f'AND(IF($B$3="(todos)",TRUE,{rr("semana")}=$B$3),'
                  f'IF($D$3="(todos)",TRUE,{rr("turno_asignado")}=$D$3),'
                  f'IF($F$3="(todos)",TRUE,{rr("coordinador")}=$F$3),'
+                 f'IF($H$3="(todos)",TRUE,{rr("sub_area")}=$H$3),'
                  f'{rr("en_plan")}=TRUE,{rr("orden")}<>"")')
         celda(ws, r, cK, f"=IF({scope},1,0)")
         di = f'IFERROR(MATCH({rr("dia_semana")},lista_dias,0),9)'
@@ -2032,8 +2110,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
           f'p_nombre_planta&" — "&p_nombre_empresa&'
           f'IF($B$3="(todos)"," para las semanas seleccionadas."," para la semana "&$B$3&'
           f'", del "&TEXT({A(6)},"dd/mm/yyyy")&" al "&TEXT({A(7)},"dd/mm/yyyy")&".")&'
-          f'IF(AND($D$3="(todos)",$F$3="(todos)"),"",CHAR(10)&"(Filtro aplicado — turno: "&$D$3&'
-          f'", coordinador: "&$F$3&")")')
+          f'IF(AND($D$3="(todos)",$F$3="(todos)",$H$3="(todos)"),"",CHAR(10)&'
+          f'"(Filtro aplicado — turno: "&$D$3&", coordinador: "&$F$3&", sub-área: "&$H$3&")")')
     s2 = (f'="Resumen de carga:"&CHAR(10)&'
           f'"• Órdenes programadas: "&{A(0)}&CHAR(10)&'
           f'"• HH planificadas: "&TEXT({A(1)},"0.#")&" h"&CHAR(10)&'
@@ -2085,6 +2163,10 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         if campo in ("linea", "area", "coordinador"):
             return "=" + R.busca_im(a1("centro_costo"), "tblCECO", "codigo", campo,
                                     f'"{SIN_CATALOGO}"')
+        if campo == "sub_area":
+            sub = R.busca_im(a1("centro_costo"), "tblCECO", "codigo", "sub_area", '""')
+            area = R.busca_im(a1("centro_costo"), "tblCECO", "codigo", "area", f'"{SIN_CATALOGO}"')
+            return f'=IF({a1("centro_costo")}="","",IF(({sub})<>"",{sub},{area}))'
         if campo == "especialidad":
             return "=" + R.busca_im(a1("puesto_trabajo"), "tblPuestos", "codigo",
                                     "especialidad", f'"{SIN_CATALOGO}"')
@@ -2108,7 +2190,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             return f'=MAX(0,{pt}-{a1("costo_servicio")})'
         raise KeyError(campo)
 
-    campos_comp = ["estado", "clasificacion", "linea", "area", "coordinador",
+    campos_comp = ["estado", "clasificacion", "linea", "area", "sub_area", "coordinador",
                    "especialidad", "actividad", "horas_efectivas", "turno_asignado",
                    "costo_servicio", "costo_materiales"]
     FX = formulas_ordenes(Rx)
@@ -2204,6 +2286,20 @@ def imprimir_resumen(datos, esperado):
         print(f"  Conflicto demo: {demo['id_operacion']} asignada a {demo['tecnico_asignado']} "
               f"({demo['semana']} {demo['dia_semana']}, turno \"{demo['turno_asignado']}\") → "
               f"disponibilidad 0 → HHA {demo['HHA']} · HHD {demo['HHD']:+.2f}")
+    print("\nSUB-ÁREAS (jerarquía área → sub-área → CECO; herencia si vacía):")
+    for area, subs in SUBAREAS_POR_AREA.items():
+        print(f"  {area}: {', '.join(subs)}")
+    print("  COSTO_TOTAL real por sub-área (suma de sus CECOs) y control por área:")
+    for area in COORD_POR_AREA:
+        tot_area = sum(o["costo_total"] for o in esperado["ordenes"] if o["area"] == area)
+        for sa in SUBAREAS_POR_AREA[area]:
+            tot_sa = sum(o["costo_total"] for o in esperado["ordenes"] if o["sub_area"] == sa)
+            print(f"    {area:11} · {sa:16}: {tot_sa:>8,.0f}")
+        suma_subs = sum(o["costo_total"] for o in esperado["ordenes"]
+                        if o["sub_area"] in SUBAREAS_POR_AREA[area])
+        print(f"    {area:11} · {'TOTAL área':16}: {tot_area:>8,.0f}  "
+              f"(Σ sub-áreas = {suma_subs:,.0f}; {'cuadra' if suma_subs == tot_area else 'DESCUADRE'})")
+
     ex = esperado["exportar"]
     print(f"\nCORREO (EXPORTAR) esperado — filtro por defecto semana {ex['semana']}, "
           f"turno/coordinador (todos):")

@@ -1,9 +1,9 @@
-# VERIFICACION.md — MantPlan v2.2.0
+# VERIFICACION.md — MantPlan v2.3.0
 
-Reporte de verificación del entregable A. Cubre el cambio v2.2 (hoja
-`EXPORTAR` que redacta el correo del programa semanal) sobre v2.1 (ajustes en
-`tblAjustes` con clave) y v2.0 (REGLA-2 con año ISO, `horas_efectivas`, hojas
-dimensionadas por datos, tablas a 1.200 filas).
+Reporte de verificación del entregable A. Cubre el cambio v2.3 (dimensión
+`sub_area`, jerarquía área → sub-área → CECO con herencia) sobre v2.2 (correo
+de EXPORTAR), v2.1 (ajustes en `tblAjustes` con clave) y v2.0 (REGLA-2 con año
+ISO, `horas_efectivas`, hojas dimensionadas por datos, tablas a 1.200 filas).
 Fecha de la corrida: **2026-07-21** (ancla de los datos sintéticos).
 
 ## 1. Recálculo con motor de cálculo real
@@ -14,7 +14,7 @@ estructuradas) se recalculó por completo con LibreOffice Calc 24.2:
 
 | Métrica | Valor |
 |---|---:|
-| Fórmulas recalculadas | **64.053** |
+| Fórmulas recalculadas | **66.635** |
 | Errores de fórmula (`#REF!`, `#VALUE!`, `#NAME?`, `#DIV/0!`, `#N/A`, …) | **0** |
 
 ## 2. Comparación motor Python ↔ Excel recalculado
@@ -24,7 +24,7 @@ Cada valor del libro recalculado se comparó contra el motor Python
 
 | Métrica | Valor |
 |---|---:|
-| Comparaciones automáticas | **7.648** |
+| Comparaciones automáticas | **8.029** |
 | Desviaciones | **0** |
 
 Cobertura: las 22 columnas calculadas de las 200 órdenes (incluida
@@ -35,9 +35,12 @@ estado_ajuste y desviacion_h de las 4 filas demo + fila vacía); PERFIL_HH
 completo (serie de 60 posiciones, REGLA-6 por semana × especialidad,
 REGLA-9); ADHERENCIA (bloque semanal dinámico + 5 desgloses); BACKLOG por
 tramos; COSTOS por mes; EQUIPOS_CRITICOS; zona de datos del gráfico de carga;
-los 13 chequeos de VALIDACION; y **EXPORTAR** (los escalares del resumen
+los 13 chequeos de VALIDACION; **EXPORTAR** (los escalares del resumen
 AJ8–AJ16, el bloque por técnico AC/AD/AE de los 12, más 18 fragmentos del
-texto del correo y el conteo de líneas del programa).
+texto del correo y el conteo de líneas del programa); y la dimensión
+**sub_area** (columna calculada de las 200 órdenes, desglose de ADHERENCIA,
+matriz de COSTOS por sub-área con su reconciliación contra el área, y matriz
+de BACKLOG por sub-área).
 
 ## 3. Casos de prueba
 
@@ -70,8 +73,8 @@ total **+2 h**, huérfanos **1**, duplicados en tblAjustes **2**.
 
 ### 3.3 Recálculo de la variante compatible
 
-**0 errores en 64.053 fórmulas** (§1), mismos números que el motor Python en
-las 7.648 comparaciones (§2).
+**0 errores en 66.635 fórmulas** (§1), mismos números que el motor Python en
+las 8.029 comparaciones (§2).
 
 ### 3.4 Reordenamiento deliberado de `tblOrdenes`
 
@@ -111,6 +114,27 @@ técnicos sobreasignados) y recalcular, el escalar de sobreasignados es **0**,
 el encabezado "Alerta de capacidad" **no aparece**, no hay triple salto de
 línea (bloque vacío sin residuo) y el correo pasa directo del resumen a las
 tareas relevantes. Confirma que los bloques condicionales desaparecen limpios.
+
+### 3.6 Dimensión sub_area — agrupamiento con herencia
+
+Jerarquía de muestra: SERVICIOS subdividido en 4 sub-áreas; PRODUCCION y
+EMPAQUE sin subdividir (prueban la herencia). Verificado sobre el libro
+recalculado (matriz REAL por sub-área de COSTOS):
+
+- **Sub-área con 2 CECOs**: `Vapor` = CC-310 (4.280) + CC-311 (1.540) =
+  **5.820** en una sola fila rotulada con el nombre de proceso "Vapor".
+- **CECO sin sub-área hereda el nombre del área**: las etiquetas del desglose
+  son `PRODUCCION`, `EMPAQUE`, `Vapor`, `Refrigeración`, `CO2`,
+  `Aire comprimido` — **ninguna es un código `CC-*`**. PRODUCCION y EMPAQUE
+  reportan bajo el nombre de su área, no bajo `CC-110`/`CC-210`.
+- **Reconciliación área = Σ sub-áreas**: SERVICIOS = 5.820 + 3.380 + 200 +
+  160 = **9.560**, idéntico al total del área SERVICIOS; el gran total de la
+  matriz por sub-área (**33.350**) coincide con el de la matriz por área.
+
+Todos los desgloses por sub-área (ADHERENCIA, COSTOS, BACKLOG) se
+compararon celda a celda contra el motor Python dentro de las 8.029
+comparaciones, con 0 desviaciones. La dimensión no toca ninguna de las 10
+reglas del motor.
 
 ## 4. Qué NO se verificó (y por qué)
 
@@ -160,7 +184,15 @@ tareas relevantes. Confirma que los bloques condicionales desaparecen limpios.
    alcance en lugar del lunes–domingo ISO. (e) Se añade un parámetro
    `top_tareas` (default 5) y una firma implícita con planta/empresa en el
    saludo.
-6. Se mantienen los supuestos de v2.0/v2.1: ocultamiento de filas decidido al
+6. **sub_area** (v2.3): (a) las sub-áreas de los reportes se derivan del
+   catálogo en orden, agrupadas por área madre; una sub-área nueva en el
+   catálogo aparece sola tras regenerar. (b) La herencia usa la celda `area`
+   ya calculada de la orden como valor por defecto, no un segundo lookup
+   independiente. (c) PERFIL_HH se deja por especialidad (la sub-área no
+   aporta un corte útil de capacidad). (d) En PLAN_SEMANAL la sub-área se
+   añade como 7.ª columna de dimensión de la grilla (tras especialidad) por
+   simplicidad del filtro; en ORDENES sí queda adyacente a `area`.
+7. Se mantienen los supuestos de v2.0/v2.1: ocultamiento de filas decidido al
    generar; ventana de 4 semanas solo en desplegables; `costo_plan` sin
    recálculo (reforzado por la nota de diseño del README §3: `horas_efectivas`
    nunca alimenta costo); área de impresión estática; nombre de hoja

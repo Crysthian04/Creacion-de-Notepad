@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v2.2.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v2.3.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -44,11 +44,12 @@ python generar_mantplan.py --resumen                              # imprime los 
 - El generador emite el libro en dos modos desde **las mismas plantillas de
   fórmula** (`class Refs`): `estructuradas` (XLOOKUP, entregable principal) y
   `compatibles` (INDEX/MATCH + rangos A1 acotados).
-- La variante compatible se recalculó con LibreOffice: **64.053 fórmulas, 0
+- La variante compatible se recalculó con LibreOffice: **66.635 fórmulas, 0
   errores**.
-- Cada valor recalculado se comparó contra el motor Python: **7.648
-  comparaciones automáticas, 0 desviaciones**, incluidos los escalares y el
-  texto del correo de EXPORTAR.
+- Cada valor recalculado se comparó contra el motor Python: **8.029
+  comparaciones automáticas, 0 desviaciones**, incluidos los desgloses por
+  sub-área (ADHERENCIA, COSTOS, BACKLOG) y la reconciliación área = Σ
+  sub-áreas.
 - Caso de reordenamiento (VERIFICACION.md §3.4): un libro con las 200 filas de
   ORDENES invertidas recalcula con los ajustes aplicados a las mismas órdenes.
 - Caso de bloque condicional (VERIFICACION.md §3.5): con una semana sin
@@ -225,6 +226,34 @@ legibilidad se obtiene con la zona auxiliar (una fórmula corta por celda) en
 vez de una fórmula gigante con `LET`. Es la única desviación respecto de las
 funciones sugeridas, y es conforme ("`LET` si ayuda").
 
+### 12. Dimensión `sub_area` (jerarquía área → sub-área → CECO, v2.3)
+
+Nivel jerárquico intermedio entre área y CECO, **hermano de área** — no toca
+ninguna de las 10 reglas del motor, es una dimensión de agrupamiento.
+
+- **Catálogo**: `CAT_CENTROS_COSTO` gana la columna `sub_area`, entre `area`
+  y `linea`. Un área (p. ej. SERVICIOS) puede subdividirse en sub-áreas
+  (Vapor, Refrigeración, CO2, Aire comprimido), y cada sub-área agrupa uno o
+  varios CECOs.
+- **Herencia**: `sub_area_efectiva = IF(sub_area<>"", sub_area, area)`. Si un
+  CECO no tiene sub-área definida, hereda el **nombre del área** (nunca el
+  código del CECO), así los reportes siempre muestran nombres de proceso y un
+  área sin subdividir se ve idéntica en el nivel área y sub-área. Implementada
+  en Python (`sub_area_efectiva`) y en la columna calculada de ORDENES en
+  ambos modos: `XLOOKUP`/`INDEX-MATCH` de la sub-área del CECO, con la celda
+  `area` ya calculada como valor de herencia.
+- **Columna en ORDENES**: `sub_area` calculada, **adyacente a `area`**.
+- **Dimensión de reporte**: nuevo desglose por sub-área en **ADHERENCIA**
+  (jerárquico, con el área madre en una columna auxiliar), **COSTOS** (matriz
+  por sub-área, además de por área) y **BACKLOG** (tramos por sub-área), y
+  como **selector** en PLAN_SEMANAL (7.º filtro) y EXPORTAR (4.º filtro).
+  PERFIL_HH se mantiene por especialidad (la sub-área no aporta ahí).
+- **Reconciliación**: la suma de las sub-áreas de un área = el total del área
+  (verificado, VERIFICACION.md §3.6). Con los datos de muestra, SERVICIOS =
+  Vapor + Refrigeración + CO2 + Aire comprimido; PRODUCCION y EMPAQUE quedan
+  sin subdividir (heredan su nombre) y conviven con SERVICIOS en el mismo
+  reporte.
+
 ### 10. Higiene de fórmulas
 
 Auditado sobre los archivos finales: sin `OFFSET`, sin `INDIRECT`, sin
@@ -383,6 +412,25 @@ viernes en esta semana), **308 h** = 244 preventiva (79 %) + 64 correctiva
 OT-000017) y Técnico 06 con 40 vs 30,45. Con la semana **2026-S32** (sin
 sobreasignados) el bloque de alerta desaparece por completo.
 
+### Sub-áreas: agrupamiento con herencia (COSTOS real, USD)
+
+Jerarquía de muestra y `costo_total` real por sub-área (suma de sus CECOs):
+
+| área | sub-área | CECOs | costo_total |
+|---|---|---|---:|
+| PRODUCCION | *PRODUCCION* (heredado) | CC-110, CC-120 | 13.185 |
+| EMPAQUE | *EMPAQUE* (heredado) | CC-210, CC-220 | 10.605 |
+| SERVICIOS | Vapor | CC-310 + CC-311 | **5.820** |
+| SERVICIOS | Refrigeración | CC-320 + CC-321 | 3.380 |
+| SERVICIOS | CO2 | CC-330 | 200 |
+| SERVICIOS | Aire comprimido | CC-340 | 160 |
+
+Números verificables a mano: **Vapor = CC-310 (4.280) + CC-311 (1.540) =
+5.820** en una sola fila con el nombre de proceso. **SERVICIOS = 5.820 + 3.380
++ 200 + 160 = 9.560**, que es exactamente el total del área SERVICIOS
+(reconciliación). PRODUCCION y EMPAQUE, sin sub-área, reportan bajo el **nombre
+de su área**, no bajo `CC-110`/`CC-210`.
+
 ### Otros números
 
 Costos: `costo_plan` = horas **estimadas** × 25 (prev) / × 40 (corr) — el
@@ -395,14 +443,16 @@ plan` (materiales 0). Equipo de mayor gasto: EQ-110 (5.070 USD).
 `INICIO` · `PARAMETROS` · `1_IMPORTAR_ORDENES` (paso único de pegado) ·
 `2_IMPORTAR_EJECUCION` (`tblEjecucion`, 1.200 filas) · `ORDENES`
 (`tblOrdenes`, 1.200 filas × 40 columnas: 12 importadas A:L, 5 editables en
-azul, 23 calculadas; `id_operacion` al final) · `TECNICOS` · `ASIGNACIONES` ·
-`AJUSTES` (`tblAjustes`, 300 filas, ajustes de duración por `id_operacion`) ·
-`PERFIL_HH` (serie dinámica de 60 semanas + matriz semáforo + REGLA-9) ·
-`PLAN_SEMANAL` (6 selectores + gráfico de carga + grilla 1.200) ·
-`ADHERENCIA` (bloque semanal dinámico + 5 desgloses + gráfico) · `COSTOS` ·
-`BACKLOG` · `EQUIPOS_CRITICOS` · `VALIDACION` (9 chequeos REGLA-10 + 4 de
-ajustes) · 5 catálogos `CAT_*` · `EXPORTAR` (correo del programa semanal en una
-celda + zona auxiliar no editable) · `_COMPATIBILIDAD`.
+azul, 24 calculadas incl. `sub_area`; `id_operacion` al final) · `TECNICOS` ·
+`ASIGNACIONES` · `AJUSTES` (`tblAjustes`, 300 filas, ajustes por
+`id_operacion`) · `PERFIL_HH` (serie dinámica de 60 semanas + matriz semáforo
++ REGLA-9) · `PLAN_SEMANAL` (7 selectores incl. sub-área + gráfico de carga +
+grilla 1.200) · `ADHERENCIA` (bloque semanal dinámico + 6 desgloses incl.
+sub-área + gráfico) · `COSTOS` (por área, sub-área y línea) · `BACKLOG`
+(tramos por especialidad, área y sub-área) · `EQUIPOS_CRITICOS` · `VALIDACION`
+(9 chequeos REGLA-10 + 4 de ajustes) · 5 catálogos `CAT_*` (CECO con
+`sub_area`) · `EXPORTAR` (correo semanal en una celda, 4 selectores) ·
+`_COMPATIBILIDAD`.
 
 ## Limitaciones conocidas
 
