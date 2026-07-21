@@ -44,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -70,6 +70,7 @@ PARAMETROS = [
     ("meta_ratio_prev_corr", 0.80, "Meta: fracción preventiva mínima de las HH (REGLA-9)."),
     ("primer_dia_semana", "lunes", "Inicio de semana. La semana ISO (REGLA-2) empieza en lunes."),
     ("ruta_base_checklists", "C:\\MANTPLAN\\checklists\\", "Base para los hipervínculos de la columna link_checklist."),
+    ("top_tareas", 5, "Nº de tareas relevantes que lista el correo de EXPORTAR."),
 ]
 # Fila de cada parámetro dentro de la hoja PARAMETROS (encabezado en fila 3).
 FILA_PARAM = {p[0]: 4 + i for i, p in enumerate(PARAMETROS)}
@@ -728,12 +729,40 @@ def calcular_esperado(datos):
                                          if b["id_operacion"] == a["id_operacion"]) > 1),
     }
 
+    # --- Correo esperado de EXPORTAR (filtro por defecto: semana=semanas[1],
+    #     turno y coordinador = "(todos)") --------------------------------
+    def exportar_esperado(sem, top=5):
+        scope = [o for o in enriquecidas if o["semana"] == sem and o["en_plan"] is True]
+        hh_total = sum(o["horas_efectivas"] or 0 for o in scope)
+        hh_prev = sum(o["horas_efectivas"] or 0 for o in scope if o["clasificacion"] == "preventiva")
+        hh_corr = sum(o["horas_efectivas"] or 0 for o in scope if o["clasificacion"] == "correctiva")
+        tecs = {t[1] for t in TECNICOS}
+        n_tec = len({o["tecnico_asignado"] for o in scope
+                     if o["tecnico_asignado"] in tecs})
+        por_tec = {}
+        for _tid, nombre, _e, _a in TECNICOS:
+            hha = sum(o["horas_efectivas"] or 0 for o in scope if o["tecnico_asignado"] == nombre)
+            cap = FACTOR_PRODUCTIVIDAD * sum(a["horas_disponibles"] for a in datos["asignaciones"]
+                                             if a["tecnico"] == nombre and a["semana"] == sem)
+            por_tec[nombre] = (hha, cap, hha > cap + 1e-4)
+        sobre = [n for n, (h, c, ov) in por_tec.items() if ov]
+        pend = [o for o in scope if o["estado"] == "Pendiente"]
+        pend_orden = sorted(enumerate(pend), key=lambda kv: (-(kv[1]["horas_efectivas"] or 0), kv[0]))
+        top_list = [o for _, o in pend_orden[:top]]
+        return {"semana": sem, "n_ord": len(scope), "hh_total": hh_total,
+                "hh_prev": hh_prev, "hh_corr": hh_corr, "n_tec": n_tec,
+                "por_tec": por_tec, "sobreasignados": sobre, "n_top": len(pend),
+                "top": top_list}
+
+    exportar = exportar_esperado(datos["semanas"][1])
+
     return {"ordenes": enriquecidas, "perfil": perfil, "adherencia": adherencia,
             "ratio9": ratio9, "backlog_aging": backlog_aging, "meses": meses,
             "costos": costos, "equipos_orden": equipos_orden, "equipos_tot": equipos_tot,
             "carga_tecnicos": carga_tecnicos, "capacidad_tecnicos": capacidad_tecnicos,
             "serie_semanas": serie_semanas, "semanas_con_datos": semanas_con_datos,
             "validacion_extra": validacion_extra, "ajustes_esperado": ajustes_esperado,
+            "exportar": exportar, "exportar_fn": exportar_esperado,
             "validacion": regla_10_validacion(datos["ordenes"], datos["ejecucion"])}
 
 
@@ -1112,6 +1141,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     dv3 = DataValidation(type="decimal", operator="between", formula1="1", formula2="24")
     ws.add_data_validation(dv3)
     dv3.add(f"B{FILA_PARAM['horas_jornada']}")
+    dv4 = DataValidation(type="whole", operator="between", formula1="1", formula2="20")
+    ws.add_data_validation(dv4)
+    dv4.add(f"B{FILA_PARAM['top_tareas']}")
 
     nombres = {
         "p_moneda": FILA_PARAM["moneda"], "p_horas_jornada": FILA_PARAM["horas_jornada"],
@@ -1121,6 +1153,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "p_meta_adherencia": FILA_PARAM["meta_adherencia"],
         "p_meta_ratio_prev_corr": FILA_PARAM["meta_ratio_prev_corr"],
         "p_ruta_base_checklists": FILA_PARAM["ruta_base_checklists"],
+        "p_top_tareas": FILA_PARAM["top_tareas"],
+        "p_nombre_empresa": FILA_PARAM["nombre_empresa"],
+        "p_nombre_planta": FILA_PARAM["nombre_planta"],
     }
     for nom, fila in nombres.items():
         wb.defined_names.add(DefinedName(nom, attr_text=f"PARAMETROS!$B${fila}"))
@@ -1859,9 +1894,16 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             ws.column_dimensions[get_column_letter(j + 1)].width = 22
 
     # ----------------------------------------------------------- EXPORTAR
+    # Correo redactado en una sola celda (A6), armado desde una zona auxiliar
+    # a la derecha (no editable). Sin macros y sin LET (LibreOffice no evalúa
+    # _xlfn.LET, lo que rompería la verificación de la variante compatible):
+    # la legibilidad se logra con una columna por magnitud. El ordenamiento y
+    # el "top N" se resuelven con clave numérica + SUMPRODUCT/INDEX/MATCH,
+    # nunca con SORT/FILTER (funciones de derrame, prohibidas).
     ws = wb.create_sheet("EXPORTAR")
     ws.sheet_properties.tabColor = "ED7D31"
-    celda(ws, 1, 1, "EXPORTAR — texto del plan listo para copiar en un correo (sin macros)", font=F_TIT)
+    celda(ws, 1, 1, "EXPORTAR — correo del programa semanal, listo para copiar y enviar. "
+                    "Elija los filtros y copie la celda A6.", font=F_TIT)
     for etiqueta, colc, lista, defecto in [("semana", 2, ["(todos)"] + semanas, semanas[1]),
                                            ("turno", 4, ["(todos)"] + list(TURNOS), "(todos)"),
                                            ("coordinador", 6,
@@ -1871,27 +1913,150 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         dv = DataValidation(type="list", formula1='"' + ",".join(lista) + '"', allow_blank=False)
         ws.add_data_validation(dv)
         dv.add(f"{get_column_letter(colc)}3")
-    fila_aux0, fila_aux1 = 8, 7 + CAP_FILAS
+
+    MAXPROG, MAXTOP, NT = 200, 20, len(TECNICOS)
+    F0 = 8                       # primera fila de todas las zonas auxiliares
+    FN = 7 + CAP_FILAS           # última fila de la zona por-orden (1:1 tblOrdenes)
+    # columnas auxiliares
+    cK, cL, cM, cN, cO, cP, cQ, cR, cS, cT = 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+    cU, cV, cW = 21, 22, 23      # emisión del programa (ordenado)
+    cY, cZ = 25, 26              # emisión del top de tareas
+    cAB, cAC, cAD, cAE, cAF, cAG = 28, 29, 30, 31, 32, 33   # por técnico
+    cAJ, cAL = 36, 38            # escalares / textos de sección
+    L = get_column_letter
+
+    def rng(col, hasta=FN):
+        return f"${L(col)}${F0}:${L(col)}${hasta}"
+
+    def oc(campo):               # columna entera de tblOrdenes (para INDEX/SUMIFS)
+        return R.col("tblOrdenes", campo)
+
+    celda(ws, 6, cU, "zona auxiliar de cálculo — no editar", font=F_NOTA)
+
+    # --- Zona por-orden (1:1 con tblOrdenes) --------------------------------
     for i in range(CAP_FILAS):
+        r = F0 + i
         fo = O.fila_ini + i
+        ridx = i + 1
 
         def rr(campo):
             return f"'ORDENES'!${O.letra(campo)}{fo}"
-        cond = (f'IF($B$3="(todos)",TRUE,{rr("semana")}=$B$3),'
-                f'IF($D$3="(todos)",TRUE,{rr("turno_asignado")}=$D$3),'
-                f'IF($F$3="(todos)",TRUE,{rr("coordinador")}=$F$3),'
-                f'{rr("en_plan")}=TRUE')
-        texto = (f'{rr("id_operacion")}&" | "&{rr("dia_semana")}&" | "&'
-                 f'IF({rr("tecnico_asignado")}="","(sin técnico)",{rr("tecnico_asignado")})&" | "&'
-                 f'{rr("descripcion_operacion")}&" ("&{rr("horas_efectivas")}&" h)"')
-        celda(ws, fila_aux0 + i, 11, f"=IF(AND({cond}),{texto},\"\")")
-    celda(ws, 5, 1, "texto (seleccione la celda A6, copie y pegue):", font=F_SEC)
-    celda(ws, 6, 1,
-          f'="PLAN "&$B$3&" | turno: "&$D$3&" | coordinador: "&$F$3&CHAR(10)&'
-          f'_xlfn.TEXTJOIN(CHAR(10),TRUE,$K${fila_aux0}:$K${fila_aux1})', wrap=True)
-    ws.merge_cells(start_row=6, start_column=1, end_row=40, end_column=8)
-    celda(ws, 7, 11, "columna auxiliar del armado del texto — no editar", font=F_NOTA)
-    ws.column_dimensions["K"].width = 60
+        scope = (f'AND(IF($B$3="(todos)",TRUE,{rr("semana")}=$B$3),'
+                 f'IF($D$3="(todos)",TRUE,{rr("turno_asignado")}=$D$3),'
+                 f'IF($F$3="(todos)",TRUE,{rr("coordinador")}=$F$3),'
+                 f'{rr("en_plan")}=TRUE,{rr("orden")}<>"")')
+        celda(ws, r, cK, f"=IF({scope},1,0)")
+        di = f'IFERROR(MATCH({rr("dia_semana")},lista_dias,0),9)'
+        ti = f'IFERROR(MATCH({rr("turno_asignado")},lista_turnos,0),9)'
+        ci = f'IFERROR(MATCH({rr("tecnico_asignado")},{R.col("tblTecnicos", "nombre")},0),99)'
+        celda(ws, r, cL, f'=IF({L(cK)}{r}=1,{di}*1000000000+{ti}*10000000+{ci}*100000+{ridx},'
+                         f'9000000000000+{ridx})')
+        # posición solo para filas en alcance; en blanco fuera de alcance para
+        # que el emisor se detenga en la última (MATCH falla → "").
+        celda(ws, r, cM, f'=IF({L(cK)}{r}=1,SUMPRODUCT(--({rng(cL)}<{L(cL)}{r}))+1,"")')
+        celda(ws, r, cN, f'=IF({L(cK)}{r}=1,N({rr("horas_efectivas")}),0)', fmt=FMT_HH)
+        celda(ws, r, cO, f'=IF({rr("clasificacion")}="preventiva",{L(cN)}{r},0)', fmt=FMT_HH)
+        celda(ws, r, cP, f'=IF({rr("clasificacion")}="correctiva",{L(cN)}{r},0)', fmt=FMT_HH)
+        celda(ws, r, cT, f'=IF({L(cK)}{r}=1,{rr("fecha_inicio")},"")', fmt=FMT_FECHA)
+        celda(ws, r, cQ, f'=IF(AND({L(cK)}{r}=1,{rr("estado")}="Pendiente"),1,0)')
+        celda(ws, r, cR, f'=IF({L(cQ)}{r}=1,100000-{L(cN)}{r}*1000+{ridx}*0.01,'
+                         f'9000000000000+{ridx})')
+        celda(ws, r, cS, f'=IF({L(cQ)}{r}=1,SUMPRODUCT(--({rng(cR)}<{L(cR)}{r}))+1,"")')
+
+    # --- Emisión del programa completo (ordenado por día, turno, técnico) ---
+    def idx(campo, kcell):
+        return f"INDEX({oc(campo)},{kcell})"
+    for p in range(1, MAXPROG + 1):
+        r = F0 + p - 1
+        k = f"{L(cU)}{r}"
+        celda(ws, r, cU, f"=IFERROR(MATCH({p},{rng(cM)},0),\"\")")
+        celda(ws, r, cV, f'=IF({k}="","",{idx("dia_semana", k)})')
+        cab_dia = (f'IF({L(cV)}{r}<>{L(cV)}{r - 1},CHAR(10)&UPPER(LEFT({L(cV)}{r},1))&'
+                   f'MID({L(cV)}{r},2,20)&":"&CHAR(10),"")')
+        linea = (f'"   "&IF({idx("turno_asignado", k)}="","(s/t)",{idx("turno_asignado", k)})&'
+                 f'" · "&IF({idx("tecnico_asignado", k)}="","(sin técnico)",{idx("tecnico_asignado", k)})&'
+                 f'" · "&{idx("id_operacion", k)}&" — "&{idx("descripcion_operacion", k)}&'
+                 f'" ("&TEXT({idx("horas_efectivas", k)},"0.#")&" h)"')
+        celda(ws, r, cW, f'=IF({k}="","",{cab_dia}&{linea})')
+
+    # --- Emisión del top de tareas relevantes -------------------------------
+    for j in range(1, MAXTOP + 1):
+        r = F0 + j - 1
+        k = f"{L(cY)}{r}"
+        celda(ws, r, cY, f"=IFERROR(MATCH({j},{rng(cS)},0),\"\")")
+        linea = (f'"   • "&{idx("equipo", k)}&" — "&{idx("descripcion_operacion", k)}&'
+                 f'" · "&TEXT({idx("horas_efectivas", k)},"0.#")&" h · "&'
+                 f'IF({idx("tecnico_asignado", k)}="","(sin técnico)",{idx("tecnico_asignado", k)})&'
+                 f'IF({idx("permiso_requerido", k)}<>""," · permiso de trabajo","")&'
+                 f'IF({idx("bloqueo_energia", k)}<>""," · bloqueo de energía (LOTO)","")')
+        celda(ws, r, cZ, f'=IF(OR({k}="",{j}>p_top_tareas),"",{linea})')
+
+    # --- Bloque por técnico (carga vs capacidad en el filtro) ---------------
+    for t in range(NT):
+        r = F0 + t
+        tn = f"{L(cAB)}{r}"
+        celda(ws, r, cAB, f"='TECNICOS'!$B${TAB['tblTecnicos'].fila_ini + t}")
+        celda(ws, r, cAC, f"=SUMPRODUCT({rng(cN)},--({oc('tecnico_asignado')}={tn}))", fmt=FMT_HH)
+        celda(ws, r, cAD, f'=p_factor_productividad*SUMIFS({R.col("tblAsignaciones", "horas_disponibles")},'
+                          f'{R.col("tblAsignaciones", "tecnico")},{tn},'
+                          f'{R.col("tblAsignaciones", "semana")},IF($B$3="(todos)","*",$B$3))', fmt=FMT_HH)
+        celda(ws, r, cAE, f"=IF({L(cAC)}{r}>{L(cAD)}{r}+0.0001,1,0)")
+        celda(ws, r, cAF, f'=IF({L(cAE)}{r}=1,"   • "&{tn}&": "&TEXT({L(cAC)}{r},"0.0")&'
+                          f'" h asignadas vs "&TEXT({L(cAD)}{r},"0.0")&" h de capacidad","")')
+        celda(ws, r, cAG, f"=IF(SUMPRODUCT({rng(cK)},--({oc('tecnico_asignado')}={tn}))>0,1,0)")
+
+    # --- Escalares del resumen ---------------------------------------------
+    esc = [("órdenes programadas", f"=SUM({rng(cK)})"),
+           ("hh_total", f"=SUM({rng(cN)})"),
+           ("hh_preventiva", f"=SUM({rng(cO)})"),
+           ("hh_correctiva", f"=SUM({rng(cP)})"),
+           ("técnicos involucrados", f"=SUM({rng(cAG, F0 + NT - 1)})"),
+           ("técnicos sobreasignados", f"=SUM({rng(cAE, F0 + NT - 1)})"),
+           ("lunes_sel", None), ("domingo_sel", None),
+           ("órdenes pendientes en plan", f"=SUM({rng(cQ)})")]
+    yy = f"VALUE(LEFT($B$3,4))"
+    lun = (f'DATE({yy},1,4)-WEEKDAY(DATE({yy},1,4),2)+1+(VALUE(MID($B$3,7,2))-1)*7')
+    esc[6] = ("lunes_sel",
+              f'=IF($B$3="(todos)",IF({L(cAJ)}{F0}=0,"",MIN({rng(cT)})),{lun})')
+    esc[7] = ("domingo_sel",
+              f'=IF($B$3="(todos)",IF({L(cAJ)}{F0}=0,"",MAX({rng(cT)})),{L(cAJ)}{F0 + 6}+6)')
+    for m, (lab, formula) in enumerate(esc):
+        r = F0 + m
+        celda(ws, r, cAJ - 1, lab, font=F_NOTA)
+        fmt = FMT_FECHA if lab in ("lunes_sel", "domingo_sel") else None
+        celda(ws, r, cAJ, formula, fmt=fmt)
+    A = lambda m: f"${L(cAJ)}${F0 + m}"   # ancla a un escalar por su índice
+
+    # --- Textos de sección (bloques condicionales que desaparecen limpios) --
+    s1 = (f'="Buenos días."&CHAR(10)&"A continuación el programa de mantenimiento de "&'
+          f'p_nombre_planta&" — "&p_nombre_empresa&'
+          f'IF($B$3="(todos)"," para las semanas seleccionadas."," para la semana "&$B$3&'
+          f'", del "&TEXT({A(6)},"dd/mm/yyyy")&" al "&TEXT({A(7)},"dd/mm/yyyy")&".")&'
+          f'IF(AND($D$3="(todos)",$F$3="(todos)"),"",CHAR(10)&"(Filtro aplicado — turno: "&$D$3&'
+          f'", coordinador: "&$F$3&")")')
+    s2 = (f'="Resumen de carga:"&CHAR(10)&'
+          f'"• Órdenes programadas: "&{A(0)}&CHAR(10)&'
+          f'"• HH planificadas: "&TEXT({A(1)},"0.#")&" h"&CHAR(10)&'
+          f'"• Preventiva: "&TEXT({A(2)},"0.#")&" h ("&TEXT(IF({A(1)}=0,0,{A(2)}/{A(1)}),"0%")&")"&CHAR(10)&'
+          f'"• Correctiva: "&TEXT({A(3)},"0.#")&" h ("&TEXT(IF({A(1)}=0,0,{A(3)}/{A(1)}),"0%")&")"&CHAR(10)&'
+          f'"• Técnicos involucrados: "&{A(4)}')
+    s3 = (f'=IF({A(5)}=0,"","Alerta de capacidad — técnicos sobreasignados:"&CHAR(10)&'
+          f'_xlfn.TEXTJOIN(CHAR(10),TRUE,{rng(cAF, F0 + NT - 1)}))')
+    s4 = (f'=IF({A(8)}=0,"","Tareas relevantes (top "&MIN(p_top_tareas,{A(8)})&" por horas):"&CHAR(10)&'
+          f'_xlfn.TEXTJOIN(CHAR(10),TRUE,{rng(cZ, F0 + MAXTOP - 1)}))')
+    s5 = (f'=IF({A(0)}=0,"(Sin órdenes en el filtro seleccionado.)","Programa completo:"&CHAR(10)&'
+          f'_xlfn.TEXTJOIN(CHAR(10),TRUE,{rng(cW, F0 + MAXPROG - 1)}))')
+    s6 = '="Cualquier ajuste, favor comunicarlo antes del inicio del turno."'
+    for m, sec in enumerate([s1, s2, s3, s4, s5, s6]):
+        celda(ws, F0 + m, cAL, sec)
+
+    celda(ws, 5, 1, "correo (seleccione A6, copie y pegue en el cuerpo del mensaje):", font=F_SEC)
+    master = (f'=_xlfn.TEXTJOIN(CHAR(10)&CHAR(10),TRUE,'
+              + ",".join(f"${L(cAL)}${F0 + m}" for m in range(6)) + ")")
+    celda(ws, 6, 1, master, wrap=True)
+    ws.merge_cells(start_row=6, start_column=1, end_row=110, end_column=8)
+    for colw, w in (("A", 20), ("B", 16), ("C", 14), ("D", 14), ("E", 14), ("F", 16), ("G", 14), ("H", 14)):
+        ws.column_dimensions[colw].width = w
 
     # ---------------------------------------------------- _COMPATIBILIDAD
     ws = wb.create_sheet("_COMPATIBILIDAD")
@@ -2039,6 +2204,21 @@ def imprimir_resumen(datos, esperado):
         print(f"  Conflicto demo: {demo['id_operacion']} asignada a {demo['tecnico_asignado']} "
               f"({demo['semana']} {demo['dia_semana']}, turno \"{demo['turno_asignado']}\") → "
               f"disponibilidad 0 → HHA {demo['HHA']} · HHD {demo['HHD']:+.2f}")
+    ex = esperado["exportar"]
+    print(f"\nCORREO (EXPORTAR) esperado — filtro por defecto semana {ex['semana']}, "
+          f"turno/coordinador (todos):")
+    print(f"  Órdenes programadas: {ex['n_ord']} · HH {ex['hh_total']:.0f} "
+          f"(prev {ex['hh_prev']:.0f} / corr {ex['hh_corr']:.0f}) · técnicos {ex['n_tec']}")
+    print(f"  Sobreasignados: {', '.join(ex['sobreasignados']) or '(ninguno)'}")
+    for n in ex["sobreasignados"]:
+        h, c, _ = ex["por_tec"][n]
+        print(f"    {n}: {h:.1f} h asignadas vs {c:.2f} h de capacidad")
+    print(f"  Top {min(5, ex['n_top'])} tareas (de {ex['n_top']} pendientes en plan):")
+    for o in ex["top"]:
+        marca = ("permiso" if o["permiso_requerido"] else "") + \
+                ("+LOTO" if o["bloqueo_energia"] else "")
+        print(f"    {o['equipo']} · {o['horas_efectivas']} h · "
+              f"{o['tecnico_asignado'] or '(sin técnico)'}{' · ' + marca if marca else ''}")
     print("\nVALIDACION esperada (REGLA-10):")
     for k, v in esperado["validacion"].items():
         print(f"  {k}: {v}")

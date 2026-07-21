@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v2.1.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v2.2.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -44,13 +44,16 @@ python generar_mantplan.py --resumen                              # imprime los 
 - El generador emite el libro en dos modos desde **las mismas plantillas de
   fórmula** (`class Refs`): `estructuradas` (XLOOKUP, entregable principal) y
   `compatibles` (INDEX/MATCH + rangos A1 acotados).
-- La variante compatible se recalculó con LibreOffice: **52.526 fórmulas, 0
+- La variante compatible se recalculó con LibreOffice: **64.053 fórmulas, 0
   errores**.
-- Cada valor recalculado se comparó contra el motor Python: **7.604
-  comparaciones automáticas, 0 desviaciones**, incluida la hoja AJUSTES.
-- Caso de reordenamiento: un libro con las 200 filas de ORDENES invertidas
-  recalcula con los ajustes aplicados a las mismas órdenes (ver
-  `VERIFICACION.md` §3.4).
+- Cada valor recalculado se comparó contra el motor Python: **7.648
+  comparaciones automáticas, 0 desviaciones**, incluidos los escalares y el
+  texto del correo de EXPORTAR.
+- Caso de reordenamiento (VERIFICACION.md §3.4): un libro con las 200 filas de
+  ORDENES invertidas recalcula con los ajustes aplicados a las mismas órdenes.
+- Caso de bloque condicional (VERIFICACION.md §3.5): con una semana sin
+  técnicos sobreasignados, la alerta de capacidad del correo desaparece sin
+  encabezado ni líneas en blanco huérfanas.
 
 ### 2. REGLA-2 v2: semana con año ISO, sin pliegue S53→S1
 
@@ -170,7 +173,7 @@ celdas calculadas hasta abrir el archivo en Excel/LibreOffice.
 | Segmentaciones (slicers) | Autofiltro por tabla + selectores desplegables "(todos)" en PLAN_SEMANAL/EXPORTAR |
 | PivotChart de carga | Zona de datos `SUMIFS` (P3:V15 de PLAN_SEMANAL) conectada a los mismos selectores; barras apiladas verde/rojo + línea de capacidad (REGLA-5 × factor) en el mismo eje, con marcador |
 | Impresión por turno/coordinador | Área de impresión + vista filtrable |
-| Correo Outlook | Hoja `EXPORTAR` con `TEXTJOIN` |
+| Correo Outlook | Hoja `EXPORTAR`: correo redactado completo en una celda (§11) |
 | Checklists | `HYPERLINK(ruta_base & link_checklist)` |
 
 ### 9. HHA / HHD
@@ -181,6 +184,46 @@ celdas calculadas hasta abrir el archivo en Excel/LibreOffice.
   `horas_disponibles` buscada en `tblAsignaciones` (REGLA-5): con turno
   normal la capacidad diaria es 7 × 0,87 = **6,09 h**; con `VAC`/`X` es 0 y
   **HHD = −HHA**. HHD < 0 en rojo = sobreasignación.
+
+### 11. EXPORTAR: correo del programa semanal (v2.2)
+
+`EXPORTAR` ya no emite una línea seca + listado: arma un **correo redactado,
+listo para enviar sin editar**, en una sola celda (`A6`, para copiar y pegar),
+con seis secciones que respetan los tres filtros de la hoja (semana, turno,
+coordinador) — texto y totales reflejan el subconjunto filtrado:
+
+1. **Saludo y contexto** con planta y empresa (desde `PARAMETROS`, nunca en la
+   fórmula) y el rango de fechas de la semana, calculado del rótulo `AAAA-Snn`
+   por aritmética ISO (`DATE(año,1,4) − WEEKDAY(...) + 1 + (semana−1)·7`).
+2. **Resumen de carga**: órdenes programadas, HH planificadas (sobre
+   `horas_efectivas`), desglose preventiva/correctiva en horas y %, y técnicos
+   involucrados.
+3. **Alerta de capacidad**, condicional: lista los técnicos con carga semanal
+   > capacidad (factor × horas disponibles de `tblAsignaciones`). Si no hay
+   ninguno, el bloque **desaparece entero** — sin encabezado ni línea en
+   blanco huérfana (verificado, §3.5 de VERIFICACION.md).
+4. **Tareas relevantes**: las `p_top_tareas` (nuevo parámetro, default 5) de
+   mayor `horas_efectivas` entre las pendientes y dentro del plan, con equipo,
+   descripción, horas y técnico, marcando permiso de trabajo y bloqueo de
+   energía (LOTO).
+5. **Programa completo**, agrupado por día y, dentro del día, ordenado por
+   turno y técnico.
+6. **Cierre** con la frase de coordinación.
+
+**Cómo, sin macros:** todo vive en una **zona auxiliar a la derecha (marcada
+"no editar")**, una columna por magnitud. El orden del programa y el "top N"
+se resuelven con **clave numérica + `SUMPRODUCT` (rango) + `INDEX/MATCH`
+(emisión por posición)** — nunca `SORT`/`FILTER`, que son funciones de derrame
+y openpyxl no puede escribir su metadato de spill. Los bloques condicionales
+desaparecen limpios porque el ensamblado final es
+`TEXTJOIN(CHAR(10)&CHAR(10); VERDADERO; sección1…sección6)`: `TEXTJOIN` con
+"ignorar vacíos" omite una sección `""` sin dejar separador.
+
+**Sobre `LET`:** se omite a propósito. `_xlfn.LET` no lo evalúa LibreOffice
+24.2, así que romperia la verificación de la variante compatible; la
+legibilidad se obtiene con la zona auxiliar (una fórmula corta por celda) en
+vez de una fórmula gigante con `LET`. Es la única desviación respecto de las
+funciones sugeridas, y es conforme ("`LET` si ayuda").
 
 ### 10. Higiene de fórmulas
 
@@ -298,6 +341,48 @@ Técnico 01: **35** (30,45 + 4,55 rojo) · 02: 22 · 03: 26 · 04: 18 · 05: 20 
 asignada a Técnico 04 en su semana de vacaciones (2026-S31, turno "VAC") →
 HHA 10, **HHD −10,00**.
 
+### Correo generado por EXPORTAR (filtro por defecto: semana 2026-S30)
+
+Texto real producido en `EXPORTAR!A6` con los datos de muestra (recalculado):
+
+```
+Buenos días.
+A continuación el programa de mantenimiento de Planta Ejemplo — Empresa Ejemplo S.A. para la semana 2026-S30, del 20/07/2026 al 26/07/2026.
+
+Resumen de carga:
+• Órdenes programadas: 37
+• HH planificadas: 308 h
+• Preventiva: 244 h (79%)
+• Correctiva: 64 h (21%)
+• Técnicos involucrados: 12
+
+Alerta de capacidad — técnicos sobreasignados:
+   • Técnico 01: 35.0 h asignadas vs 30.5 h de capacidad
+   • Técnico 06: 40.0 h asignadas vs 30.5 h de capacidad
+
+Tareas relevantes (top 5 por horas):
+   • EQ-102 — Lubricación programada en EQ-102 · 10 h · Técnico 04
+   • EQ-108 — Análisis predictivo en EQ-108 · 10 h · Técnico 06
+   • EQ-106 — Reparación de falla en EQ-106 · 10 h · Técnico 06 · permiso de trabajo · bloqueo de energía (LOTO)
+   • EQ-108 — Lubricación programada en EQ-108 · 10 h · Técnico 09
+   • EQ-106 — Reparación de falla en EQ-106 · 10 h · (sin técnico) · permiso de trabajo · bloqueo de energía (LOTO)
+
+Programa completo:
+
+Lunes:
+   T1 · Técnico 01 · OT-0000210010 — Inspección de rutina en EQ-110 (6 h)
+   T1 · Técnico 04 · OT-0000160010 — Lubricación programada en EQ-102 (10 h)
+   … (37 órdenes en total, agrupadas por día y ordenadas por turno y técnico) …
+
+Cualquier ajuste, favor comunicarlo antes del inicio del turno.
+```
+
+Números verificables a mano: **37** órdenes programadas (todas de lunes a
+viernes en esta semana), **308 h** = 244 preventiva (79 %) + 64 correctiva
+(21 %); Técnico 01 sobreasignado 35 vs 30,45 (incluye el ajuste de +4 h de
+OT-000017) y Técnico 06 con 40 vs 30,45. Con la semana **2026-S32** (sin
+sobreasignados) el bloque de alerta desaparece por completo.
+
 ### Otros números
 
 Costos: `costo_plan` = horas **estimadas** × 25 (prev) / × 40 (corr) — el
@@ -316,7 +401,8 @@ azul, 23 calculadas; `id_operacion` al final) · `TECNICOS` · `ASIGNACIONES` ·
 `PLAN_SEMANAL` (6 selectores + gráfico de carga + grilla 1.200) ·
 `ADHERENCIA` (bloque semanal dinámico + 5 desgloses + gráfico) · `COSTOS` ·
 `BACKLOG` · `EQUIPOS_CRITICOS` · `VALIDACION` (9 chequeos REGLA-10 + 4 de
-ajustes) · 5 catálogos `CAT_*` · `EXPORTAR` · `_COMPATIBILIDAD`.
+ajustes) · 5 catálogos `CAT_*` · `EXPORTAR` (correo del programa semanal en una
+celda + zona auxiliar no editable) · `_COMPATIBILIDAD`.
 
 ## Limitaciones conocidas
 
