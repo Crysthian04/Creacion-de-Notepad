@@ -1,9 +1,10 @@
-# VERIFICACION.md — MantPlan v2.3.0
+# VERIFICACION.md — MantPlan v2.4.0
 
-Reporte de verificación del entregable A. Cubre el cambio v2.3 (dimensión
-`sub_area`, jerarquía área → sub-área → CECO con herencia) sobre v2.2 (correo
-de EXPORTAR), v2.1 (ajustes en `tblAjustes` con clave) y v2.0 (REGLA-2 con año
-ISO, `horas_efectivas`, hojas dimensionadas por datos, tablas a 1.200 filas).
+Reporte de verificación del entregable A. Cubre el cambio v2.4 (calendario
+laboral: `es_habil`, `backlog_habiles`, capacidad por día) sobre v2.3
+(dimensión `sub_area`), v2.2 (correo de EXPORTAR), v2.1 (ajustes en
+`tblAjustes` con clave) y v2.0 (REGLA-2 con año ISO, `horas_efectivas`, hojas
+dimensionadas por datos, tablas a 1.200 filas).
 Fecha de la corrida: **2026-07-21** (ancla de los datos sintéticos).
 
 ## 1. Recálculo con motor de cálculo real
@@ -14,7 +15,7 @@ estructuradas) se recalculó por completo con LibreOffice Calc 24.2:
 
 | Métrica | Valor |
 |---|---:|
-| Fórmulas recalculadas | **66.635** |
+| Fórmulas recalculadas | **70.335** |
 | Errores de fórmula (`#REF!`, `#VALUE!`, `#NAME?`, `#DIV/0!`, `#N/A`, …) | **0** |
 
 ## 2. Comparación motor Python ↔ Excel recalculado
@@ -24,18 +25,18 @@ Cada valor del libro recalculado se comparó contra el motor Python
 
 | Métrica | Valor |
 |---|---:|
-| Comparaciones automáticas | **8.029** |
+| Comparaciones automáticas | **8.794** |
 | Desviaciones | **0** |
 
-Cobertura: las 22 columnas calculadas de las 200 órdenes (incluida
+Cobertura: las 24 columnas calculadas de las 200 órdenes (incluidas es_habil y backlog_habiles, y
 `horas_efectivas` resuelta por búsqueda en `tblAjustes`); muestreo de filas
-provisionadas vacías (250, 700, 1.203) en blanco; `id_operacion` de las 161
+provisionadas vacías (250, 700, 1.203) en blanco; `id_operacion` de las 157
 filas de EJECUCION; las 336 filas de REGLA-5; la hoja AJUSTES (descripcion,
 estado_ajuste y desviacion_h de las 4 filas demo + fila vacía); PERFIL_HH
 completo (serie de 60 posiciones, REGLA-6 por semana × especialidad,
-REGLA-9); ADHERENCIA (bloque semanal dinámico + 5 desgloses); BACKLOG por
+REGLA-9); ADHERENCIA (bloque semanal dinámico + 6 desgloses, solo días hábiles); BACKLOG por
 tramos; COSTOS por mes; EQUIPOS_CRITICOS; zona de datos del gráfico de carga;
-los 13 chequeos de VALIDACION; **EXPORTAR** (los escalares del resumen
+los 16 chequeos de VALIDACION; **EXPORTAR** (los escalares del resumen
 AJ8–AJ16, el bloque por técnico AC/AD/AE de los 12, más 18 fragmentos del
 texto del correo y el conteo de líneas del programa); y la dimensión
 **sub_area** (columna calculada de las 200 órdenes, desglose de ADHERENCIA,
@@ -67,14 +68,14 @@ Filas demo de `tblAjustes` y su estado calculado (verificado):
 
 Efectos verificados del ajuste 8 → 12 en OT-000017 (Técnico 01, martes
 2026-S30): `horas_efectivas` 12 · PERFIL_HH MEC 2026-S30 prev **84** / carga
-**89,5 %** · barra del gráfico Técnico 01 = **35** (30,45 verde + 4,55 rojo) ·
-HHA martes 12 / HHD **−5,91**. VALIDACION: órdenes ajustadas **2**, desviación
+**94,4 %** · barra del gráfico Técnico 01 = **41** (30,45 verde + 10,55 rojo,
+incluye la orden del sábado) · HHA martes 12 / HHD **−5,91**. VALIDACION: órdenes ajustadas **2**, desviación
 total **+2 h**, huérfanos **1**, duplicados en tblAjustes **2**.
 
 ### 3.3 Recálculo de la variante compatible
 
-**0 errores en 66.635 fórmulas** (§1), mismos números que el motor Python en
-las 8.029 comparaciones (§2).
+**0 errores en 70.335 fórmulas** (§1), mismos números que el motor Python en
+las 8.794 comparaciones (§2).
 
 ### 3.4 Reordenamiento deliberado de `tblOrdenes`
 
@@ -102,12 +103,13 @@ escalares y por presencia de fragmentos:
 
 - Contexto con planta/empresa (de `PARAMETROS`) y rango "del 20/07/2026 al
   26/07/2026" (fechas derivadas del rótulo ISO `2026-S30`).
-- Resumen: **37** órdenes, **308 h** (prev **244** = 79 %, corr **64** = 21 %),
-  **12** técnicos.
-- Alerta de capacidad: Técnico 01 (35,0 vs 30,5) y Técnico 06 (40,0 vs 30,5).
+- Resumen: **40** órdenes (incluye 3 de fin de semana), **326 h** (prev **244** =
+  75 %, corr **82** = 25 %), **12** técnicos.
+- Alerta de capacidad: Técnico 01 (41,0 vs 30,5) y Técnico 06 (40,0 vs 30,5).
 - Top 5 tareas por `horas_efectivas`, con marca de permiso/LOTO donde aplica.
-- Programa completo con **exactamente 37 líneas** (conteo de `· OT-`),
-  agrupado por día y ordenado por turno y técnico.
+- Programa completo con **exactamente 40 líneas** (conteo de `· OT-`),
+  agrupado por día y ordenado por turno y técnico, **incluyendo sábado y
+  domingo** (7 días).
 
 **Bloque condicional:** al cambiar el selector a la semana **2026-S32** (sin
 técnicos sobreasignados) y recalcular, el escalar de sobreasignados es **0**,
@@ -127,14 +129,42 @@ recalculado (matriz REAL por sub-área de COSTOS):
   son `PRODUCCION`, `EMPAQUE`, `Vapor`, `Refrigeración`, `CO2`,
   `Aire comprimido` — **ninguna es un código `CC-*`**. PRODUCCION y EMPAQUE
   reportan bajo el nombre de su área, no bajo `CC-110`/`CC-210`.
-- **Reconciliación área = Σ sub-áreas**: SERVICIOS = 5.820 + 3.380 + 200 +
-  160 = **9.560**, idéntico al total del área SERVICIOS; el gran total de la
-  matriz por sub-área (**33.350**) coincide con el de la matriz por área.
+- **Reconciliación área = Σ sub-áreas**: SERVICIOS = 5.820 + 3.280 + 200 +
+  160 = **9.460**, idéntico al total del área SERVICIOS; el gran total de la
+  matriz por sub-área coincide con el de la matriz por área.
 
 Todos los desgloses por sub-área (ADHERENCIA, COSTOS, BACKLOG) se
-compararon celda a celda contra el motor Python dentro de las 8.029
+compararon celda a celda contra el motor Python dentro de las 8.794
 comparaciones, con 0 desviaciones. La dimensión no toca ninguna de las 10
 reglas del motor.
+
+### 3.7 Calendario laboral — es_habil, capacidad y backlog hábil
+
+Excepciones de muestra: 12 feriados generales + feriado de planta el miércoles
+de 2026-S31 (2026-07-29) + domingo laborable de SERVICIOS (2026-08-02) + paro
+de la sub-área Vapor (2026-07-23) + 2 excepciones con área/sub-área fuera de
+catálogo. Verificado sobre el libro recalculado:
+
+- **`es_habil` por especificidad**: en el paro de Vapor, `es_habil` = **no**
+  para órdenes de Vapor y **sí** para PRODUCCION, EMPAQUE y Refrigeración (la
+  excepción por sub-área no toca las demás sub-áreas).
+- **Feriado general reduce capacidad** (REGLA-5): el miércoles 2026-07-29,
+  `horas_disponibles` = 0 para TEC-01 (PRODUCCION), TEC-05 (PRODUCCION) y
+  TEC-12 (SERVICIOS). PERFIL_HH **MEC 2026-S31 baja de 140 a 84 h** disponibles.
+- **Excepción por área** (día especial laborable): el domingo 2026-08-02,
+  TEC-12 (SERVICIOS) tiene **7 h** de capacidad y TEC-01 (PRODUCCION) **0**.
+- **`backlog_habiles` < `backlog_dias`** al cruzar fines de semana: OT-000138
+  (fecha 2026-06-06) tiene `backlog_dias` **45** y `backlog_habiles` **30** —
+  diferencia de **15** días no hábiles en medio.
+- **VALIDACION**: 30 órdenes en día no laborable, 1 excepción con área
+  desconocida (ZONA-X), 1 con sub-área desconocida (Nitrógeno).
+- **Reconciliación**: los totales por área de COSTOS siguen cuadrando con la
+  suma de sus sub-áreas tras el cambio (dentro de las 8.794 comparaciones).
+
+Las 336 filas de REGLA-5 (con la fecha derivada de semana+día y el calendario)
+y las 26 columnas calculadas de las 200 órdenes (incluidas `es_habil`,
+`backlog_habiles`, `estado_backlog` y `en_plan` sobre días hábiles) se
+compararon celda a celda, con 0 desviaciones.
 
 ## 4. Qué NO se verificó (y por qué)
 
@@ -192,7 +222,20 @@ reglas del motor.
    aporta un corte útil de capacidad). (d) En PLAN_SEMANAL la sub-área se
    añade como 7.ª columna de dimensión de la grilla (tras especialidad) por
    simplicidad del filtro; en ORDENES sí queda adyacente a `area`.
-7. Se mantienen los supuestos de v2.0/v2.1: ocultamiento de filas decidido al
+7. **Calendario** (v2.4): (a) `backlog_habiles` usa el calendario a **nivel
+   planta** (patrón + feriados generales), no las excepciones por área/sub-área
+   — el aging es un conteo de planta; las excepciones por área afectan
+   capacidad (REGLA-5) y el flag `es_habil` por orden. (b) ADHERENCIA
+   **excluye** las órdenes en día no hábil del denominador (no las "reporta
+   aparte" dentro del mismo cálculo); el conteo de esas órdenes va a VALIDACION.
+   (c) El grid del calendario cubre 760 días desde el 1-ene del año del ancla;
+   una orden fuera de ese rango contaría de menos en `backlog_habiles`. (d) La
+   capacidad de REGLA-5 se evalúa a nivel área (sub-área vacía): un paro de
+   sub-área no reduce la capacidad del técnico (que no tiene sub-área), solo
+   marca no hábiles las órdenes de esa sub-área. (e) BACKLOG (envejecimiento
+   por tramos) se mantiene en días **calendario** (`backlog_dias`), como pide
+   el enunciado para indicadores contractuales.
+8. Se mantienen los supuestos de v2.0/v2.1: ocultamiento de filas decidido al
    generar; ventana de 4 semanas solo en desplegables; `costo_plan` sin
    recálculo (reforzado por la nota de diseño del README §3: `horas_efectivas`
    nunca alimenta costo); área de impresión estática; nombre de hoja

@@ -122,6 +122,54 @@ for _c in CENTROS_COSTO:
     if _se not in SUBAREAS:
         SUBAREAS.append(_se)
 
+# ── Calendario laboral (v2.4) ─────────────────────────────────────────────
+# Parte A: patrón semanal (lunes..domingo). Default L-V hábil, S-D no hábil.
+PATRON_SEMANAL = [("lunes", "sí"), ("martes", "sí"), ("miércoles", "sí"),
+                  ("jueves", "sí"), ("viernes", "sí"), ("sábado", "no"),
+                  ("domingo", "no")]
+PATRON_HABIL = [h for _, h in PATRON_SEMANAL]   # índice 0=lunes … 6=domingo
+
+
+def _fecha_ancla_year(hoy):
+    return hoy.year
+
+
+# Parte B: excepciones que rompen el patrón. area vacía = toda la planta;
+# sub_area vacía = toda el área. Las fechas se fijan al año del ancla.
+def construir_excepciones(hoy):
+    y = hoy.year
+    exc = [
+        # ~12 feriados generales del año (area y sub_area vacías)
+        (date(y, 1, 1), "feriado", "no", "", "", "Año Nuevo"),
+        (date(y, 1, 6), "feriado", "no", "", "", "Día de Reyes"),
+        (date(y, 4, 3), "feriado", "no", "", "", "Viernes Santo"),
+        (date(y, 5, 1), "feriado", "no", "", "", "Día del Trabajo"),
+        (date(y, 5, 25), "feriado", "no", "", "", "Feriado nacional"),
+        (date(y, 6, 29), "feriado", "no", "", "", "San Pedro y San Pablo"),
+        (date(y, 8, 15), "feriado", "no", "", "", "Asunción"),
+        (date(y, 10, 12), "feriado", "no", "", "", "Día de la Raza"),
+        (date(y, 11, 1), "feriado", "no", "", "", "Todos los Santos"),
+        (date(y, 11, 21), "feriado", "no", "", "", "Feriado regional"),
+        (date(y, 12, 8), "feriado", "no", "", "", "Inmaculada Concepción"),
+        (date(y, 12, 25), "feriado", "no", "", "", "Navidad"),
+    ]
+    # Excepciones dentro de las semanas del plan (para verificación):
+    lunes = hoy - timedelta(days=hoy.weekday())
+    s31_mie = lunes + timedelta(weeks=1, days=2)   # miércoles de la 2.ª semana futura
+    s31_dom = lunes + timedelta(weeks=1, days=6)   # domingo de esa semana
+    s30_jue = lunes + timedelta(days=3)            # jueves de la semana corriente
+    exc += [
+        (s31_mie, "feriado", "no", "", "", "Feriado de planta (demo capacidad)"),
+        (s31_dom, "día especial laborable", "sí", "SERVICIOS", "",
+         "Turno especial de mantenimiento (solo SERVICIOS)"),
+        (s30_jue, "paro", "no", "SERVICIOS", "Vapor", "Paro planta de vapor"),
+        # Excepciones con área / sub-área fuera de catálogo (para VALIDACION):
+        (date(y, 9, 15), "feriado", "no", "ZONA-X", "", "Área inexistente (demo validación)"),
+        (date(y, 9, 16), "paro", "no", "SERVICIOS", "Nitrógeno", "Sub-área inexistente (demo)"),
+    ]
+    return [{"fecha": f, "tipo": t, "habil": h, "area": a, "sub_area": s, "motivo": m}
+            for f, t, h, a, s, m in exc]
+
 PUESTOS = [
     ("PU-MEC", "MEC", "Puesto mecánico"),
     ("PU-ELE", "ELE", "Puesto eléctrico"),
@@ -210,26 +258,67 @@ def regla_2_semana(fecha):
     return f"{iso[0]}-S{iso[1]:02d}"
 
 
-def regla_3_estado_backlog(backlog_dias, dias_backlog_max=DIAS_BACKLOG_MAX):
-    """REGLA-3: FUTURO / MES CORRIENTE / BACKLOG."""
-    if backlog_dias is None:
+def es_habil(fecha, area, sub_area, excepciones, patron_habil=PATRON_HABIL):
+    """Calendario laboral (v2.4): resuelve hábil/no hábil por especificidad, de
+    más específico a más general. La primera que aplica manda:
+      (a) excepción fecha + área + sub-área
+      (b) excepción fecha + área (sub-área vacía)
+      (c) excepción general de la fecha (área vacía)
+      (d) patrón semanal del día
+    Devuelve "sí"/"no". Espejo exacto de la fórmula del libro.
+    """
+    if fecha is None:
         return ""
-    if backlog_dias < 0:
+    a, s = area or "", sub_area or ""
+    for ea, es in ((a, s), (a, ""), ("", "")):
+        for ex in excepciones:
+            if ex["fecha"] == fecha and (ex["area"] or "") == ea and (ex["sub_area"] or "") == es:
+                return ex["habil"]
+    return patron_habil[fecha.weekday()]     # weekday(): lunes=0 … domingo=6
+
+
+def backlog_habiles(fecha_inicio, hoy, excepciones):
+    """Días HÁBILES (nivel planta) entre fecha_inicio y hoy, con signo. Excluye
+    no laborables. Coexiste con backlog_dias (calendario). El nivel planta usa
+    es_habil(fecha, "", "")."""
+    if fecha_inicio is None:
+        return ""
+    if fecha_inicio <= hoy:
+        d0, d1, signo = fecha_inicio, hoy, 1
+    else:
+        d0, d1, signo = hoy, fecha_inicio, -1
+    cnt, d = 0, d0
+    while d < d1:
+        if es_habil(d, "", "", excepciones) == "sí":
+            cnt += 1
+        d += timedelta(days=1)
+    return signo * cnt
+
+
+def regla_3_estado_backlog(backlog, dias_backlog_max=DIAS_BACKLOG_MAX):
+    """REGLA-3: FUTURO / MES CORRIENTE / BACKLOG. v2.4: sobre días hábiles."""
+    if backlog is None or backlog == "":
+        return ""
+    if backlog < 0:
         return "FUTURO"
-    if backlog_dias > dias_backlog_max:
+    if backlog > dias_backlog_max:
         return "BACKLOG"
     return "MES CORRIENTE"
 
 
-def regla_4_en_plan(backlog_dias, dias_min=DIAS_BACKLOG_MIN, dias_max=DIAS_BACKLOG_MAX):
-    """REGLA-4: pertenencia al plan."""
-    if backlog_dias is None:
+def regla_4_en_plan(backlog, dias_min=DIAS_BACKLOG_MIN, dias_max=DIAS_BACKLOG_MAX):
+    """REGLA-4: pertenencia al plan. v2.4: sobre días hábiles."""
+    if backlog is None or backlog == "":
         return False
-    return dias_min < backlog_dias <= dias_max
+    return dias_min < backlog <= dias_max
 
 
-def regla_5_horas_disponibles(turno, horas_jornada=HORAS_JORNADA, no_disponible=CODIGOS_NO_DISPONIBLE):
-    """REGLA-5: horas por técnico y día según turno."""
+def regla_5_horas_disponibles(turno, habil=True, horas_jornada=HORAS_JORNADA,
+                              no_disponible=CODIGOS_NO_DISPONIBLE):
+    """REGLA-5: horas por técnico y día. v2.4: un día NO hábil da 0 horas,
+    sin importar el turno."""
+    if habil is False or habil == "no":
+        return 0
     if not turno or turno in no_disponible:
         return 0
     return horas_jornada
@@ -339,6 +428,7 @@ def generar_datos(hoy):
     lunes = hoy - timedelta(days=hoy.weekday())
     lunes_sem = [lunes + timedelta(weeks=k) for k in (-1, 0, 1, 2)]
     semanas = [regla_2_semana(d) for d in lunes_sem]
+    excepciones = construir_excepciones(hoy)
 
     # --- ASIGNACIONES: 4 semanas × 12 técnicos × 7 días = 336 filas -------
     asignaciones = []
@@ -346,7 +436,13 @@ def generar_datos(hoy):
         for tid, nombre, esp, area in TECNICOS:
             for di, dia in enumerate(DIAS):
                 if di >= 5:
-                    turno = ""  # fin de semana sin programar
+                    # Fin de semana sin turno, salvo el domingo especial laborable
+                    # de SERVICIOS en la 2.ª semana futura (si==2), para probar
+                    # la excepción por área (TEC-04 sigue de vacaciones).
+                    if si == 2 and dia == "domingo" and area == "SERVICIOS" and tid != "TEC-04":
+                        turno = TURNO_POR_TECNICO.get(tid, "T1")
+                    else:
+                        turno = ""
                 elif tid == "TEC-04" and si == 2:
                     turno = "VAC"  # vacaciones toda la semana (demo REGLA-5)
                 elif tid == "TEC-07" and si == 1 and dia == "viernes":
@@ -431,6 +527,18 @@ def generar_datos(hoy):
             o["tecnico_asignado"] = "Técnico 04"
             o["observaciones"] = "Demo: asignada a técnico de vacaciones (HHD = −HHA)"
             break
+
+    # Órdenes de fin de semana (v2.4). El sábado y el domingo normales son NO
+    # hábiles: estas órdenes prueban la validación y que EXPORTAR recorre los 7
+    # días. El domingo especial de SERVICIOS (excepción laborable) sí es hábil.
+    s30_sab = lunes_sem[1] + timedelta(days=5)   # sábado de la semana corriente
+    s30_dom = lunes_sem[1] + timedelta(days=6)   # domingo (no hábil)
+    s31_dom = lunes_sem[2] + timedelta(days=6)   # domingo especial laborable
+    nueva(s30_sab, 6, "MEC", "correctiva", "finde", tecnico="Técnico 01", ceco="CC-110")
+    nueva(s30_sab, 4, "ELE", "correctiva", "finde", tecnico="Técnico 05", ceco="CC-120")
+    nueva(s30_dom, 8, "OP", "correctiva", "finde", tecnico="", ceco="CC-210")
+    nueva(s31_dom, 6, "OP", "preventiva", "finde", tecnico="Técnico 12", ceco="CC-330",
+          act="ACT-02", tipo="TIPO-P1", desc_op="Mantenimiento especial de CO2 (domingo laborable)")
 
     # Ajustes manuales de horas (v2.1: viven en tblAjustes, con clave).
     # Aquí solo se eligen las órdenes; la lista de ajustes se arma al final,
@@ -577,7 +685,7 @@ def generar_datos(hoy):
 
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
-            "ajustes": ajustes, "edge_regla8": edge_regla8}
+            "ajustes": ajustes, "excepciones": excepciones, "edge_regla8": edge_regla8}
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -591,10 +699,15 @@ def calcular_esperado(datos):
     ejec_por_id = {}
     for e in datos["ejecucion"]:
         ejec_por_id.setdefault(e["id_operacion"], e)  # primera coincidencia, como XLOOKUP
+    exc = datos["excepciones"]
+    monday_por_semana = dict(zip(datos["semanas"], datos["lunes_sem"]))
     asig_por_clave = {}
     for a in datos["asignaciones"]:
         asig_por_clave.setdefault((a["semana"], a["dia"], a["tecnico"]), a)
-        a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"])
+        # Fecha real de la celda (semana + día) para consultar el calendario.
+        a["fecha"] = monday_por_semana[a["semana"]] + timedelta(days=DIAS.index(a["dia"]))
+        a["habil"] = es_habil(a["fecha"], a["area"], "", exc)   # capacidad: nivel área
+        a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"], a["habil"])
         a["coordinador"] = COORD_POR_AREA[a["area"]]
     aj_por_id = {}
     for a in datos["ajustes"]:
@@ -615,6 +728,10 @@ def calcular_esperado(datos):
         aj = aj_por_id.get(o["id_operacion"])
         efectivas = aj if aj is not None else (
             o["horas_estimadas"] if o["horas_estimadas"] is not None else "")
+        area_o = ceco[CECO_AREA] if ceco else SIN_CATALOGO
+        sub_o = sub_area_efectiva(ceco[CECO_SUBAREA], ceco[CECO_AREA]) if ceco else SIN_CATALOGO
+        habil_o = es_habil(f, area_o, sub_o, exc)             # nivel orden (área+sub)
+        bh = backlog_habiles(f, hoy, exc)                     # días hábiles con signo
         enriquecidas.append({**o,
             "horas_efectivas": efectivas,
             "estado": CAT_ESTADOS.get(e["estado_sistema"], "Pendiente") if e else "Pendiente",
@@ -622,15 +739,15 @@ def calcular_esperado(datos):
             "dia_semana": dia,
             "clasificacion": regla_1_clasificacion(o["tipo_ot"], CAT_TIPOS),
             "linea": ceco[CECO_LINEA] if ceco else SIN_CATALOGO,
-            "area": ceco[CECO_AREA] if ceco else SIN_CATALOGO,
-            "sub_area": sub_area_efectiva(ceco[CECO_SUBAREA], ceco[CECO_AREA])
-            if ceco else SIN_CATALOGO,
+            "area": area_o, "sub_area": sub_o,
             "coordinador": ceco[CECO_COORD] if ceco else SIN_CATALOGO,
             "especialidad": CAT_PUESTOS.get(o["puesto_trabajo"], SIN_CATALOGO),
             "actividad": CAT_ACTIVIDADES.get(o["cod_actividad"], SIN_CATALOGO),
+            "es_habil": habil_o,
             "backlog_dias": backlog if backlog is not None else "",
-            "estado_backlog": regla_3_estado_backlog(backlog),
-            "en_plan": regla_4_en_plan(backlog),
+            "backlog_habiles": bh,
+            "estado_backlog": regla_3_estado_backlog(bh if bh != "" else None),
+            "en_plan": regla_4_en_plan(bh if bh != "" else None),
             "turno_asignado": (asig["turno"] if asig else "") if tec else "",
             "costo_servicio": servicio, "costo_materiales": materiales, "costo_total": total,
         })
@@ -677,6 +794,9 @@ def calcular_esperado(datos):
                           and o["clasificacion"] == "correctiva")
             perfil[(esp, sem)] = regla_6_perfil_hh(hh_disp, hh_prev, hh_corr)
 
+    # ADHERENCIA (v2.4): las órdenes en día NO hábil no penalizan el
+    # denominador — se excluyen del cálculo y se reportan aparte (VALIDACION).
+    habiles = [o for o in enriquecidas if o["es_habil"] == "sí"]
     adherencia = {}
     for dim, valores in (("semana", serie_semanas),
                          ("area", [a for a in COORD_POR_AREA]),
@@ -686,7 +806,7 @@ def calcular_esperado(datos):
                          ("tecnico_asignado", [t[1] for t in TECNICOS]),
                          ("clasificacion", ["preventiva", "correctiva", "sin_clasificar"])):
         for v in valores:
-            adherencia[(dim, v)] = regla_7_adherencia([o for o in enriquecidas if o[dim] == v])
+            adherencia[(dim, v)] = regla_7_adherencia([o for o in habiles if o[dim] == v])
 
     ratio9 = {}
     for sem in serie_semanas:
@@ -772,6 +892,13 @@ def calcular_esperado(datos):
         "duplicados_ajustes": sum(1 for a in datos["ajustes"]
                                   if sum(1 for b in datos["ajustes"]
                                          if b["id_operacion"] == a["id_operacion"]) > 1),
+        # Calendario (v2.4)
+        "en_dia_no_habil": sum(1 for o in enriquecidas
+                               if o["orden"] and o["es_habil"] == "no"),
+        "exc_area_desconocida": sum(1 for x in exc
+                                    if x["area"] and x["area"] not in COORD_POR_AREA),
+        "exc_sub_desconocida": sum(1 for x in exc
+                                   if x["sub_area"] and x["sub_area"] not in SUBAREAS),
     }
 
     # --- Correo esperado de EXPORTAR (filtro por defecto: semana=semanas[1],
@@ -809,6 +936,7 @@ def calcular_esperado(datos):
             "validacion_extra": validacion_extra, "ajustes_esperado": ajustes_esperado,
             "exportar": exportar, "exportar_fn": exportar_esperado,
             "costos_sub": costos_sub, "backlog_sub": backlog_sub,
+            "asignaciones": datos["asignaciones"], "excepciones": exc,
             "validacion": regla_10_validacion(datos["ordenes"], datos["ejecucion"])}
 
 
@@ -883,9 +1011,9 @@ CAMPOS_ORDENES = [
     "equipo", "centro_costo", "puesto_trabajo", "cod_actividad", "tipo_ot",
     "fecha_inicio", "horas_estimadas", "costo_plan",
     "horas_efectivas",
-    "estado", "semana", "anio", "mes", "dia_semana", "clasificacion",
+    "estado", "semana", "anio", "mes", "dia_semana", "es_habil", "clasificacion",
     "linea", "area", "sub_area", "coordinador", "especialidad", "actividad",
-    "backlog_dias", "estado_backlog", "en_plan",
+    "backlog_dias", "backlog_habiles", "estado_backlog", "en_plan",
     "tecnico_asignado", "turno_asignado", "HHA", "HHD",
     "costo_servicio", "costo_materiales", "costo_total",
     "permiso_requerido", "bloqueo_energia", "link_checklist", "abrir_checklist",
@@ -902,14 +1030,34 @@ CAMPOS_EJECUCION = ["orden", "operacion", "estado_sistema", "prioridad",
                     "estado_instalacion", "precio", "costo_real", "costo_plan_total",
                     "estado_usuario", "id_operacion"]
 CAMPOS_ASIGNACIONES = ["semana", "dia", "tecnico", "area", "especialidad", "turno",
-                       "coordinador", "horas_disponibles", "clave"]
+                       "coordinador", "fecha", "horas_disponibles", "clave"]
+CAMPOS_EXCEPCIONES = ["fecha", "tipo", "habil", "area", "sub_area", "motivo", "clave"]
+CAP_EXCEPCIONES = 200        # filas provisionadas de tblExcepciones
+CAP_CAL_DIAS = 760           # días del grid del calendario (nivel planta)
 CAMPOS_IMPORT_ORDENES = ["orden", "operacion", "descripcion_general", "descripcion_operacion",
                          "equipo", "centro_costo", "puesto_trabajo", "cod_actividad",
                          "tipo_ot", "fecha_inicio", "horas_estimadas", "costo_plan"]
 
 
+def formula_es_habil(R, fecha, area, sub):
+    """Calendario (v2.4): resuelve hábil/no por especificidad, más específico
+    primero. Devuelve la expresión (sin '=' inicial), en cualquier modo. La
+    clave es TEXT(fecha,"yyyy-mm-dd")&"|"&area&"|"&sub; el argumento
+    si_no_encontrado de cada nivel encadena al siguiente y, al final, al
+    patrón semanal INDEX(patronHabil, WEEKDAY(fecha,2))."""
+    fk = f'TEXT({fecha},"yyyy-mm-dd")'
+    kA = f'{fk}&"|"&{area}&"|"&{sub}'
+    kB = f'{fk}&"|"&{area}&"|"'
+    kC = f'{fk}&"||"'
+    patron = f'INDEX(patronHabil,WEEKDAY({fecha},2))'
+    inner = R.busca(kC, "tblExcepciones", "clave", "habil", patron)
+    midd = R.busca(kB, "tblExcepciones", "clave", "habil", inner)
+    return R.busca(kA, "tblExcepciones", "clave", "habil", midd)
+
+
 def formulas_ordenes(R):
-    """Fórmulas por columna calculada de tblOrdenes (REGLAS 1, 2, 3, 4 y 8)."""
+    """Fórmulas por columna calculada de tblOrdenes (REGLAS 1, 2, 3, 4, 8 y
+    calendario laboral)."""
     T = "tblOrdenes"
 
     def f(campo, fila):
@@ -947,6 +1095,10 @@ def formulas_ordenes(R):
                 return f'=IF({fe}="","",MONTH({fe}))'
             if campo == "dia_semana":
                 return f'=IF({fe}="","",INDEX(lista_dias,WEEKDAY({fe},2)))'
+            if campo == "es_habil":
+                # Calendario laboral con el área y sub-área de la propia orden.
+                return (f'=IF({fe}="","",'
+                        + formula_es_habil(R, fe, f("area", fila), f("sub_area", fila)) + ")")
             if campo == "clasificacion":
                 return f'=IF({f("tipo_ot", fila)}="","",' + \
                     R.busca(f("tipo_ot", fila), "tblTiposOT", "codigo",
@@ -972,19 +1124,30 @@ def formulas_ordenes(R):
                             "descripcion", f'"{SIN_CATALOGO}"') + ")"
             if campo == "backlog_dias":
                 return f'=IF({fe}="","",TODAY()-{fe})'
+            if campo == "backlog_habiles":
+                # Días HÁBILES (nivel planta) con signo, contados en el grid del
+                # CALENDARIO. Coexiste con backlog_dias (calendario).
+                return (f'=IF({fe}="","",IF({fe}<=TODAY(),'
+                        f'COUNTIFS(cal_fechas,">="&{fe},cal_fechas,"<"&TODAY(),cal_habil,"sí"),'
+                        f'-COUNTIFS(cal_fechas,">="&TODAY(),cal_fechas,"<"&{fe},cal_habil,"sí")))')
             if campo == "estado_backlog":
-                b = f("backlog_dias", fila)
+                # REGLA-3 v2.4: sobre días hábiles.
+                b = f("backlog_habiles", fila)
                 return (f'=IF({b}="","",IF({b}<0,"FUTURO",IF({b}>p_dias_backlog_max,'
                         f'"BACKLOG","MES CORRIENTE")))')
             if campo == "en_plan":
-                b = f("backlog_dias", fila)
+                # REGLA-4 v2.4: sobre días hábiles.
+                b = f("backlog_habiles", fila)
                 return (f'=IF({b}="",FALSE,AND({b}>p_dias_backlog_min,'
                         f'{b}<=p_dias_backlog_max))')
             if campo == "turno_asignado":
                 clave = (f'{f("semana", fila)}&"|"&{f("dia_semana", fila)}&"|"&'
                          f'{f("tecnico_asignado", fila)}')
+                # Una celda de turno vacía (p. ej. fin de semana) devuelve 0 al
+                # buscarla; se coacciona a "" para no mostrar "0".
+                lu = R.busca(clave, "tblAsignaciones", "clave", "turno", '""')
                 return (f'=IF({f("tecnico_asignado", fila)}="","",'
-                        + R.busca(clave, "tblAsignaciones", "clave", "turno", '""') + ")")
+                        f'IF(({lu})=0,"",{lu}))')
             if campo == "HHA":
                 # Horas Hombre Asignadas: total del técnico en ese día de esa
                 # semana, repetido en todas sus filas (agregado por SUMIFS).
@@ -1108,6 +1271,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "tblTecnicos": Tabla("tblTecnicos", "TECNICOS", 3,
                              ["id", "nombre", "especialidad", "area", "coordinador", "activo"], len(TECNICOS)),
         "tblAsignaciones": Tabla("tblAsignaciones", "ASIGNACIONES", 3, CAMPOS_ASIGNACIONES, n_asig),
+        "tblExcepciones": Tabla("tblExcepciones", "CALENDARIO", 14, CAMPOS_EXCEPCIONES, CAP_EXCEPCIONES),
         "tblCECO": Tabla("tblCECO", "CAT_CENTROS_COSTO", 3,
                          ["codigo", "descripcion", "planta", "area", "sub_area", "linea", "coordinador"],
                          len(CENTROS_COSTO)),
@@ -1291,7 +1455,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                 fmt = FMT_FECHA
             elif campo in ("costo_plan", "costo_servicio", "costo_materiales", "costo_total"):
                 fmt = FMT_DINERO
-            elif campo == "backlog_dias":
+            elif campo in ("backlog_dias", "backlog_habiles"):
                 fmt = "0"
             elif campo in ("HHA", "HHD"):
                 fmt = "0.00"
@@ -1360,18 +1524,29 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         celda(ws, fila, 6, a["turno"], font=F_EDIT)
         celda(ws, fila, 7, "=" + R.busca(R.this("tblAsignaciones", "tecnico", fila),
                                          "tblTecnicos", "nombre", "coordinador", '""'))
+        # fecha real de la celda (para consultar el calendario): lunes ISO de la
+        # semana + desplazamiento del día.
+        sm = R.this("tblAsignaciones", "semana", fila)
+        yy = f"VALUE(LEFT({sm},4))"
+        lunes_iso = f'DATE({yy},1,4)-WEEKDAY(DATE({yy},1,4),2)+1+(VALUE(MID({sm},7,2))-1)*7'
+        celda(ws, fila, 8, f'=IF({sm}="","",{lunes_iso}+MATCH({R.this("tblAsignaciones", "dia", fila)},'
+                           f'lista_dias,0)-1)', fmt=FMT_FECHA)
         tu = R.this("tblAsignaciones", "turno", fila)
-        celda(ws, fila, 8, f'=IF(OR({tu}="",ISNUMBER(MATCH({tu},lista_no_disponible,0))),0,p_horas_jornada)')
-        celda(ws, fila, 9, f'={R.this("tblAsignaciones", "semana", fila)}&"|"&'
-                           f'{R.this("tblAsignaciones", "dia", fila)}&"|"&'
-                           f'{R.this("tblAsignaciones", "tecnico", fila)}')
+        fe = R.this("tblAsignaciones", "fecha", fila)
+        habil = formula_es_habil(R, fe, R.this("tblAsignaciones", "area", fila), '""')
+        # REGLA-5 v2.4: 0 si turno no disponible/ vacío O el día no es hábil.
+        celda(ws, fila, 9, f'=IF(OR({tu}="",ISNUMBER(MATCH({tu},lista_no_disponible,0)),'
+                           f'({habil})<>"sí"),0,p_horas_jornada)')
+        celda(ws, fila, 10, f'={R.this("tblAsignaciones", "semana", fila)}&"|"&'
+                            f'{R.this("tblAsignaciones", "dia", fila)}&"|"&'
+                            f'{R.this("tblAsignaciones", "tecnico", fila)}')
     agregar_tabla(ws, A)
     ws.freeze_panes = "A4"
     dv = DataValidation(type="list", formula1="lista_turnos", allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"F{A.fila_ini}:F{A.fila_fin}")
     for colw, w in (("A", 9), ("B", 11), ("C", 13), ("D", 13), ("E", 12), ("F", 8),
-                    ("G", 15), ("H", 16), ("I", 26)):
+                    ("G", 15), ("H", 12), ("I", 16), ("J", 26)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------------ AJUSTES
@@ -1414,6 +1589,65 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws.freeze_panes = "A4"
     for colw, w in (("A", 16), ("B", 15), ("C", 46), ("D", 13), ("E", 34), ("F", 20), ("G", 12)):
         ws.column_dimensions[colw].width = w
+
+    # ---------------------------------------------------------- CALENDARIO
+    ws = wb.create_sheet("CALENDARIO")
+    ws.sheet_properties.tabColor = "70AD47"
+    celda(ws, 1, 1, "CALENDARIO LABORAL — un día no hábil no aporta capacidad ni penaliza los "
+                    "indicadores. es_habil resuelve por especificidad: excepción fecha+área+sub-área "
+                    "→ fecha+área → fecha → patrón semanal.", font=F_TIT)
+    # Parte A: patrón semanal (default L-V hábil, S-D no hábil). Editable.
+    celda(ws, 3, 1, "Parte A — patrón semanal (marcar una sola vez, aplica todo el año)", font=F_SEC)
+    encabezados(ws, 4, ["dia", "habil"])
+    for i, (dia, hab) in enumerate(PATRON_SEMANAL):
+        celda(ws, 5 + i, 1, dia)
+        celda(ws, 5 + i, 2, hab, font=F_EDIT)
+    dvp = DataValidation(type="list", formula1='"sí,no"', allow_blank=False)
+    ws.add_data_validation(dvp)
+    dvp.add("B5:B11")
+    # Parte B: excepciones (tblExcepciones). Solo fechas que rompen el patrón.
+    EX = TAB["tblExcepciones"]
+    celda(ws, 13, 1, "Parte B — excepciones que rompen el patrón (feriados, paros, días "
+                     "especiales). área vacía = toda la planta; sub-área vacía = toda el área.",
+          font=F_SEC)
+    encabezados(ws, EX.fila_enc, EX.campos)
+    for i in range(CAP_EXCEPCIONES):
+        x = datos["excepciones"][i] if i < len(datos["excepciones"]) else {}
+        fila = EX.fila_ini + i
+        celda(ws, fila, 1, x.get("fecha"), font=F_EDIT, fmt=FMT_FECHA)
+        celda(ws, fila, 2, x.get("tipo"), font=F_EDIT)
+        celda(ws, fila, 3, x.get("habil"), font=F_EDIT)
+        celda(ws, fila, 4, x.get("area"), font=F_EDIT)
+        celda(ws, fila, 5, x.get("sub_area"), font=F_EDIT)
+        celda(ws, fila, 6, x.get("motivo"), font=F_EDIT)
+        fx = R.this("tblExcepciones", "fecha", fila)
+        celda(ws, fila, 7, f'=IF({fx}="","",TEXT({fx},"yyyy-mm-dd")&"|"&'
+                           f'{R.this("tblExcepciones", "area", fila)}&"|"&'
+                           f'{R.this("tblExcepciones", "sub_area", fila)})')
+    agregar_tabla(ws, EX)
+    dvx = DataValidation(type="list", formula1='"sí,no"', allow_blank=False)
+    ws.add_data_validation(dvx)
+    dvx.add(f"C{EX.fila_ini}:C{EX.fila_fin}")
+    ws.conditional_formatting.add(
+        f"C{EX.fila_ini}:C{EX.fila_fin}",
+        CellIsRule(operator="equal", formula=['"no"'], fill=FILL_ROJO))
+    # Parte C: grid de fechas (nivel planta) para contar días hábiles del backlog.
+    celda(ws, 3, 9, "Parte C — grid del calendario (nivel planta) — no editar", font=F_NOTA)
+    encabezados(ws, 4, ["fecha", "habil_planta"], col_ini=9)
+    ini_cal = date(datos["hoy"].year, 1, 1)
+    for i in range(CAP_CAL_DIAS):
+        fila = 5 + i
+        celda(ws, fila, 9, ini_cal + timedelta(days=i), fmt=FMT_FECHA)
+        fc = f"$I{fila}"
+        celda(ws, fila, 10, "=" + formula_es_habil(R, fc, '""', '""'))
+    for colw, w in (("A", 12), ("B", 8), ("C", 22), ("D", 8), ("E", 16), ("F", 40),
+                    ("G", 26), ("I", 12), ("J", 12)):
+        ws.column_dimensions[colw].width = w
+    wb.defined_names.add(DefinedName("patronHabil", attr_text="CALENDARIO!$B$5:$B$11"))
+    wb.defined_names.add(DefinedName("cal_fechas",
+                                     attr_text=f"CALENDARIO!$I$5:$I${4 + CAP_CAL_DIAS}"))
+    wb.defined_names.add(DefinedName("cal_habil",
+                                     attr_text=f"CALENDARIO!$J$5:$J${4 + CAP_CAL_DIAS}"))
 
     # ---------------------------------------------------------- PERFIL_HH
     # v2: dimensionado por los datos. Una serie de hasta 60 semanas se deriva
@@ -1660,7 +1894,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # --------------------------------------------------------- ADHERENCIA
     ws = wb.create_sheet("ADHERENCIA")
     ws.sheet_properties.tabColor = "7030A0"
-    celda(ws, 1, 1, "ADHERENCIA (REGLA-7) — rojo < 90 %, amarillo 90–95 %, verde > 95 %", font=F_TIT)
+    celda(ws, 1, 1, "ADHERENCIA (REGLA-7) — rojo < 90 %, amarillo 90–95 %, verde > 95 %. "
+                    "Solo días hábiles: las órdenes en día no laborable no penalizan (se reportan "
+                    "en VALIDACION).", font=F_TIT)
 
     def bloque_adh(fila0, titulo, campo, valores, con_meta=False, ocultar=()):
         """valores: literales o fórmulas '=...' (etiquetas dinámicas de semana);
@@ -1669,18 +1905,20 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         cabb = ["valor", "total_ot", "cerradas", "adherencia_conteo", "hh_total",
                 "hh_cerradas", "adherencia_horas"] + (["meta"] if con_meta else [])
         encabezados(ws, fila0 + 1, cabb)
+        # v2.4: solo días hábiles — las órdenes en día no hábil no penalizan.
+        hab = f'{R.col("tblOrdenes", "es_habil")},"sí"'
         for i, v in enumerate(valores):
             fr = fila0 + 2 + i
             celda(ws, fr, 1, v)
-            celda(ws, fr, 2, f'=COUNTIFS({R.col("tblOrdenes", campo)},$A{fr})')
+            celda(ws, fr, 2, f'=COUNTIFS({R.col("tblOrdenes", campo)},$A{fr},{hab})')
             celda(ws, fr, 3, f'=COUNTIFS({R.col("tblOrdenes", campo)},$A{fr},'
-                             f'{R.col("tblOrdenes", "estado")},"Cerrada")')
+                             f'{R.col("tblOrdenes", "estado")},"Cerrada",{hab})')
             celda(ws, fr, 4, f'=IF(B{fr}=0,"",C{fr}/B{fr})', fmt=FMT_PCT)
             celda(ws, fr, 5, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
-                             f'{R.col("tblOrdenes", campo)},$A{fr})', fmt=FMT_HH)
+                             f'{R.col("tblOrdenes", campo)},$A{fr},{hab})', fmt=FMT_HH)
             celda(ws, fr, 6, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
                              f'{R.col("tblOrdenes", campo)},$A{fr},'
-                             f'{R.col("tblOrdenes", "estado")},"Cerrada")', fmt=FMT_HH)
+                             f'{R.col("tblOrdenes", "estado")},"Cerrada",{hab})', fmt=FMT_HH)
             celda(ws, fr, 7, f'=IF(E{fr}=0,"",F{fr}/E{fr})', fmt=FMT_PCT)
             if con_meta:
                 celda(ws, fr, 8, "=p_meta_adherencia", fmt="0%")
@@ -1924,6 +2162,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ("id_operacion duplicados dentro de tblAjustes",
          f"=SUMPRODUCT(--({ajid}<>\"\"),--(COUNTIF({ajid},{ajid})>1))",
          "Se aplica la primera fila; las demás se ignoran (ver estado_ajuste)."),
+        # Calendario (v2.4)
+        ("Órdenes programadas en día NO laborable",
+         f'=SUMPRODUCT(--({oid}<>""),--({R.col("tblOrdenes", "es_habil")}="no"))',
+         "Posible error de programación; o una excepción laborable que falta cargar."),
+        ("Excepciones con área fuera de catálogo",
+         f'=SUMPRODUCT(--({R.col("tblExcepciones", "area")}<>""),'
+         f'--ISNA(MATCH({R.col("tblExcepciones", "area")},{R.col("tblCECO", "area")},0)))',
+         "Revisar la columna area de CALENDARIO contra CAT_CENTROS_COSTO."),
+        ("Excepciones con sub-área fuera de catálogo",
+         f'=SUMPRODUCT(--({R.col("tblExcepciones", "sub_area")}<>""),'
+         f'--ISNA(MATCH({R.col("tblExcepciones", "sub_area")},{R.col("tblCECO", "sub_area")},0)))',
+         "Revisar la columna sub_area de CALENDARIO contra CAT_CENTROS_COSTO."),
     ]
     for i, (nombre, formula, detalle) in enumerate(chequeos):
         fr = 4 + i
@@ -2188,10 +2438,14 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             pt = R.busca_im(a1("id_operacion"), "tblEjecucion", "id_operacion",
                             "costo_plan_total", "0")
             return f'=MAX(0,{pt}-{a1("costo_servicio")})'
+        if campo == "es_habil":
+            Rim = Refs("compatibles", TAB)   # fuerza INDEX/MATCH en el ejemplo
+            return f'=IF({a1("fecha_inicio")}="","",' + \
+                formula_es_habil(Rim, a1("fecha_inicio"), a1("area"), a1("sub_area")) + ")"
         raise KeyError(campo)
 
     campos_comp = ["estado", "clasificacion", "linea", "area", "sub_area", "coordinador",
-                   "especialidad", "actividad", "horas_efectivas", "turno_asignado",
+                   "especialidad", "actividad", "es_habil", "horas_efectivas", "turno_asignado",
                    "costo_servicio", "costo_materiales"]
     FX = formulas_ordenes(Rx)
     for i, campo in enumerate(campos_comp):
@@ -2286,6 +2540,33 @@ def imprimir_resumen(datos, esperado):
         print(f"  Conflicto demo: {demo['id_operacion']} asignada a {demo['tecnico_asignado']} "
               f"({demo['semana']} {demo['dia_semana']}, turno \"{demo['turno_asignado']}\") → "
               f"disponibilidad 0 → HHA {demo['HHA']} · HHD {demo['HHD']:+.2f}")
+    print("\nCALENDARIO LABORAL (v2.4):")
+    exc = datos["excepciones"]
+    print(f"  Excepciones: {len(exc)} (12 feriados generales + demos). Patrón: L-V hábil, S-D no.")
+    for f, a, s, exp in [(date(hoy.year, 5, 1), "PRODUCCION", "", "no"),
+                         (datos["lunes_sem"][2] + timedelta(days=6), "SERVICIOS", "", "sí"),
+                         (datos["lunes_sem"][2] + timedelta(days=6), "PRODUCCION", "", "no"),
+                         (datos["lunes_sem"][1] + timedelta(days=3), "SERVICIOS", "Vapor", "no"),
+                         (datos["lunes_sem"][1] + timedelta(days=3), "SERVICIOS", "Refrigeración", "sí")]:
+        r = es_habil(f, a, s, exc)
+        print(f"  es_habil({f}, {a}, {s or '—'}) = {r}  (esperado {exp})  "
+              f"{'OK' if r == exp else 'FALLO'}")
+    ve = esperado["validacion_extra"]
+    print(f"  VALIDACION → en día no laborable: {ve['en_dia_no_habil']} · "
+          f"área desconocida: {ve['exc_area_desconocida']} · sub desconocida: {ve['exc_sub_desconocida']}")
+    print("  Capacidad PERFIL_HH (hh_disponible) por semana del plan:")
+    for sem in datos["semanas"]:
+        p = esperado["perfil"][("MEC", sem)]
+        print(f"    MEC {sem}: disp {p['hh_disponible']:.0f} · %carga "
+              f"{p['pct_carga']:.1%}" if p['pct_carga'] else f"    MEC {sem}: disp {p['hh_disponible']:.0f}")
+    print("  Orden que cruza fin de semana (backlog_dias vs backlog_habiles):")
+    for o in esperado["ordenes"]:
+        if o["_grupo"] == "backlog" and o["backlog_dias"] != "" and \
+                o["backlog_dias"] - abs(o["backlog_habiles"]) >= 4:
+            print(f"    {o['id_operacion']}: fecha {o['fecha_inicio']} · dias {o['backlog_dias']} · "
+                  f"hábiles {o['backlog_habiles']} · diferencia {o['backlog_dias'] - o['backlog_habiles']} no hábiles")
+            break
+
     print("\nSUB-ÁREAS (jerarquía área → sub-área → CECO; herencia si vacía):")
     for area, subs in SUBAREAS_POR_AREA.items():
         print(f"  {area}: {', '.join(subs)}")
