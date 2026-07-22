@@ -1,11 +1,55 @@
-# VERIFICACION.md — MantPlan v2.5.0
+# VERIFICACION.md — MantPlan v2.6.0
 
-Reporte de verificación del entregable A. Esta versión añade el bloque **6.1
-— jornada 8 h + base semanal de 48 h (L-S)** sobre v2.4 (calendario laboral),
-v2.3 (sub_area), v2.2 (correo EXPORTAR), v2.1 (ajustes por clave) y v2.0.
+Reporte de verificación del entregable A. Esta versión añade el bloque **6.2
+— catálogo de turnos con franja horaria (CAT_TURNOS)** sobre 6.1 (jornada 8 h
+/ base 48 h), v2.4 (calendario), v2.3 (sub_area), v2.2 (EXPORTAR), v2.1 y v2.0.
 Fecha de la corrida: **2026-07-22** (ancla de los datos sintéticos).
 
-## 0. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
+## 0. Cambio 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
+
+Los turnos pasan de etiquetas sueltas a un catálogo con banda horaria. **La
+franja es metadato de horario; la capacidad NO se deriva de ella** (REGLA-5
+sigue plana en `horas_jornada`). Sin rotación ni derivación (eso es 6.3).
+Verificado sobre el libro recalculado (`MantPlan_compatible.xlsx`):
+
+- **Ambas variantes se generan sin excepción** (`--refs estructuradas` y
+  `--refs compatibles`).
+- **(a) CAT_TURNOS con las 4 bandas y franjas correctas**: B 07:00–16:00
+  (banco); T1 06:00–15:00, T2 15:00–22:00, T3 22:00–06:00 (rotativos). T3
+  cruza medianoche: solo rótulo, no se calcula duración. Es la fuente única.
+- **(b) El desplegable de `turno` en ASIGNACIONES toma de CAT_TURNOS + VAC/X**:
+  el nombre `lista_turnos` apunta a `CAT_TURNOS!$G$4:$G$9`, cuyas 4 primeras
+  celdas espejan por fórmula las bandas del catálogo y las 2 últimas
+  referencian los códigos de no disponible (`PARAMETROS!$G$5:$G$6`). El rango
+  auxiliar de turnos de PARAMETROS se retiró (sin dos fuentes; `E5` vacío).
+- **(c) Los lookups `hora_inicio`/`hora_fin` resuelven la franja correcta y
+  quedan en blanco en VAC/X**: comprobado en las 336 celdas recalculadas —
+  B→07:00/16:00, T1→06:00/15:00, T2→15:00/22:00; VAC, X y turno vacío
+  (domingo) → en blanco (el turno no está en el catálogo → si_no_encontrado "").
+- **(d) La CAPACIDAD NO CAMBIÓ**: las 336 celdas de `horas_disponibles` de 6.2
+  son **idénticas** a las de 6.1 (0 diferencias, total 2168 h en ambas,
+  comparación directa entre los dos generadores). Un técnico normal sigue
+  sumando **48 h/semana** (TEC-01 2026-S29 = 8×6). La migración de bandas
+  (B1→B, AUT→B) no mueve capacidad porque todo turno de trabajo da igual 8 h.
+- **(e) Recálculo completo y comparación**: 71.014 fórmulas, **0 errores**;
+  comparación celda a celda motor Python ↔ Excel recalculado **9.486
+  comparaciones, 0 desviaciones** (incluidas las 336×2 celdas de franja y las
+  20 de CAT_TURNOS).
+
+**Qué NO verifiqué / supuestos.** (i) No recalculé el principal `MantPlan.xlsx`
+(XLOOKUP): LibreOffice no lo evalúa; corrección heredada de las plantillas
+compartidas y auditoría sintáctica. (ii) **Sí actualicé el README** (era la
+higiene pendiente de 6.1, edición 8 de este bloque): título a v2.6.0, cifras
+de capacidad de 7 h → 8 h, inventario con CAT_TURNOS y línea de "turnos con
+franja". (iii) Supuestos: `hora_inicio`/`hora_fin` se **añadieron al final** de
+ASIGNACIONES (columnas K/L) para no correr `fecha`/`horas_disponibles`/`clave`
+ni la verificación; T3 queda sin técnico en la muestra (AUT migró a B), pero
+la banda existe en el catálogo y se verifica su franja. (iv) El recálculo
+independiente lo corre el usuario.
+
+---
+
+## 0-bis. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
 
 Cambio de parámetro + patrón, sin tocar el modelo de turnos ni la rotación
 (eso es 6.3) ni ninguna otra hoja/regla. Verificado sobre el libro
@@ -28,8 +72,8 @@ recalculado (`MantPlan_compatible.xlsx`):
   editable). Es la fuente única de verdad: cambiar jornada o días la actualiza.
 - **`horas_jornada` = 8** (B7) y **`PATRON_HABIL[5]` (sábado) = "sí"**; el
   patrón semanal marca L-S hábil y domingo no hábil.
-- **Recálculo completo**: 70.336 fórmulas, **0 errores**; y la comparación
-  celda a celda motor Python ↔ Excel recalculado dio **8.794 comparaciones,
+- **Recálculo completo**: 71.014 fórmulas, **0 errores**; y la comparación
+  celda a celda motor Python ↔ Excel recalculado dio **9.486 comparaciones,
   0 desviaciones** con la jornada de 8 h (todo el efecto aguas abajo —
   PERFIL_HH, ADHERENCIA, gráfico de carga, EXPORTAR — coincide con el motor).
 
@@ -62,7 +106,7 @@ estructuradas) se recalculó por completo con LibreOffice Calc 24.2:
 
 | Métrica | Valor |
 |---|---:|
-| Fórmulas recalculadas | **70.336** |
+| Fórmulas recalculadas | **71.014** |
 | Errores de fórmula (`#REF!`, `#VALUE!`, `#NAME?`, `#DIV/0!`, `#N/A`, …) | **0** |
 
 ## 2. Comparación motor Python ↔ Excel recalculado
@@ -72,7 +116,7 @@ Cada valor del libro recalculado se comparó contra el motor Python
 
 | Métrica | Valor |
 |---|---:|
-| Comparaciones automáticas | **8.794** |
+| Comparaciones automáticas | **9.486** |
 | Desviaciones | **0** |
 
 Cobertura: las 24 columnas calculadas de las 200 órdenes (incluidas es_habil y backlog_habiles, y
@@ -122,7 +166,7 @@ total **+2 h**, huérfanos **1**, duplicados en tblAjustes **2**.
 ### 3.3 Recálculo de la variante compatible
 
 **0 errores en 70.335 fórmulas** (§1), mismos números que el motor Python en
-las 8.794 comparaciones (§2).
+las 9.486 comparaciones (§2).
 
 ### 3.4 Reordenamiento deliberado de `tblOrdenes`
 
@@ -181,7 +225,7 @@ recalculado (matriz REAL por sub-área de COSTOS):
   matriz por sub-área coincide con el de la matriz por área.
 
 Todos los desgloses por sub-área (ADHERENCIA, COSTOS, BACKLOG) se
-compararon celda a celda contra el motor Python dentro de las 8.794
+compararon celda a celda contra el motor Python dentro de las 9.486
 comparaciones, con 0 desviaciones. La dimensión no toca ninguna de las 10
 reglas del motor.
 
@@ -206,7 +250,7 @@ catálogo. Verificado sobre el libro recalculado:
 - **VALIDACION**: 30 órdenes en día no laborable, 1 excepción con área
   desconocida (ZONA-X), 1 con sub-área desconocida (Nitrógeno).
 - **Reconciliación**: los totales por área de COSTOS siguen cuadrando con la
-  suma de sus sub-áreas tras el cambio (dentro de las 8.794 comparaciones).
+  suma de sus sub-áreas tras el cambio (dentro de las 9.486 comparaciones).
 
 Las 336 filas de REGLA-5 (con la fecha derivada de semana+día y el calendario)
 y las 26 columnas calculadas de las 200 órdenes (incluidas `es_habil`,

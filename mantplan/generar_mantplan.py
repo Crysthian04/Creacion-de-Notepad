@@ -44,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -62,7 +62,7 @@ PARAMETROS = [
     ("moneda", "USD", "Moneda de los costos."),
     ("horas_jornada", 8, "Horas de trabajo por técnico y día (REGLA-5)."),
     ("factor_productividad", 0.87, "Fracción productiva de la jornada (REGLA-6)."),
-    ("turnos", "B1,T1,T2,T3", "Códigos de turno válidos (lista auxiliar a la derecha)."),
+    ("turnos", "B,T1,T2,T3", "Códigos de turno válidos. La definición manda en CAT_TURNOS."),
     ("codigos_no_disponible", "VAC,X", "Códigos que anulan la disponibilidad (REGLA-5)."),
     ("dias_backlog_max", 30, "Días hacia atrás que siguen siendo plan (REGLAS 3 y 4)."),
     ("dias_backlog_min", -92, "Días hacia adelante (negativo) que entran al plan (REGLA-4)."),
@@ -88,7 +88,18 @@ BASE_SEMANAL_HORAS = HORAS_JORNADA * DIAS_LABORABLES_BASE
 DIAS_BACKLOG_MAX = 30
 DIAS_BACKLOG_MIN = -92
 CODIGOS_NO_DISPONIBLE = ("VAC", "X")
-TURNOS = ("B1", "T1", "T2", "T3")
+# 6.2: catálogo de turnos con franja horaria. CAT_TURNOS es la fuente única de
+# la definición de turnos. La franja es metadato de horario; la capacidad NO se
+# deriva de ella (REGLA-5 sigue plana en horas_jornada). T3 cruza medianoche:
+# es solo rótulo, no se calcula duración.
+TURNOS_CAT = [
+    # turno, nombre, hora_inicio, hora_fin, tipo (horas como texto "HH:MM")
+    ("B", "Banco", "07:00", "16:00", "banco"),
+    ("T1", "Turno 1", "06:00", "15:00", "rotativo"),
+    ("T2", "Turno 2", "15:00", "22:00", "rotativo"),
+    ("T3", "Turno 3", "22:00", "06:00", "rotativo"),
+]
+TURNOS = tuple(t[0] for t in TURNOS_CAT)   # ("B", "T1", "T2", "T3")
 DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
 SIN_CATALOGO = "(sin catálogo)"
 
@@ -224,7 +235,9 @@ TECNICOS = [
     ("TEC-12", "Técnico 12", "OP", "SERVICIOS"),
 ]
 COORD_POR_AREA = {"PRODUCCION": "Coordinador A", "EMPAQUE": "Coordinador B", "SERVICIOS": "Coordinador C"}
-TURNO_POR_TECNICO = {"TEC-02": "T2", "TEC-08": "T3", "TEC-10": "B1"}  # el resto: T1
+# 6.2: bandas válidas (mapa estático, sin rotación — eso es 6.3). B1→B; AUT usa
+# el Banco (B). El resto queda en T1.
+TURNO_POR_TECNICO = {"TEC-02": "T2", "TEC-08": "B", "TEC-09": "B", "TEC-10": "B"}
 EQUIPOS_POR_AREA = {
     "PRODUCCION": ["EQ-101", "EQ-102", "EQ-103", "EQ-104", "EQ-105"],
     "EMPAQUE": ["EQ-106", "EQ-107", "EQ-108", "EQ-109"],
@@ -713,6 +726,9 @@ def calcular_esperado(datos):
         ejec_por_id.setdefault(e["id_operacion"], e)  # primera coincidencia, como XLOOKUP
     exc = datos["excepciones"]
     monday_por_semana = dict(zip(datos["semanas"], datos["lunes_sem"]))
+    # 6.2: franja horaria por turno (espejo de CAT_TURNOS). "" si no es un turno
+    # del catálogo (VAC/X/vacío). La franja NO alimenta capacidad.
+    franja_turno = {t[0]: (t[2], t[3]) for t in TURNOS_CAT}
     asig_por_clave = {}
     for a in datos["asignaciones"]:
         asig_por_clave.setdefault((a["semana"], a["dia"], a["tecnico"]), a)
@@ -721,6 +737,7 @@ def calcular_esperado(datos):
         a["habil"] = es_habil(a["fecha"], a["area"], "", exc)   # capacidad: nivel área
         a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"], a["habil"])
         a["coordinador"] = COORD_POR_AREA[a["area"]]
+        a["hora_inicio"], a["hora_fin"] = franja_turno.get(a["turno"], ("", ""))
     aj_por_id = {}
     for a in datos["ajustes"]:
         aj_por_id.setdefault(a["id_operacion"], a["horas_ajustadas"])  # gana la primera
@@ -1042,7 +1059,8 @@ CAMPOS_EJECUCION = ["orden", "operacion", "estado_sistema", "prioridad",
                     "estado_instalacion", "precio", "costo_real", "costo_plan_total",
                     "estado_usuario", "id_operacion"]
 CAMPOS_ASIGNACIONES = ["semana", "dia", "tecnico", "area", "especialidad", "turno",
-                       "coordinador", "fecha", "horas_disponibles", "clave"]
+                       "coordinador", "fecha", "horas_disponibles", "clave",
+                       "hora_inicio", "hora_fin"]
 CAMPOS_EXCEPCIONES = ["fecha", "tipo", "habil", "area", "sub_area", "motivo", "clave"]
 CAP_EXCEPCIONES = 200        # filas provisionadas de tblExcepciones
 CAP_CAL_DIAS = 760           # días del grid del calendario (nivel planta)
@@ -1295,6 +1313,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                             ["codigo", "descripcion", "clasificacion"], len(TIPOS_OT)),
         "tblEstados": Tabla("tblEstados", "CAT_ESTADOS_ERP", 3,
                             ["estado_sistema", "estado_normalizado"], len(ESTADOS_ERP)),
+        "tblTurnos": Tabla("tblTurnos", "CAT_TURNOS", 3,
+                           ["turno", "nombre", "hora_inicio", "hora_fin", "tipo"], len(TURNOS_CAT)),
     }
     R = Refs(refs, TAB)
     O = TAB["tblOrdenes"]
@@ -1353,9 +1373,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
               fmt="0.00" if isinstance(v, float) else None)
         celda(ws, 4 + i, 3, d, font=F_NOTA)
     celda(ws, 3, 5, "listas auxiliares", font=F_SEC)
-    celda(ws, 4, 5, "turnos y códigos de ausencia:", font=F_NOTA)
-    for i, t in enumerate(list(TURNOS) + list(CODIGOS_NO_DISPONIBLE)):
-        celda(ws, 5 + i, 5, t)
+    # 6.2: los turnos ya no viven aquí — su fuente única es CAT_TURNOS y la
+    # lista de validación (lista_turnos) se arma en esa hoja. Aquí solo quedan
+    # los códigos de no disponible y los días de la semana.
     celda(ws, 4, 7, "no disponible:", font=F_NOTA)
     for i, t in enumerate(CODIGOS_NO_DISPONIBLE):
         celda(ws, 5 + i, 7, t)
@@ -1397,7 +1417,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     }
     for nom, fila in nombres.items():
         wb.defined_names.add(DefinedName(nom, attr_text=f"PARAMETROS!$B${fila}"))
-    wb.defined_names.add(DefinedName("lista_turnos", attr_text="PARAMETROS!$E$5:$E$10"))
+    # lista_turnos (nombre) se define en CAT_TURNOS (6.2), fuente única.
     wb.defined_names.add(DefinedName("lista_no_disponible", attr_text="PARAMETROS!$G$5:$G$6"))
     wb.defined_names.add(DefinedName("lista_dias", attr_text="PARAMETROS!$I$5:$I$11"))
     wb.defined_names.add(DefinedName("lista_tecnicos", attr_text="TECNICOS!$B$4:$B$15"))
@@ -1560,13 +1580,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         celda(ws, fila, 10, f'={R.this("tblAsignaciones", "semana", fila)}&"|"&'
                             f'{R.this("tblAsignaciones", "dia", fila)}&"|"&'
                             f'{R.this("tblAsignaciones", "tecnico", fila)}')
+        # 6.2: significado horario visible (metadato). Franja del turno desde
+        # CAT_TURNOS; en blanco si el turno es VAC/X o vacío (no está en el
+        # catálogo → el si_no_encontrado devuelve ""). NO alimenta capacidad.
+        celda(ws, fila, 11, "=" + R.busca(tu, "tblTurnos", "turno", "hora_inicio", '""'))
+        celda(ws, fila, 12, "=" + R.busca(tu, "tblTurnos", "turno", "hora_fin", '""'))
     agregar_tabla(ws, A)
     ws.freeze_panes = "A4"
     dv = DataValidation(type="list", formula1="lista_turnos", allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"F{A.fila_ini}:F{A.fila_fin}")
     for colw, w in (("A", 9), ("B", 11), ("C", 13), ("D", 13), ("E", 12), ("F", 8),
-                    ("G", 15), ("H", 12), ("I", 16), ("J", 26)):
+                    ("G", 15), ("H", 12), ("I", 16), ("J", 26), ("K", 11), ("L", 11)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------------ AJUSTES
@@ -2220,6 +2245,10 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
          ("C", '"preventiva,correctiva"')),
         ("CAT_ESTADOS_ERP", "tblEstados", ESTADOS_ERP,
          "Traducción de estados del ERP → Cerrada/Pendiente", ("B", '"Cerrada,Pendiente"')),
+        # 6.2: catálogo de turnos con franja horaria (fuente única).
+        ("CAT_TURNOS", "tblTurnos", TURNOS_CAT,
+         "Turnos con su franja horaria (metadato; la capacidad no se deriva de ella)",
+         ("E", '"banco,rotativo"')),
     ]
     for hoja, tnombre, filas_cat, titulo, val in catalogos:
         ws = wb.create_sheet(hoja)
@@ -2238,6 +2267,24 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             dv.add(f"{colv}{tb.fila_ini}:{colv}{tb.fila_fin}")
         for j in range(len(tb.campos)):
             ws.column_dimensions[get_column_letter(j + 1)].width = 22
+
+    # 6.2: lista de validación del turno en ASIGNACIONES = bandas de CAT_TURNOS
+    # (espejadas por fórmula, fuente única) + los códigos de no disponible.
+    # Repunta el nombre lista_turnos aquí; el rango auxiliar de PARAMETROS se
+    # retiró para no dejar dos fuentes.
+    tt = TAB["tblTurnos"]
+    wsT = wb["CAT_TURNOS"]
+    celda(wsT, 1, 7, "lista de validación (turnos + no disponible) — no editar", font=F_NOTA)
+    for i in range(len(TURNOS_CAT)):
+        celda(wsT, tt.fila_ini + i, 7, f"=A{tt.fila_ini + i}")     # espejo de la banda
+    celda(wsT, tt.fila_ini + len(TURNOS_CAT), 7, "=PARAMETROS!$G$5")   # VAC
+    celda(wsT, tt.fila_ini + len(TURNOS_CAT) + 1, 7, "=PARAMETROS!$G$6")  # X
+    wsT.column_dimensions["G"].width = 26
+    ult_val = tt.fila_ini + len(TURNOS_CAT) + 1
+    if "lista_turnos" in wb.defined_names:
+        del wb.defined_names["lista_turnos"]
+    wb.defined_names.add(DefinedName(
+        "lista_turnos", attr_text=f"CAT_TURNOS!$G${tt.fila_ini}:$G${ult_val}"))
 
     # ----------------------------------------------------------- EXPORTAR
     # Correo redactado en una sola celda (A6), armado desde una zona auxiliar
