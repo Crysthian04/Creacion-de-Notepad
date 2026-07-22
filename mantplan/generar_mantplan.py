@@ -44,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.3.0"
+VERSION = "2.5.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -60,7 +60,7 @@ PARAMETROS = [
     ("nombre_empresa", "Empresa Ejemplo S.A.", "Editable. Solo informativo, no participa en cálculos."),
     ("nombre_planta", "Planta Ejemplo", "Editable. Solo informativo."),
     ("moneda", "USD", "Moneda de los costos."),
-    ("horas_jornada", 7, "Horas de trabajo por técnico y día (REGLA-5)."),
+    ("horas_jornada", 8, "Horas de trabajo por técnico y día (REGLA-5)."),
     ("factor_productividad", 0.87, "Fracción productiva de la jornada (REGLA-6)."),
     ("turnos", "B1,T1,T2,T3", "Códigos de turno válidos (lista auxiliar a la derecha)."),
     ("codigos_no_disponible", "VAC,X", "Códigos que anulan la disponibilidad (REGLA-5)."),
@@ -71,12 +71,20 @@ PARAMETROS = [
     ("primer_dia_semana", "lunes", "Inicio de semana. La semana ISO (REGLA-2) empieza en lunes."),
     ("ruta_base_checklists", "C:\\MANTPLAN\\checklists\\", "Base para los hipervínculos de la columna link_checklist."),
     ("top_tareas", 5, "Nº de tareas relevantes que lista el correo de EXPORTAR."),
+    ("dias_laborables_base", 6,
+     "Días laborables base por semana (lunes a sábado). Base de REGLA-5 / 48 h."),
+    # base_semanal_horas es DERIVADO: su celda B se escribe como fórmula
+    # (=p_horas_jornada*p_dias_laborables_base), fuente única de verdad.
+    ("base_semanal_horas", "=p_horas_jornada*p_dias_laborables_base",
+     "Base obligatoria por técnico y semana = horas_jornada × dias_laborables_base."),
 ]
 # Fila de cada parámetro dentro de la hoja PARAMETROS (encabezado en fila 3).
 FILA_PARAM = {p[0]: 4 + i for i, p in enumerate(PARAMETROS)}
 
-HORAS_JORNADA = 7
+HORAS_JORNADA = 8
 FACTOR_PRODUCTIVIDAD = 0.87
+DIAS_LABORABLES_BASE = 6
+BASE_SEMANAL_HORAS = HORAS_JORNADA * DIAS_LABORABLES_BASE
 DIAS_BACKLOG_MAX = 30
 DIAS_BACKLOG_MIN = -92
 CODIGOS_NO_DISPONIBLE = ("VAC", "X")
@@ -125,7 +133,7 @@ for _c in CENTROS_COSTO:
 # ── Calendario laboral (v2.4) ─────────────────────────────────────────────
 # Parte A: patrón semanal (lunes..domingo). Default L-V hábil, S-D no hábil.
 PATRON_SEMANAL = [("lunes", "sí"), ("martes", "sí"), ("miércoles", "sí"),
-                  ("jueves", "sí"), ("viernes", "sí"), ("sábado", "no"),
+                  ("jueves", "sí"), ("viernes", "sí"), ("sábado", "sí"),
                   ("domingo", "no")]
 PATRON_HABIL = [h for _, h in PATRON_SEMANAL]   # índice 0=lunes … 6=domingo
 
@@ -435,10 +443,12 @@ def generar_datos(hoy):
     for si, sem in enumerate(semanas):
         for tid, nombre, esp, area in TECNICOS:
             for di, dia in enumerate(DIAS):
-                if di >= 5:
-                    # Fin de semana sin turno, salvo el domingo especial laborable
-                    # de SERVICIOS en la 2.ª semana futura (si==2), para probar
-                    # la excepción por área (TEC-04 sigue de vacaciones).
+                if di >= 6:
+                    # v2.5 (6.1): base L-S. Solo el DOMINGO queda sin turno,
+                    # salvo el domingo especial laborable de SERVICIOS en la 2.ª
+                    # semana futura (si==2), para probar la excepción por área
+                    # (TEC-04 sigue de vacaciones). El sábado (di=5) recibe turno
+                    # normal como cualquier día hábil → 6 días = 48 h/semana.
                     if si == 2 and dia == "domingo" and area == "SERVICIOS" and tid != "TEC-04":
                         turno = TURNO_POR_TECNICO.get(tid, "T1")
                     else:
@@ -528,10 +538,12 @@ def generar_datos(hoy):
             o["observaciones"] = "Demo: asignada a técnico de vacaciones (HHD = −HHA)"
             break
 
-    # Órdenes de fin de semana (v2.4). El sábado y el domingo normales son NO
-    # hábiles: estas órdenes prueban la validación y que EXPORTAR recorre los 7
-    # días. El domingo especial de SERVICIOS (excepción laborable) sí es hábil.
-    s30_sab = lunes_sem[1] + timedelta(days=5)   # sábado de la semana corriente
+    # Órdenes de fin de semana. v2.5 (6.1): con la base L-S el SÁBADO es un día
+    # hábil normal (las órdenes de sábado consumen capacidad y cuentan en
+    # adherencia); el DOMINGO es el día normal no hábil (estas órdenes prueban
+    # la validación y que EXPORTAR recorre los 7 días). El domingo especial de
+    # SERVICIOS (excepción laborable) sí es hábil.
+    s30_sab = lunes_sem[1] + timedelta(days=5)   # sábado de la semana corriente (hábil)
     s30_dom = lunes_sem[1] + timedelta(days=6)   # domingo (no hábil)
     s31_dom = lunes_sem[2] + timedelta(days=6)   # domingo especial laborable
     nueva(s30_sab, 6, "MEC", "correctiva", "finde", tecnico="Técnico 01", ceco="CC-110")
@@ -1333,7 +1345,11 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     encabezados(ws, 3, ["parametro", "valor", "descripcion"])
     for i, (p, v, d) in enumerate(PARAMETROS):
         celda(ws, 4 + i, 1, p)
-        celda(ws, 4 + i, 2, v, font=F_EDIT,
+        # Un valor que empieza por "=" es una celda DERIVADA (fórmula): se
+        # muestra con estilo de celda calculada (negro), no de input (azul),
+        # y no lleva validación de entrada.
+        es_formula = isinstance(v, str) and v.startswith("=")
+        celda(ws, 4 + i, 2, v, font=F_TXT if es_formula else F_EDIT,
               fmt="0.00" if isinstance(v, float) else None)
         celda(ws, 4 + i, 3, d, font=F_NOTA)
     celda(ws, 3, 5, "listas auxiliares", font=F_SEC)
@@ -1359,6 +1375,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     dv3 = DataValidation(type="decimal", operator="between", formula1="1", formula2="24")
     ws.add_data_validation(dv3)
     dv3.add(f"B{FILA_PARAM['horas_jornada']}")
+    dv3.add(f"B{FILA_PARAM['dias_laborables_base']}")   # entero positivo, como horas_jornada
+    # base_semanal_horas es DERIVADA (fórmula): sin validación de entrada.
     dv4 = DataValidation(type="whole", operator="between", formula1="1", formula2="20")
     ws.add_data_validation(dv4)
     dv4.add(f"B{FILA_PARAM['top_tareas']}")
@@ -1374,6 +1392,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "p_top_tareas": FILA_PARAM["top_tareas"],
         "p_nombre_empresa": FILA_PARAM["nombre_empresa"],
         "p_nombre_planta": FILA_PARAM["nombre_planta"],
+        "p_dias_laborables_base": FILA_PARAM["dias_laborables_base"],
+        "p_base_semanal_horas": FILA_PARAM["base_semanal_horas"],
     }
     for nom, fila in nombres.items():
         wb.defined_names.add(DefinedName(nom, attr_text=f"PARAMETROS!$B${fila}"))
@@ -2524,8 +2544,9 @@ def imprimir_resumen(datos, esperado):
         print(f"  {nombre} ({esp_t}): HHA {c:>5.1f} · capacidad {cap:>6.2f} · "
               f"dentro {min(c, cap):>6.2f} · sobre {max(0, c - cap):>5.2f}")
     print(f"\nHHA/HHD por día — Técnico 01, semana {sem1} "
-          f"(disponibilidad normal = 7 h × 0,87 = {HORAS_JORNADA * FACTOR_PRODUCTIVIDAD:.2f} h):")
-    for dia in DIAS[:5]:
+          f"(disponibilidad normal = {HORAS_JORNADA} h × {FACTOR_PRODUCTIVIDAD} = "
+          f"{HORAS_JORNADA * FACTOR_PRODUCTIVIDAD:.2f} h):")
+    for dia in DIAS[:6]:
         ords = [o for o in esperado["ordenes"] if o["tecnico_asignado"] == "Técnico 01"
                 and o["semana"] == sem1 and o["dia_semana"] == dia]
         if not ords:

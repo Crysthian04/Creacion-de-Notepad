@@ -1,13 +1,60 @@
-# VERIFICACION.md — MantPlan v2.4.0
+# VERIFICACION.md — MantPlan v2.5.0
 
-Reporte de verificación del entregable A. Cubre el cambio v2.4 (calendario
-laboral: `es_habil`, `backlog_habiles`, capacidad por día) sobre v2.3
-(dimensión `sub_area`), v2.2 (correo de EXPORTAR), v2.1 (ajustes en
-`tblAjustes` con clave) y v2.0 (REGLA-2 con año ISO, `horas_efectivas`, hojas
-dimensionadas por datos, tablas a 1.200 filas).
-Fecha de la corrida: **2026-07-21** (ancla de los datos sintéticos).
+Reporte de verificación del entregable A. Esta versión añade el bloque **6.1
+— jornada 8 h + base semanal de 48 h (L-S)** sobre v2.4 (calendario laboral),
+v2.3 (sub_area), v2.2 (correo EXPORTAR), v2.1 (ajustes por clave) y v2.0.
+Fecha de la corrida: **2026-07-22** (ancla de los datos sintéticos).
 
-## 1. Recálculo con motor de cálculo real
+## 0. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
+
+Cambio de parámetro + patrón, sin tocar el modelo de turnos ni la rotación
+(eso es 6.3) ni ninguna otra hoja/regla. Verificado sobre el libro
+recalculado (`MantPlan_compatible.xlsx`):
+
+- **Ambas variantes se generan sin excepción** (`--refs estructuradas` y
+  `--refs compatibles`).
+- **REGLA-5 devuelve 8 h en día hábil (L-S) y 0 en domingo / VAC / X.**
+  Comprobado en la función pura (`regla_5_horas_disponibles`) y en las 336
+  celdas `horas_disponibles` de ASIGNACIONES recalculadas: TEC-01 en 2026-S29
+  da 8 h de lunes a sábado y 0 el domingo.
+- **Un técnico normal suma 48 h en la semana** (6 días × 8 h). Verificado:
+  TEC-01 2026-S29 = 8+8+8+8+8+8+0 = **48 h**.
+- **Los dos parámetros nuevos existen con sus rangos nombrados**:
+  `dias_laborables_base` (B18, valor 6, rango `p_dias_laborables_base`) y
+  `base_semanal_horas` (B19, rango `p_base_semanal_horas`).
+- **`base_semanal_horas` evalúa a 48 vía fórmula**: su celda B19 contiene
+  `=p_horas_jornada*p_dias_laborables_base` y LibreOffice la recalculó a **48**
+  (celda derivada, estilo de fórmula, sin validación de entrada ni marca de
+  editable). Es la fuente única de verdad: cambiar jornada o días la actualiza.
+- **`horas_jornada` = 8** (B7) y **`PATRON_HABIL[5]` (sábado) = "sí"**; el
+  patrón semanal marca L-S hábil y domingo no hábil.
+- **Recálculo completo**: 70.336 fórmulas, **0 errores**; y la comparación
+  celda a celda motor Python ↔ Excel recalculado dio **8.794 comparaciones,
+  0 desviaciones** con la jornada de 8 h (todo el efecto aguas abajo —
+  PERFIL_HH, ADHERENCIA, gráfico de carga, EXPORTAR — coincide con el motor).
+
+**Qué NO verifiqué en este cambio.** (a) No recalculé el archivo principal
+`MantPlan.xlsx` (XLOOKUP): LibreOffice no lo evalúa; su corrección se hereda
+de las plantillas compartidas y de la auditoría sintáctica, como en versiones
+previas. (b) **No actualicé el README ni las cifras absolutas de las secciones
+§3.2–§3.7 de más abajo**, que se tabularon bajo jornada 7 h (v2.4): con 6.1
+esas capacidades escalan (día = 8 × 0,87 = 6,96 h; MEC 2026-S29 pasa de 140 a
+192 h disponibles, etc.). El verificador celda a celda (8.794/0) revalidó
+todas esas magnitudes bajo 8 h, pero los ejemplos narrados abajo conservan los
+números de v2.4 y deben leerse como históricos. (c) El recálculo independiente
+lo hace el usuario en el chat.
+
+**Supuestos donde algo fue ambiguo.** (1) `base_semanal_horas` se escribe como
+fórmula en su celda B (no como literal), por indicación explícita, y recibe
+estilo de celda calculada. (2) A `dias_laborables_base` se le aplicó la misma
+validación que a `horas_jornada` (`dv3`, entero 1–24), tal como se pidió, aun
+cuando 24 sea un techo amplio para "días". (3) Los parámetros nuevos se
+apéndieron al final de la lista para no correr las filas existentes; los
+rangos nombrados y `FILA_PARAM` se recalculan solos.
+
+---
+
+## 1. Recálculo con motor de cálculo real (contexto v2.4/v2.5)
 
 La variante `MantPlan_compatible.xlsx` (mismas plantillas de fórmula que el
 principal, con `INDEX/MATCH` + rangos A1 en lugar de `XLOOKUP` + referencias
@@ -15,7 +62,7 @@ estructuradas) se recalculó por completo con LibreOffice Calc 24.2:
 
 | Métrica | Valor |
 |---|---:|
-| Fórmulas recalculadas | **70.335** |
+| Fórmulas recalculadas | **70.336** |
 | Errores de fórmula (`#REF!`, `#VALUE!`, `#NAME?`, `#DIV/0!`, `#N/A`, …) | **0** |
 
 ## 2. Comparación motor Python ↔ Excel recalculado
