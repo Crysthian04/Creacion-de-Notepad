@@ -1,11 +1,76 @@
-# VERIFICACION.md — MantPlan v2.6.0
+# VERIFICACION.md — MantPlan v2.7.0
 
-Reporte de verificación del entregable A. Esta versión añade el bloque **6.2
-— catálogo de turnos con franja horaria (CAT_TURNOS)** sobre 6.1 (jornada 8 h
-/ base 48 h), v2.4 (calendario), v2.3 (sub_area), v2.2 (EXPORTAR), v2.1 y v2.0.
-Fecha de la corrida: **2026-07-22** (ancla de los datos sintéticos).
+Reporte de verificación del entregable A. Esta versión añade el bloque **6.3
+— rotación automática derivada por especialidad** sobre 6.2 (CAT_TURNOS), 6.1
+(jornada 8 h / base 48 h), v2.4 (calendario), v2.3 (sub_area), v2.2 (EXPORTAR),
+v2.1 y v2.0. Fecha de la corrida: **2026-07-23** (ancla de los datos sintéticos).
 
-## 0. Cambio 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
+## 0. Cambio 6.3 — rotación automática derivada por especialidad
+
+El turno pasa de ser un dato a **derivarse por aritmética modular** de la
+posición del técnico en el anillo del ciclo. Anillo (orden de avance semanal,
+N posiciones, banco = N-3): **B(N-3), …, B1, T3, T2, T1** → y vuelve a B(N-3);
+avance **+1 posición/semana**. Dotación que lo ejercita: **7 MEC + 7 ELE**
+rotativos en una sola área (N=7 en cada ciclo) + **2 AUT** de Banco fijo, sin
+OP. Verificado sobre el libro recalculado (`MantPlan_compatible.xlsx`), ancla
+2026-07-23, semana de referencia (lunes) **2026-07-13**:
+
+- **Ambas variantes se generan sin excepción** (`--refs estructuradas` y
+  `--refs compatibles`).
+- **(a) COBERTURA**: en cada ciclo (especialidad × área) y **cada** semana, en
+  día hábil, los N técnicos ocupan las N posiciones distintas — **exactamente 1
+  en T1, 1 en T2, 1 en T3 y N-3 = 4 en Banco**; ningún turno vacío ni
+  duplicado. Comprobado leyendo la columna `turno` recalculada de MEC·PRODUCCION
+  y ELE·PRODUCCION en las 4 semanas del plan (8 comprobaciones, todas OK).
+- **(b) AVANCE**: cada técnico avanza **exactamente una posición por semana** en
+  el sentido del anillo (incluido el relevo **B1→T3** y el cierre **T1→B(N-3)**).
+  Ej. Técnico 04 (orden 4): B1(S29)→T3(S30)→T2→T1; Técnico 05 (orden 5):
+  T3→T2→T1(S31)→B4(S32). Comprobado sobre `posicion_ciclo` recalculada de los
+  14 rotativos.
+- **(c) La fórmula del libro coincide con `turno_derivado`** en **todas** las
+  filas: las 448 celdas `posicion_ciclo`, `turno_manual` y `turno` (efectivo)
+  recalculadas por LibreOffice igualan a la función pura Python, celda a celda,
+  cero desviaciones. (El modo estructurado usa la misma lógica con referencias
+  XLOOKUP; se genera sin error y comparte el motor.)
+- **(d) OVERRIDE**: al fijar `turno_manual` en una celda (p. ej. Técnico 01,
+  2026-S30, martes, cuya rotación da "B") a **"T2"**, **solo esa celda** cambia:
+  `turno`→T2 y su franja→15:00–22:00; `posicion_ciclo` sigue en **"B3"**
+  (auditoría, no cambia), la capacidad sigue en **8 h** (REGLA-5 intacta) y el
+  vecino Técnico 02 mantiene su rotación ("B"). Al **vaciar** `turno_manual`, el
+  `turno` vuelve a "B" (la rotación). Recalculado con LibreOffice en cada paso.
+- **(e) CAPACIDAD SIN CAMBIOS**: cada técnico (rotativo o AUT) suma **48 h/semana**
+  (L-S, domingo 0) en una semana sin feriado. Comprobado sobre las 16 columnas
+  `horas_disponibles` recalculadas de 2026-S30 (16/16 = 48 h). La banda cambia
+  QUÉ turno, no cuántas horas: REGLA-5 lee el `turno` efectivo sin tocar su lógica.
+- **(f) Recálculo completo y comparación**: **72.814 fórmulas, 0 errores**;
+  comparación celda a celda motor Python ↔ Excel recalculado **11.409
+  comparaciones, 0 desviaciones** (11.371 celda a celda de todas las hojas +
+  38 comprobaciones directas de cobertura/avance/capacidad sobre el libro
+  recalculado).
+
+**Inputs nuevos.** `TECNICOS.rotativo` (sí/no, flag explícito — no se hardcodea
+a MEC/ELE) y `TECNICOS.orden_rotacion` (1..N, único por especialidad×área entre
+rotativos); `PARAMETROS.semana_referencia` como **FECHA** (el lunes de la semana
+de referencia, no un rótulo). Columnas nuevas en ASIGNACIONES: `posicion_ciclo`
+(derivada, auditoría), `turno_manual` (entrada, override) y `n_ciclo` (derivada,
+auditoría = N del ciclo); `turno` pasa a **derivado** (efectivo) y el desplegable
+se mueve de `turno` a `turno_manual`.
+
+**Qué NO verifiqué / supuestos.** (i) No recalculé el principal `MantPlan.xlsx`
+(XLOOKUP): LibreOffice no lo evalúa; corrección heredada del modo compatible
+(misma lógica, otra sintaxis de referencia) y auditoría sintáctica. (ii) El
+alcance del ciclo es por (especialidad, área): el motor soporta una especialidad
+repartida en varias áreas (cada área su propio ciclo, N por COUNTIFS con filtro
+de área), pero la muestra usa **una sola área** (PRODUCCION). (iii) Los casos
+ad-hoc viejos (TEC-04 VAC, domingo especial de SERVICIOS) se retiraron del
+sintético — la rotación exige cobertura limpia cada semana — y quedan reservados
+para §7. (iv) 6.4 (VAC automático), 6.5 (domingo 22:00 / superávit) y 6.6
+(coordinador auto) NO se implementaron. (v) El recálculo independiente lo corre
+el usuario.
+
+---
+
+## 0-bis. Cambio 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
 
 Los turnos pasan de etiquetas sueltas a un catálogo con banda horaria. **La
 franja es metadato de horario; la capacidad NO se deriva de ella** (REGLA-5
@@ -49,7 +114,7 @@ independiente lo corre el usuario.
 
 ---
 
-## 0-bis. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
+## 0-ter. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
 
 Cambio de parámetro + patrón, sin tocar el modelo de turnos ni la rotación
 (eso es 6.3) ni ninguna otra hoja/regla. Verificado sobre el libro
@@ -106,7 +171,7 @@ estructuradas) se recalculó por completo con LibreOffice Calc 24.2:
 
 | Métrica | Valor |
 |---|---:|
-| Fórmulas recalculadas | **71.014** |
+| Fórmulas recalculadas | **72.814** |
 | Errores de fórmula (`#REF!`, `#VALUE!`, `#NAME?`, `#DIV/0!`, `#N/A`, …) | **0** |
 
 ## 2. Comparación motor Python ↔ Excel recalculado
@@ -116,19 +181,22 @@ Cada valor del libro recalculado se comparó contra el motor Python
 
 | Métrica | Valor |
 |---|---:|
-| Comparaciones automáticas | **9.486** |
+| Comparaciones automáticas | **11.409** |
 | Desviaciones | **0** |
 
 Cobertura: las 24 columnas calculadas de las 200 órdenes (incluidas es_habil y backlog_habiles, y
 `horas_efectivas` resuelta por búsqueda en `tblAjustes`); muestreo de filas
-provisionadas vacías (250, 700, 1.203) en blanco; `id_operacion` de las 157
-filas de EJECUCION; las 336 filas de REGLA-5; la hoja AJUSTES (descripcion,
+provisionadas vacías (250, 700, 1.203) en blanco; `id_operacion` de las
+filas de EJECUCION; las **448 filas de ASIGNACIONES** (rotación derivada
+`n_ciclo`/`posicion_ciclo`/`turno_manual`/`turno`, fecha, REGLA-5 y franja
+horaria) + las 38 comprobaciones directas de cobertura/avance/capacidad (6.3);
+la hoja AJUSTES (descripcion,
 estado_ajuste y desviacion_h de las 4 filas demo + fila vacía); PERFIL_HH
 completo (serie de 60 posiciones, REGLA-6 por semana × especialidad,
 REGLA-9); ADHERENCIA (bloque semanal dinámico + 6 desgloses, solo días hábiles); BACKLOG por
 tramos; COSTOS por mes; EQUIPOS_CRITICOS; zona de datos del gráfico de carga;
 los 16 chequeos de VALIDACION; **EXPORTAR** (los escalares del resumen
-AJ8–AJ16, el bloque por técnico AC/AD/AE de los 12, más 18 fragmentos del
+AJ8–AJ16, el bloque por técnico AC/AD/AE de los 16, más fragmentos del
 texto del correo y el conteo de líneas del programa); y la dimensión
 **sub_area** (columna calculada de las 200 órdenes, desglose de ADHERENCIA,
 matriz de COSTOS por sub-área con su reconciliación contra el área, y matriz
@@ -157,16 +225,17 @@ Filas demo de `tblAjustes` y su estado calculado (verificado):
 | OT-0000170010 | 14 | duplicado (se ignora) | — |
 | OT-0009990010 | 6 | huérfano | — |
 
-Efectos verificados del ajuste 8 → 12 en OT-000017 (Técnico 01, martes
-2026-S30): `horas_efectivas` 12 · PERFIL_HH MEC 2026-S30 prev **84** / carga
-**94,4 %** · barra del gráfico Técnico 01 = **41** (30,45 verde + 10,55 rojo,
-incluye la orden del sábado) · HHA martes 12 / HHD **−5,91**. VALIDACION: órdenes ajustadas **2**, desviación
+Efectos verificados del ajuste 8 → 12 en la orden de ajuste (Técnico 01,
+2026-S30): `horas_efectivas` 12 · PERFIL_HH MEC 2026-S30 prev **82** / carga
+**41,4 %** · barra del gráfico Técnico 01 = **32**, dentro de la capacidad
+semanal 41,76 h (sin rojo) · HHA del día del ajuste 12 / HHD **−5,04**.
+VALIDACION: órdenes ajustadas **2**, desviación
 total **+2 h**, huérfanos **1**, duplicados en tblAjustes **2**.
 
 ### 3.3 Recálculo de la variante compatible
 
-**0 errores en 70.335 fórmulas** (§1), mismos números que el motor Python en
-las 9.486 comparaciones (§2).
+**0 errores en 72.814 fórmulas** (§1), mismos números que el motor Python en
+las 11.409 comparaciones (§2).
 
 ### 3.4 Reordenamiento deliberado de `tblOrdenes`
 
@@ -220,12 +289,12 @@ recalculado (matriz REAL por sub-área de COSTOS):
   son `PRODUCCION`, `EMPAQUE`, `Vapor`, `Refrigeración`, `CO2`,
   `Aire comprimido` — **ninguna es un código `CC-*`**. PRODUCCION y EMPAQUE
   reportan bajo el nombre de su área, no bajo `CC-110`/`CC-210`.
-- **Reconciliación área = Σ sub-áreas**: SERVICIOS = 5.820 + 3.280 + 200 +
-  160 = **9.460**, idéntico al total del área SERVICIOS; el gran total de la
+- **Reconciliación área = Σ sub-áreas**: SERVICIOS = 6.020 + 2.050 + 200 +
+  160 = **8.430**, idéntico al total del área SERVICIOS; el gran total de la
   matriz por sub-área coincide con el de la matriz por área.
 
 Todos los desgloses por sub-área (ADHERENCIA, COSTOS, BACKLOG) se
-compararon celda a celda contra el motor Python dentro de las 9.486
+compararon celda a celda contra el motor Python dentro de las 11.409
 comparaciones, con 0 desviaciones. La dimensión no toca ninguna de las 10
 reglas del motor.
 
@@ -240,22 +309,24 @@ catálogo. Verificado sobre el libro recalculado:
   para órdenes de Vapor y **sí** para PRODUCCION, EMPAQUE y Refrigeración (la
   excepción por sub-área no toca las demás sub-áreas).
 - **Feriado general reduce capacidad** (REGLA-5): el miércoles 2026-07-29,
-  `horas_disponibles` = 0 para TEC-01 (PRODUCCION), TEC-05 (PRODUCCION) y
-  TEC-12 (SERVICIOS). PERFIL_HH **MEC 2026-S31 baja de 140 a 84 h** disponibles.
+  `horas_disponibles` = 0 para todos los técnicos activos (feriado general).
+  PERFIL_HH **MEC 2026-S31 baja de 336 a 280 h** disponibles (7 técnicos × 5
+  días × 8) — la rotación no altera este efecto, solo cambia qué turno.
 - **Excepción por área** (día especial laborable): el domingo 2026-08-02,
-  TEC-12 (SERVICIOS) tiene **7 h** de capacidad y TEC-01 (PRODUCCION) **0**.
-- **`backlog_habiles` < `backlog_dias`** al cruzar fines de semana: OT-000138
-  (fecha 2026-06-06) tiene `backlog_dias` **45** y `backlog_habiles` **30** —
-  diferencia de **15** días no hábiles en medio.
-- **VALIDACION**: 30 órdenes en día no laborable, 1 excepción con área
+  `es_habil(SERVICIOS)` = **sí** y `es_habil(PRODUCCION)` = **no** (la excepción
+  por área da capacidad solo a SERVICIOS).
+- **`backlog_habiles` < `backlog_dias`** al cruzar fines de semana: la orden
+  demo (fecha 2026-06-08) tiene `backlog_dias` **45** y `backlog_habiles` **38**
+  — diferencia de **7** domingos no hábiles en medio (el sábado es hábil, 6.1).
+- **VALIDACION**: 11 órdenes en día no laborable, 1 excepción con área
   desconocida (ZONA-X), 1 con sub-área desconocida (Nitrógeno).
 - **Reconciliación**: los totales por área de COSTOS siguen cuadrando con la
-  suma de sus sub-áreas tras el cambio (dentro de las 9.486 comparaciones).
+  suma de sus sub-áreas tras el cambio (dentro de las 11.409 comparaciones).
 
-Las 336 filas de REGLA-5 (con la fecha derivada de semana+día y el calendario)
-y las 26 columnas calculadas de las 200 órdenes (incluidas `es_habil`,
-`backlog_habiles`, `estado_backlog` y `en_plan` sobre días hábiles) se
-compararon celda a celda, con 0 desviaciones.
+Las 448 filas de REGLA-5 (con el turno derivado de la rotación, la fecha de
+semana+día y el calendario) y las 26 columnas calculadas de las 200 órdenes
+(incluidas `es_habil`, `backlog_habiles`, `estado_backlog` y `en_plan` sobre
+días hábiles) se compararon celda a celda, con 0 desviaciones.
 
 ## 4. Qué NO se verificó (y por qué)
 

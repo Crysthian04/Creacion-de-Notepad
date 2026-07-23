@@ -44,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.6.0"
+VERSION = "2.7.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -77,6 +77,11 @@ PARAMETROS = [
     # (=p_horas_jornada*p_dias_laborables_base), fuente única de verdad.
     ("base_semanal_horas", "=p_horas_jornada*p_dias_laborables_base",
      "Base obligatoria por técnico y semana = horas_jornada × dias_laborables_base."),
+    # 6.3: semana de referencia de la rotación de turnos. Es una FECHA (el lunes
+    # de esa semana). En ella, orden_rotacion 1..N mapea directo a la posición
+    # del anillo. Su valor se escribe al generar el libro (depende del ancla).
+    ("semana_referencia", None,
+     "FECHA (lunes) de la semana de referencia de la rotación de turnos (6.3)."),
 ]
 # Fila de cada parámetro dentro de la hoja PARAMETROS (encabezado en fila 3).
 FILA_PARAM = {p[0]: 4 + i for i, p in enumerate(PARAMETROS)}
@@ -219,31 +224,39 @@ ESTADOS_ERP = [
     ("ABIE", "Pendiente"),
 ]
 
+# 6.3: dotación que EJERCITA la rotación. Especialidades rotativas MEC y ELE con
+# 7 técnicos cada una en UNA sola área (→ N=7 en cada ciclo); 2 AUT de Banco fijo
+# (no rotativo). El flag `rotativo` es explícito por técnico (no se hardcodea a
+# MEC/ELE); orden_rotacion 1..N es único por especialidad×área entre rotativos y
+# fija la posición de arranque en la semana de referencia.
 TECNICOS = [
-    # id, nombre, especialidad, area
-    ("TEC-01", "Técnico 01", "MEC", "PRODUCCION"),
-    ("TEC-02", "Técnico 02", "MEC", "PRODUCCION"),
-    ("TEC-03", "Técnico 03", "MEC", "EMPAQUE"),
-    ("TEC-04", "Técnico 04", "MEC", "SERVICIOS"),
-    ("TEC-05", "Técnico 05", "ELE", "PRODUCCION"),
-    ("TEC-06", "Técnico 06", "ELE", "PRODUCCION"),
-    ("TEC-07", "Técnico 07", "ELE", "EMPAQUE"),
-    ("TEC-08", "Técnico 08", "AUT", "PRODUCCION"),
-    ("TEC-09", "Técnico 09", "AUT", "EMPAQUE"),
-    ("TEC-10", "Técnico 10", "OP", "PRODUCCION"),
-    ("TEC-11", "Técnico 11", "OP", "EMPAQUE"),
-    ("TEC-12", "Técnico 12", "OP", "SERVICIOS"),
+    # id, nombre, especialidad, area, rotativo, orden_rotacion
+    ("TEC-01", "Técnico 01", "MEC", "PRODUCCION", "SI", 1),
+    ("TEC-02", "Técnico 02", "MEC", "PRODUCCION", "SI", 2),
+    ("TEC-03", "Técnico 03", "MEC", "PRODUCCION", "SI", 3),
+    ("TEC-04", "Técnico 04", "MEC", "PRODUCCION", "SI", 4),
+    ("TEC-05", "Técnico 05", "MEC", "PRODUCCION", "SI", 5),
+    ("TEC-06", "Técnico 06", "MEC", "PRODUCCION", "SI", 6),
+    ("TEC-07", "Técnico 07", "MEC", "PRODUCCION", "SI", 7),
+    ("TEC-08", "Técnico 08", "ELE", "PRODUCCION", "SI", 1),
+    ("TEC-09", "Técnico 09", "ELE", "PRODUCCION", "SI", 2),
+    ("TEC-10", "Técnico 10", "ELE", "PRODUCCION", "SI", 3),
+    ("TEC-11", "Técnico 11", "ELE", "PRODUCCION", "SI", 4),
+    ("TEC-12", "Técnico 12", "ELE", "PRODUCCION", "SI", 5),
+    ("TEC-13", "Técnico 13", "ELE", "PRODUCCION", "SI", 6),
+    ("TEC-14", "Técnico 14", "ELE", "PRODUCCION", "SI", 7),
+    ("TEC-15", "Técnico 15", "AUT", "PRODUCCION", "NO", ""),
+    ("TEC-16", "Técnico 16", "AUT", "PRODUCCION", "NO", ""),
 ]
+# Índices dentro de la tupla de TECNICOS
+TEC_ESP, TEC_AREA, TEC_ROT, TEC_ORDROT = 2, 3, 4, 5
 COORD_POR_AREA = {"PRODUCCION": "Coordinador A", "EMPAQUE": "Coordinador B", "SERVICIOS": "Coordinador C"}
-# 6.2: bandas válidas (mapa estático, sin rotación — eso es 6.3). B1→B; AUT usa
-# el Banco (B). El resto queda en T1.
-TURNO_POR_TECNICO = {"TEC-02": "T2", "TEC-08": "B", "TEC-09": "B", "TEC-10": "B"}
 EQUIPOS_POR_AREA = {
     "PRODUCCION": ["EQ-101", "EQ-102", "EQ-103", "EQ-104", "EQ-105"],
     "EMPAQUE": ["EQ-106", "EQ-107", "EQ-108", "EQ-109"],
     "SERVICIOS": ["EQ-110", "EQ-111", "EQ-112"],
 }
-ESPECIALIDADES = ("MEC", "ELE", "AUT", "OP", "TERCERO")
+ESPECIALIDADES = ("MEC", "ELE", "AUT", "TERCERO")
 
 CAT_TIPOS = {c: cl for c, _, cl in TIPOS_OT}
 CAT_ESTADOS = dict(ESTADOS_ERP)
@@ -345,6 +358,45 @@ def regla_5_horas_disponibles(turno, habil=True, horas_jornada=HORAS_JORNADA,
     return horas_jornada
 
 
+# ── Rotación automática de turnos (6.3) ────────────────────────────────────
+# Anillo determinista, en orden de AVANCE semanal, para una especialidad con N
+# posiciones (banco = N-3 puestos de Banco):
+#     B(N-3), B(N-4), …, B1, T3, T2, T1  → y vuelve a B(N-3).
+# (Ej. N=7: B4, B3, B2, B1, T3, T2, T1 → B4.)
+# Avance: +1 posición por semana. El relevo B1→T3 sale solo del avance +1.
+def etiqueta_anillo(pos, n):
+    """Etiqueta de la posición pos (0..n-1) del anillo. banco = n-3."""
+    banco = n - 3
+    if pos < banco:
+        return f"B{banco - pos}"      # pos0→B(n-3) … pos(banco-1)→B1
+    return f"T{n - pos}"              # pos=banco→T3, +1→T2, +2→T1
+
+
+def posicion_ciclo_de(rotativo, orden_rotacion, n, semanas_desde_ref, es_domingo):
+    """Posición del anillo (texto) de un técnico en una semana. '' el domingo
+    (fuera de la base L-S); 'B' fijo para no rotativos. Espejo de la fórmula."""
+    if es_domingo:
+        return ""
+    if not rotativo:
+        return "B"
+    pos = ((orden_rotacion - 1) + semanas_desde_ref) % n
+    return etiqueta_anillo(pos, n)
+
+
+def banda_de(posicion):
+    """Banda de turno (B/T1/T2/T3) a partir de la posición del anillo. La banda
+    NO cambia la capacidad (REGLA-5 sigue plana): cambia QUÉ turno, no cuántas horas."""
+    if not posicion:
+        return ""
+    return "B" if posicion[0] == "B" else posicion
+
+
+def turno_derivado(turno_manual, posicion):
+    """Turno efectivo: el override manual (excepción/VAC/X) manda; si está vacío,
+    la banda que dicta la rotación."""
+    return turno_manual if turno_manual else banda_de(posicion)
+
+
 def regla_6_perfil_hh(hh_disponible, hh_preventiva, hh_correctiva, factor=FACTOR_PRODUCTIVIDAD):
     """REGLA-6: perfil de HH de una celda especialidad × semana."""
     hh_productiva = hh_disponible * factor
@@ -421,7 +473,6 @@ PRESUPUESTO_PLAN = {
     "MEC": [(80, 20), (80, 25), (80, 20), (70, 14)],
     "ELE": [(60, 15), (65, 20), (60, 10), (50, 10)],
     "AUT": [(40, 10), (45, 10), (35, 7), (30, 6)],
-    "OP": [(30, 8), (36, 9), (28, 7), (24, 6)],
 }
 PRESUPUESTO_TERCERO = {1: 16, 2: 12}  # semana → horas preventivas contratadas
 TARIFA = {"preventiva": 25, "correctiva": 40}  # USD/hora → costo_plan redondo
@@ -451,29 +502,35 @@ def generar_datos(hoy):
     semanas = [regla_2_semana(d) for d in lunes_sem]
     excepciones = construir_excepciones(hoy)
 
-    # --- ASIGNACIONES: 4 semanas × 12 técnicos × 7 días = 336 filas -------
+    # 6.3: semana de referencia de la rotación = lunes de la 1.ª semana del plan
+    # (así todas las semanas del plan quedan a +0..+3 de la referencia, sin
+    # negativos). En ella orden_rotacion 1..N mapea directo a la posición.
+    semana_referencia = lunes_sem[0]
+    # N = nº de posiciones del ciclo por (especialidad, área) entre rotativos.
+    n_por_ciclo = {}
+    for t in TECNICOS:
+        if t[TEC_ROT] == "SI":
+            n_por_ciclo[(t[TEC_ESP], t[TEC_AREA])] = \
+                n_por_ciclo.get((t[TEC_ESP], t[TEC_AREA]), 0) + 1
+
+    # --- ASIGNACIONES: 4 semanas × 16 técnicos × 7 días = 448 filas -------
+    # El turno se DERIVA de la rotación (6.3): posicion_ciclo por (esp, área) y
+    # semana; el domingo queda fuera de la base (L-S). Sin overrides en el
+    # sintético (turno_manual vacío) → cobertura limpia cada semana.
     asignaciones = []
     for si, sem in enumerate(semanas):
-        for tid, nombre, esp, area in TECNICOS:
+        semanas_desde = (lunes_sem[si] - semana_referencia).days // 7
+        for tid, nombre, esp, area, rot, ordrot in TECNICOS:
+            n = n_por_ciclo.get((esp, area), 0)
             for di, dia in enumerate(DIAS):
-                if di >= 6:
-                    # v2.5 (6.1): base L-S. Solo el DOMINGO queda sin turno,
-                    # salvo el domingo especial laborable de SERVICIOS en la 2.ª
-                    # semana futura (si==2), para probar la excepción por área
-                    # (TEC-04 sigue de vacaciones). El sábado (di=5) recibe turno
-                    # normal como cualquier día hábil → 6 días = 48 h/semana.
-                    if si == 2 and dia == "domingo" and area == "SERVICIOS" and tid != "TEC-04":
-                        turno = TURNO_POR_TECNICO.get(tid, "T1")
-                    else:
-                        turno = ""
-                elif tid == "TEC-04" and si == 2:
-                    turno = "VAC"  # vacaciones toda la semana (demo REGLA-5)
-                elif tid == "TEC-07" and si == 1 and dia == "viernes":
-                    turno = "X"  # ausencia puntual (demo REGLA-5)
-                else:
-                    turno = TURNO_POR_TECNICO.get(tid, "T1")
+                pc = posicion_ciclo_de(rot == "SI", ordrot or 0, n,
+                                       semanas_desde, di == 6)
+                turno_manual = ""            # sin excepciones en el sintético
+                turno = turno_derivado(turno_manual, pc)
                 asignaciones.append({"semana": sem, "dia": dia, "tecnico": nombre,
-                                     "area": area, "especialidad": esp, "turno": turno})
+                                     "area": area, "especialidad": esp,
+                                     "n_ciclo": n, "posicion_ciclo": pc,
+                                     "turno_manual": turno_manual, "turno": turno})
 
     # --- ORDENES ----------------------------------------------------------
     ordenes = []
@@ -519,7 +576,7 @@ def generar_datos(hoy):
 
     # Órdenes del plan (semanas S-1 … S+2)
     cecos_por_esp = {"MEC": ["CC-110", "CC-210", "CC-310"], "ELE": ["CC-120", "CC-220"],
-                     "AUT": ["CC-110", "CC-220"], "OP": ["CC-120", "CC-210", "CC-320"]}
+                     "AUT": ["CC-110", "CC-220"]}
     idx_plan = 0
     for esp, filas in PRESUPUESTO_PLAN.items():
         tecs = _tecnicos_de(esp)
@@ -542,37 +599,34 @@ def generar_datos(hoy):
             nueva(lunes_sem[si] + timedelta(days=j % 5), h, "TERCERO", "preventiva",
                   "plan_tercero", si=si, ceco="CC-310", act="ACT-05", tipo="TIPO-P2")
 
-    # Conflicto deliberado: una orden MEC de la semana en que TEC-04 está de
-    # vacaciones queda asignada a él → HHD = −HHA (demo de indisponibilidad)
-    for o in ordenes:
-        if (o["_grupo"] == "plan" and o["_si"] == 2
-                and o["puesto_trabajo"] == "PU-MEC" and o["tecnico_asignado"]):
-            o["tecnico_asignado"] = "Técnico 04"
-            o["observaciones"] = "Demo: asignada a técnico de vacaciones (HHD = −HHA)"
-            break
-
-    # Órdenes de fin de semana. v2.5 (6.1): con la base L-S el SÁBADO es un día
-    # hábil normal (las órdenes de sábado consumen capacidad y cuentan en
-    # adherencia); el DOMINGO es el día normal no hábil (estas órdenes prueban
-    # la validación y que EXPORTAR recorre los 7 días). El domingo especial de
-    # SERVICIOS (excepción laborable) sí es hábil.
+    # Órdenes de fin de semana (6.1: base L-S). El SÁBADO es hábil (consume
+    # capacidad y cuenta en adherencia); el DOMINGO es el día normal no hábil
+    # (prueba VALIDACION y que EXPORTAR recorre los 7 días). Los casos ad-hoc
+    # viejos (TEC-04 VAC, domingo especial de SERVICIOS) se retiran del sintético
+    # y se reservan para §7 (la rotación exige cobertura limpia cada semana).
     s30_sab = lunes_sem[1] + timedelta(days=5)   # sábado de la semana corriente (hábil)
     s30_dom = lunes_sem[1] + timedelta(days=6)   # domingo (no hábil)
-    s31_dom = lunes_sem[2] + timedelta(days=6)   # domingo especial laborable
     nueva(s30_sab, 6, "MEC", "correctiva", "finde", tecnico="Técnico 01", ceco="CC-110")
-    nueva(s30_sab, 4, "ELE", "correctiva", "finde", tecnico="Técnico 05", ceco="CC-120")
-    nueva(s30_dom, 8, "OP", "correctiva", "finde", tecnico="", ceco="CC-210")
-    nueva(s31_dom, 6, "OP", "preventiva", "finde", tecnico="Técnico 12", ceco="CC-330",
-          act="ACT-02", tipo="TIPO-P1", desc_op="Mantenimiento especial de CO2 (domingo laborable)")
+    nueva(s30_sab, 4, "ELE", "correctiva", "finde", tecnico="Técnico 08", ceco="CC-120")
+    nueva(s30_dom, 8, "MEC", "correctiva", "finde", tecnico="", ceco="CC-210")
 
-    # Ajustes manuales de horas (v2.1: viven en tblAjustes, con clave).
-    # Aquí solo se eligen las órdenes; la lista de ajustes se arma al final,
-    # cuando ya existen los id_operacion.
+    # Ajustes manuales de horas (v2.1: viven en tblAjustes, con clave). Se fijan
+    # dos órdenes del plan (horas estimadas 8 y 6) para dar desviaciones
+    # demostrables (+4 y −2); la lista de ajustes se arma al final con los id.
+    def _fijar_horas(o, h):
+        o["horas_estimadas"] = h
+        o["costo_plan"] = h * TARIFA["preventiva" if o["_clasif"] == "preventiva" else "correctiva"]
     aj1 = next(o for o in ordenes if o["_grupo"] == "plan" and o["_si"] == 1
-               and o["tecnico_asignado"] == "Técnico 01" and o["horas_estimadas"] == 8)
+               and o["puesto_trabajo"] == "PU-MEC" and o["_clasif"] == "preventiva")
+    aj1["tecnico_asignado"] = "Técnico 01"
+    _fijar_horas(aj1, 8)
     aj1["observaciones"] = "Ajuste 8 → 12 h en hoja AJUSTES"
     aj2 = next(o for o in ordenes if o["_grupo"] == "plan" and o["_si"] == 1
-               and o["puesto_trabajo"] == "PU-ELE" and o["horas_estimadas"] == 6)
+               and o["puesto_trabajo"] == "PU-ELE" and o["_clasif"] == "preventiva"
+               and o is not aj1)
+    if not aj2["tecnico_asignado"]:
+        aj2["tecnico_asignado"] = "Técnico 08"
+    _fijar_horas(aj2, 6)
     aj2["observaciones"] = "Ajuste 6 → 4 h en hoja AJUSTES"
 
     # Segunda operación 0020 para 4 órdenes del plan (demo de operaciones)
@@ -587,10 +641,10 @@ def generar_datos(hoy):
         ordenes.append(extra)
 
     # Backlog pendiente (envejecimiento por tramos)
-    esp_ciclo = ["MEC", "ELE", "AUT", "OP"]
+    esp_ciclo = ["MEC", "ELE", "AUT"]
     for k, (dias_atras, cuantas) in enumerate([(45, 8), (75, 6), (100, 6), (120, 4), (150, 4)]):
         for j in range(cuantas):
-            esp = esp_ciclo[(k + j) % 4]
+            esp = esp_ciclo[(k + j) % len(esp_ciclo)]
             clasif = "preventiva" if j % 4 == 3 else "correctiva"
             nueva(hoy - timedelta(days=dias_atras), (4, 6, 8)[j % 3], esp, clasif, "backlog",
                   ceco=CENTROS_COSTO[(k + j) % len(CENTROS_COSTO)][0])
@@ -598,7 +652,7 @@ def generar_datos(hoy):
     # Histórico cerrado (alimenta COSTOS y EQUIPOS_CRITICOS). Recorre los 10
     # CECOs para dar datos a todas las sub-áreas de SERVICIOS.
     for j in range(15):
-        esp = esp_ciclo[j % 4]
+        esp = esp_ciclo[j % len(esp_ciclo)]
         clasif = "preventiva" if j % 2 == 0 else "correctiva"
         nueva(hoy - timedelta(days=40 + j * 7), (4, 6, 8)[j % 3], esp, clasif, "historico",
               ceco=CENTROS_COSTO[j % len(CENTROS_COSTO)][0])
@@ -709,6 +763,7 @@ def generar_datos(hoy):
                           "costo_real": 0, "costo_plan_total": 150, "estado_usuario": "LIBERADA"})
 
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
+            "semana_referencia": semana_referencia, "n_por_ciclo": n_por_ciclo,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
             "ajustes": ajustes, "excepciones": excepciones, "edge_regla8": edge_regla8}
 
@@ -881,7 +936,7 @@ def calcular_esperado(datos):
     # Carga y capacidad semanal por técnico (zona de datos del gráfico de carga)
     carga_tecnicos, capacidad_tecnicos = {}, {}
     for sem in datos["semanas"]:
-        for _tid, nombre, _esp, _area in TECNICOS:
+        for _tid, nombre, *_ in TECNICOS:
             carga_tecnicos[(sem, nombre)] = sum(
                 o["horas_efectivas"] or 0 for o in enriquecidas
                 if o["tecnico_asignado"] == nombre and o["semana"] == sem)
@@ -941,7 +996,7 @@ def calcular_esperado(datos):
         n_tec = len({o["tecnico_asignado"] for o in scope
                      if o["tecnico_asignado"] in tecs})
         por_tec = {}
-        for _tid, nombre, _e, _a in TECNICOS:
+        for _tid, nombre, *_ in TECNICOS:
             hha = sum(o["horas_efectivas"] or 0 for o in scope if o["tecnico_asignado"] == nombre)
             cap = FACTOR_PRODUCTIVIDAD * sum(a["horas_disponibles"] for a in datos["asignaciones"]
                                              if a["tecnico"] == nombre and a["semana"] == sem)
@@ -1058,7 +1113,11 @@ CAP_AJUSTES = 300
 CAMPOS_EJECUCION = ["orden", "operacion", "estado_sistema", "prioridad",
                     "estado_instalacion", "precio", "costo_real", "costo_plan_total",
                     "estado_usuario", "id_operacion"]
-CAMPOS_ASIGNACIONES = ["semana", "dia", "tecnico", "area", "especialidad", "turno",
+# 6.3: turno pasa a DERIVADO (efectivo). Entradas nuevas: turno_manual (override
+# de excepción). Derivadas de auditoría: n_ciclo (N del ciclo) y posicion_ciclo
+# (etiqueta del anillo). REGLA-5 y los lookups de franja (6.2) leen `turno`.
+CAMPOS_ASIGNACIONES = ["semana", "dia", "tecnico", "area", "especialidad",
+                       "n_ciclo", "posicion_ciclo", "turno_manual", "turno",
                        "coordinador", "fecha", "horas_disponibles", "clave",
                        "hora_inicio", "hora_fin"]
 CAMPOS_EXCEPCIONES = ["fecha", "tipo", "habil", "area", "sub_area", "motivo", "clave"]
@@ -1299,7 +1358,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "tblEjecucion": Tabla("tblEjecucion", "2_IMPORTAR_EJECUCION", 8, CAMPOS_EJECUCION, CAP_FILAS),
         "tblAjustes": Tabla("tblAjustes", "AJUSTES", 3, CAMPOS_AJUSTES, CAP_AJUSTES),
         "tblTecnicos": Tabla("tblTecnicos", "TECNICOS", 3,
-                             ["id", "nombre", "especialidad", "area", "coordinador", "activo"], len(TECNICOS)),
+                             ["id", "nombre", "especialidad", "area", "coordinador",
+                              "rotativo", "orden_rotacion", "activo"], len(TECNICOS)),
         "tblAsignaciones": Tabla("tblAsignaciones", "ASIGNACIONES", 3, CAMPOS_ASIGNACIONES, n_asig),
         "tblExcepciones": Tabla("tblExcepciones", "CALENDARIO", 14, CAMPOS_EXCEPCIONES, CAP_EXCEPCIONES),
         "tblCECO": Tabla("tblCECO", "CAT_CENTROS_COSTO", 3,
@@ -1341,9 +1401,10 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "  2. Pegue la exportación de órdenes (12 columnas, en este orden) directamente en ORDENES!A4:",
         "     un solo bloque contiguo A:L. Hay 1.200 filas provisionadas con las fórmulas ya escritas.",
         "  3. Pegue la segunda exportación (estados y costos) en 2_IMPORTAR_EJECUCION.",
-        "  4. Complete TECNICOS y los turnos de ASIGNACIONES; asigne técnicos en ORDENES.",
-        "     Los ajustes de duración van en AJUSTES por id_operacion: se re-aplican solos",
-        "     tras cada re-importación, sin importar el orden de las filas.",
+        "  4. Complete TECNICOS (incl. rotativo y orden_rotacion) y fije semana_referencia en",
+        "     PARAMETROS: el turno de ASIGNACIONES se DERIVA solo de la rotación. Para una",
+        "     excepción puntual escriba en turno_manual. Asigne técnicos en ORDENES. Los ajustes",
+        "     de duración van en AJUSTES por id_operacion: se re-aplican solos tras re-importar.",
         "  5. Revise VALIDACION y trabaje con PERFIL_HH, PLAN_SEMANAL, ADHERENCIA, COSTOS y BACKLOG.",
         "",
         "CONVENCIONES:",
@@ -1365,12 +1426,16 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     encabezados(ws, 3, ["parametro", "valor", "descripcion"])
     for i, (p, v, d) in enumerate(PARAMETROS):
         celda(ws, 4 + i, 1, p)
+        # 6.3: semana_referencia es una FECHA que depende del ancla; su valor se
+        # inyecta aquí (input azul con formato fecha).
+        if p == "semana_referencia":
+            v = datos["semana_referencia"]
         # Un valor que empieza por "=" es una celda DERIVADA (fórmula): se
         # muestra con estilo de celda calculada (negro), no de input (azul),
         # y no lleva validación de entrada.
         es_formula = isinstance(v, str) and v.startswith("=")
-        celda(ws, 4 + i, 2, v, font=F_TXT if es_formula else F_EDIT,
-              fmt="0.00" if isinstance(v, float) else None)
+        fmt = FMT_FECHA if isinstance(v, date) else ("0.00" if isinstance(v, float) else None)
+        celda(ws, 4 + i, 2, v, font=F_TXT if es_formula else F_EDIT, fmt=fmt)
         celda(ws, 4 + i, 3, d, font=F_NOTA)
     celda(ws, 3, 5, "listas auxiliares", font=F_SEC)
     # 6.2: los turnos ya no viven aquí — su fuente única es CAT_TURNOS y la
@@ -1414,13 +1479,16 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "p_nombre_planta": FILA_PARAM["nombre_planta"],
         "p_dias_laborables_base": FILA_PARAM["dias_laborables_base"],
         "p_base_semanal_horas": FILA_PARAM["base_semanal_horas"],
+        "p_semana_referencia": FILA_PARAM["semana_referencia"],
     }
     for nom, fila in nombres.items():
         wb.defined_names.add(DefinedName(nom, attr_text=f"PARAMETROS!$B${fila}"))
     # lista_turnos (nombre) se define en CAT_TURNOS (6.2), fuente única.
     wb.defined_names.add(DefinedName("lista_no_disponible", attr_text="PARAMETROS!$G$5:$G$6"))
     wb.defined_names.add(DefinedName("lista_dias", attr_text="PARAMETROS!$I$5:$I$11"))
-    wb.defined_names.add(DefinedName("lista_tecnicos", attr_text="TECNICOS!$B$4:$B$15"))
+    _T = TAB["tblTecnicos"]
+    wb.defined_names.add(DefinedName(
+        "lista_tecnicos", attr_text=f"TECNICOS!$B${_T.fila_ini}:$B${_T.fila_fin}"))
 
     # ------------------------------------------------- 1_IMPORTAR_ORDENES
     ws = wb.create_sheet("1_IMPORTAR_ORDENES")
@@ -1529,69 +1597,107 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws = wb.create_sheet("TECNICOS")
     ws.sheet_properties.tabColor = "4472C4"
     T = TAB["tblTecnicos"]
-    celda(ws, 1, 1, "TECNICOS (tblTecnicos) — catálogo editable de personal propio", font=F_SEC)
+    celda(ws, 1, 1, "TECNICOS (tblTecnicos) — catálogo editable de personal propio. "
+                    "6.3: rotativo (sí/no) y orden_rotacion (1..N por especialidad×área "
+                    "entre rotativos) alimentan la rotación de turnos.", font=F_SEC)
     encabezados(ws, T.fila_enc, T.campos)
-    for i, (tid, nombre, esp, area) in enumerate(TECNICOS):
+    for i, (tid, nombre, esp, area, rot, ordrot) in enumerate(TECNICOS):
         fila = T.fila_ini + i
-        for j, v in enumerate([tid, nombre, esp, area, COORD_POR_AREA[area], "SI"], start=1):
+        for j, v in enumerate([tid, nombre, esp, area, COORD_POR_AREA[area],
+                               rot, ordrot, "SI"], start=1):
             celda(ws, fila, j, v, font=F_EDIT)
     agregar_tabla(ws, T)
-    dv = DataValidation(type="list", formula1='"ELE,MEC,AUT,OP"', allow_blank=False)
+    dv = DataValidation(type="list", formula1='"ELE,MEC,AUT"', allow_blank=False)
     ws.add_data_validation(dv)
     dv.add(f"C{T.fila_ini}:C{T.fila_fin}")
+    # rotativo (F) y activo (H): sí/no
     dv = DataValidation(type="list", formula1='"SI,NO"', allow_blank=False)
     ws.add_data_validation(dv)
     dv.add(f"F{T.fila_ini}:F{T.fila_fin}")
-    for colw, w in (("A", 10), ("B", 14), ("C", 12), ("D", 14), ("E", 16), ("F", 8)):
+    dv.add(f"H{T.fila_ini}:H{T.fila_fin}")
+    # orden_rotacion (G): entero 1..N; vacío para no rotativos
+    dv = DataValidation(type="whole", operator="between", formula1="1", formula2="30",
+                        allow_blank=True)
+    ws.add_data_validation(dv)
+    dv.add(f"G{T.fila_ini}:G{T.fila_fin}")
+    for colw, w in (("A", 10), ("B", 14), ("C", 12), ("D", 14), ("E", 16),
+                    ("F", 9), ("G", 14), ("H", 8)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------- ASIGNACIONES
     ws = wb.create_sheet("ASIGNACIONES")
     ws.sheet_properties.tabColor = "4472C4"
     A = TAB["tblAsignaciones"]
-    celda(ws, 1, 1, "ASIGNACIONES — turno por técnico, día y semana. El turno se elige de la lista "
-                    "desplegable; REGLA-5 calcula las horas.", font=F_SEC)
+    celda(ws, 1, 1, "ASIGNACIONES — el turno se DERIVA de la rotación (6.3): posicion_ciclo por "
+                    "(especialidad, área) y semana. Para una excepción puntual (o VAC/X) escriba "
+                    "en turno_manual y solo esa celda se sobrescribe; REGLA-5 lee el turno efectivo.",
+          font=F_SEC)
     encabezados(ws, A.fila_enc, A.campos)
+    rot_col = R.col("tblTecnicos", "rotativo")
+    esp_col = R.col("tblTecnicos", "especialidad")
+    area_col = R.col("tblTecnicos", "area")
     for i, a in enumerate(datos["asignaciones"]):
         fila = A.fila_ini + i
+        nb = R.this("tblAsignaciones", "tecnico", fila)
+        sm = R.this("tblAsignaciones", "semana", fila)
+        dia_c = R.this("tblAsignaciones", "dia", fila)
+        area_c = R.this("tblAsignaciones", "area", fila)
+        esp_c = R.this("tblAsignaciones", "especialidad", fila)
+        ncell = R.this("tblAsignaciones", "n_ciclo", fila)
+        pccell = R.this("tblAsignaciones", "posicion_ciclo", fila)
+        tmcell = R.this("tblAsignaciones", "turno_manual", fila)
+        tu = R.this("tblAsignaciones", "turno", fila)
+        fe = R.this("tblAsignaciones", "fecha", fila)
         celda(ws, fila, 1, a["semana"])
         celda(ws, fila, 2, a["dia"])
         celda(ws, fila, 3, a["tecnico"])
-        celda(ws, fila, 4, "=" + R.busca(R.this("tblAsignaciones", "tecnico", fila),
-                                         "tblTecnicos", "nombre", "area", '""'))
-        celda(ws, fila, 5, "=" + R.busca(R.this("tblAsignaciones", "tecnico", fila),
-                                         "tblTecnicos", "nombre", "especialidad", '""'))
-        celda(ws, fila, 6, a["turno"], font=F_EDIT)
-        celda(ws, fila, 7, "=" + R.busca(R.this("tblAsignaciones", "tecnico", fila),
-                                         "tblTecnicos", "nombre", "coordinador", '""'))
-        # fecha real de la celda (para consultar el calendario): lunes ISO de la
-        # semana + desplazamiento del día.
-        sm = R.this("tblAsignaciones", "semana", fila)
+        celda(ws, fila, 4, "=" + R.busca(nb, "tblTecnicos", "nombre", "area", '""'))
+        celda(ws, fila, 5, "=" + R.busca(nb, "tblTecnicos", "nombre", "especialidad", '""'))
+        # 6.3 n_ciclo: nº de posiciones del ciclo = rotativos de la MISMA
+        # especialidad y área (soporta una especialidad repartida en varias
+        # áreas: cada área su propio ciclo). 0 para no rotativos (Banco fijo).
+        celda(ws, fila, 6, f'=COUNTIFS({rot_col},"SI",{esp_col},{esp_c},{area_col},{area_c})')
+        # 6.3 posicion_ciclo (auditoría): etiqueta del anillo B(N-3)..B1/T3/T2/T1.
+        # Anillo: pos<banco → "B"&(banco-pos); si no → "T"&(N-pos). banco=N-3.
+        # "" el domingo (fuera de la base L-S) o sin técnico/semana; "B" si no rotativo.
         yy = f"VALUE(LEFT({sm},4))"
         lunes_iso = f'DATE({yy},1,4)-WEEKDAY(DATE({yy},1,4),2)+1+(VALUE(MID({sm},7,2))-1)*7'
-        celda(ws, fila, 8, f'=IF({sm}="","",{lunes_iso}+MATCH({R.this("tblAsignaciones", "dia", fila)},'
-                           f'lista_dias,0)-1)', fmt=FMT_FECHA)
-        tu = R.this("tblAsignaciones", "turno", fila)
-        fe = R.this("tblAsignaciones", "fecha", fila)
-        habil = formula_es_habil(R, fe, R.this("tblAsignaciones", "area", fila), '""')
-        # REGLA-5 v2.4: 0 si turno no disponible/ vacío O el día no es hábil.
-        celda(ws, fila, 9, f'=IF(OR({tu}="",ISNUMBER(MATCH({tu},lista_no_disponible,0)),'
-                           f'({habil})<>"sí"),0,p_horas_jornada)')
-        celda(ws, fila, 10, f'={R.this("tblAsignaciones", "semana", fila)}&"|"&'
-                            f'{R.this("tblAsignaciones", "dia", fila)}&"|"&'
-                            f'{R.this("tblAsignaciones", "tecnico", fila)}')
-        # 6.2: significado horario visible (metadato). Franja del turno desde
-        # CAT_TURNOS; en blanco si el turno es VAC/X o vacío (no está en el
-        # catálogo → el si_no_encontrado devuelve ""). NO alimenta capacidad.
-        celda(ws, fila, 11, "=" + R.busca(tu, "tblTurnos", "turno", "hora_inicio", '""'))
-        celda(ws, fila, 12, "=" + R.busca(tu, "tblTurnos", "turno", "hora_fin", '""'))
+        rot_lu = R.busca(nb, "tblTecnicos", "nombre", "rotativo", '"NO"')
+        ord_lu = R.busca(nb, "tblTecnicos", "nombre", "orden_rotacion", "0")
+        semanas_expr = f'(({lunes_iso})-p_semana_referencia)/7'
+        pos = f'MOD(({ord_lu}-1)+{semanas_expr},{ncell})'
+        banco = f'({ncell}-3)'
+        label = f'IF({pos}<{banco},"B"&({banco}-{pos}),"T"&({ncell}-{pos}))'
+        celda(ws, fila, 7, f'=IF(OR({nb}="",{sm}="",{dia_c}="domingo"),"",'
+                           f'IF({rot_lu}<>"SI","B",{label}))')
+        # 6.3 turno_manual: override de excepción (desplegable = CAT_TURNOS + VAC/X).
+        celda(ws, fila, 8, a["turno_manual"] or None, font=F_EDIT)
+        # 6.3 turno EFECTIVO (derivado): el override manda; si no, la banda del anillo.
+        celda(ws, fila, 9, f'=IF({tmcell}<>"",{tmcell},'
+                           f'IF(LEFT({pccell},1)="B","B",{pccell}))')
+        celda(ws, fila, 10, "=" + R.busca(nb, "tblTecnicos", "nombre", "coordinador", '""'))
+        # fecha real de la celda (para consultar el calendario): lunes ISO + día.
+        celda(ws, fila, 11, f'=IF({sm}="","",{lunes_iso}+MATCH({dia_c},lista_dias,0)-1)',
+              fmt=FMT_FECHA)
+        habil = formula_es_habil(R, fe, area_c, '""')
+        # REGLA-5 v2.4: 0 si turno (efectivo) no disponible/vacío O día no hábil.
+        # SIN CAMBIOS: lee el turno efectivo; la rotación no altera la capacidad.
+        celda(ws, fila, 12, f'=IF(OR({tu}="",ISNUMBER(MATCH({tu},lista_no_disponible,0)),'
+                            f'({habil})<>"sí"),0,p_horas_jornada)')
+        celda(ws, fila, 13, f'={sm}&"|"&{dia_c}&"|"&{nb}')
+        # 6.2: franja horaria del turno efectivo desde CAT_TURNOS (metadato; NO
+        # alimenta capacidad). En blanco si el turno es VAC/X/vacío.
+        celda(ws, fila, 14, "=" + R.busca(tu, "tblTurnos", "turno", "hora_inicio", '""'))
+        celda(ws, fila, 15, "=" + R.busca(tu, "tblTurnos", "turno", "hora_fin", '""'))
     agregar_tabla(ws, A)
     ws.freeze_panes = "A4"
+    # 6.3: el desplegable se MUEVE de turno a turno_manual (H); turno es derivado.
     dv = DataValidation(type="list", formula1="lista_turnos", allow_blank=True)
     ws.add_data_validation(dv)
-    dv.add(f"F{A.fila_ini}:F{A.fila_fin}")
+    dv.add(f"H{A.fila_ini}:H{A.fila_fin}")
     for colw, w in (("A", 9), ("B", 11), ("C", 13), ("D", 13), ("E", 12), ("F", 8),
-                    ("G", 15), ("H", 12), ("I", 16), ("J", 26), ("K", 11), ("L", 11)):
+                    ("G", 14), ("H", 13), ("I", 8), ("J", 15), ("K", 12), ("L", 16),
+                    ("M", 26), ("N", 11), ("O", 11)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------------ AJUSTES
@@ -1836,7 +1942,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     encabezados(ws, 3, ["tecnico", "especialidad", "etiqueta", "hha_seleccion",
                         "dentro_capacidad", "sobreasignacion", "capacidad"], col_ini=16)
     fila_tec0 = 4
-    for i, (_tid, nombre, esp_t, _area) in enumerate(TECNICOS):
+    for i, (_tid, nombre, esp_t, *_) in enumerate(TECNICOS):
         fr = fila_tec0 + i
         celda(ws, fr, 16, nombre)
         celda(ws, fr, 17, esp_t)
@@ -2546,6 +2652,33 @@ def imprimir_resumen(datos, esperado):
     print(f"Serie de semanas con datos: {len(esperado['serie_semanas'])} "
           f"({esperado['serie_semanas'][0]} … {esperado['serie_semanas'][-1]}), "
           f"{len(esperado['semanas_con_datos'])} con órdenes")
+
+    print("\nROTACIÓN DE TURNOS (6.3, anillo B(N-3)…B1 → T3 → T2 → T1; +1 pos/semana):")
+    print(f"  Semana de referencia (lunes): {datos['semana_referencia'].isoformat()}")
+    pos_lunes = {}
+    for a in datos["asignaciones"]:
+        if a["dia"] == "lunes":
+            pos_lunes[(a["especialidad"], a["area"], a["semana"])] = \
+                pos_lunes.get((a["especialidad"], a["area"], a["semana"]), [])
+            pos_lunes[(a["especialidad"], a["area"], a["semana"])].append(
+                (a["tecnico"], a["posicion_ciclo"], a["turno"]))
+    for (esp, area), n in datos["n_por_ciclo"].items():
+        print(f"  Ciclo {esp} · {area} (N={n}) — posicion_ciclo por técnico y semana (lunes):")
+        techs = sorted([t for t in TECNICOS if t[TEC_ESP] == esp and t[TEC_AREA] == area
+                        and t[TEC_ROT] == "SI"], key=lambda x: x[TEC_ORDROT])
+        print("    " + "técnico(orden)".ljust(16) + "".join(s.rjust(10) for s in datos["semanas"]))
+        for t in techs:
+            fila = "".join(
+                next(p for (nb, p, _tu) in pos_lunes[(esp, area, sem)] if nb == t[1]).rjust(10)
+                for sem in datos["semanas"])
+            print("    " + f"{t[1].split()[-1]}(o{t[TEC_ORDROT]})".ljust(16) + fila)
+        for sem in datos["semanas"]:
+            bandas = [tu for (_nb, _p, tu) in pos_lunes[(esp, area, sem)]]
+            c = {b: bandas.count(b) for b in ("B", "T1", "T2", "T3")}
+            ok = c["T1"] == 1 and c["T2"] == 1 and c["T3"] == 1 and c["B"] == n - 3
+            print(f"      cobertura {sem}: B={c['B']} T1={c['T1']} T2={c['T2']} "
+                  f"T3={c['T3']}  {'OK' if ok else 'FALLO'}")
+
     print("\nPERFIL_HH esperado (REGLA-6, solo semanas del plan; el libro genera hasta 60):")
     print(f"{'esp':8}{'semana':10}{'disp':>7}{'prod':>9}{'prev':>7}{'corr':>7}{'plan':>7}{'holgura':>9}{'%carga':>9}")
     for esp in ESPECIALIDADES:
@@ -2585,7 +2718,7 @@ def imprimir_resumen(datos, esperado):
         print(f"  {tramo:>6}: {n} órdenes · {hh:.0f} h")
     sem1 = semanas[1]
     print(f"\nCARGA SEMANAL POR TÉCNICO (gráfico de PLAN_SEMANAL, selector por defecto {sem1}):")
-    for _tid, nombre, esp_t, _area in TECNICOS:
+    for _tid, nombre, esp_t, *_ in TECNICOS:
         c = esperado["carga_tecnicos"][(sem1, nombre)]
         cap = esperado["capacidad_tecnicos"][(sem1, nombre)]
         print(f"  {nombre} ({esp_t}): HHA {c:>5.1f} · capacidad {cap:>6.2f} · "

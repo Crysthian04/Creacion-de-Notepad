@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v2.6.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v2.7.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -24,7 +24,7 @@ están implementadas dos veces y verificadas una contra la otra:
 | `README.md` | Este documento | — |
 
 Ambos libros llevan las mismas 200 órdenes sintéticas ancladas al
-**2026-07-22**, sobre tablas provisionadas para **1.200 filas**, y producen
+**2026-07-23**, sobre tablas provisionadas para **1.200 filas**, y producen
 números idénticos (verificado, ver §1).
 
 ## Cómo regenerarlo
@@ -33,8 +33,8 @@ números idénticos (verificado, ver §1).
 pip install openpyxl
 python generar_mantplan.py                                        # MantPlan.xlsx (principal)
 python generar_mantplan.py --salida MantPlan_compatible.xlsx --refs compatibles
-python generar_mantplan.py --fecha-ancla 2026-07-22               # fija el "hoy" de los datos
-python generar_mantplan.py --resumen                              # imprime los números esperados
+python generar_mantplan.py --fecha-ancla 2026-07-23               # fija el "hoy" de los datos
+python generar_mantplan.py --resumen                              # imprime los números esperados (incl. rotación)
 ```
 
 ## Decisiones técnicas
@@ -44,12 +44,13 @@ python generar_mantplan.py --resumen                              # imprime los 
 - El generador emite el libro en dos modos desde **las mismas plantillas de
   fórmula** (`class Refs`): `estructuradas` (XLOOKUP, entregable principal) y
   `compatibles` (INDEX/MATCH + rangos A1 acotados).
-- La variante compatible se recalculó con LibreOffice: **71.014 fórmulas, 0
+- La variante compatible se recalculó con LibreOffice: **72.814 fórmulas, 0
   errores**.
-- Cada valor recalculado se comparó contra el motor Python: **9.486
-  comparaciones automáticas, 0 desviaciones**, incluidos el calendario laboral
-  (es_habil, backlog_habiles, capacidad por día), los desgloses por sub-área y
-  la reconciliación área = Σ sub-áreas.
+- Cada valor recalculado se comparó contra el motor Python: **11.409
+  comparaciones automáticas, 0 desviaciones**, incluidas la rotación derivada de
+  turnos (cobertura, avance y turno efectivo de las 448 filas de ASIGNACIONES),
+  el calendario laboral (es_habil, backlog_habiles, capacidad por día), los
+  desgloses por sub-área y la reconciliación área = Σ sub-áreas.
 - Caso de reordenamiento (VERIFICACION.md §3.4): un libro con las 200 filas de
   ORDENES invertidas recalcula con los ajustes aplicados a las mismas órdenes.
 - Caso de bloque condicional (VERIFICACION.md §3.5): con una semana sin
@@ -325,14 +326,70 @@ cada turno tiene `nombre`, `hora_inicio`, `hora_fin` y `tipo` (`banco` o
   se traen del turno de la fila por búsqueda en `CAT_TURNOS` (quedan en blanco
   para `VAC`, `X` o turno vacío).
 - La **franja es metadato de horario**: la capacidad **no** se deriva de ella
-  (sigue plana en 8 h por la jornada, REGLA-5); no hay aritmética de solape ni
-  rotación —la rotación/derivación queda fuera de este bloque—. Se verificó que
-  la capacidad es idéntica a la de 6.1.
-- La lista de validación de la columna `turno` (`lista_turnos`) se reapunta a
-  `CAT_TURNOS` (+ `VAC`/`X`), de modo que no hay dos fuentes de la definición;
-  el antiguo rango auxiliar de turnos en `PARAMETROS` se retiró.
-- Convención de códigos: cualquier `B1` de Banco pasa a `B`; el área AUT usa
-  `B`.
+  (sigue plana en 8 h por la jornada, REGLA-5); no hay aritmética de solape. Se
+  verificó que la capacidad es idéntica a la de 6.1.
+- La lista de validación (`lista_turnos`) se reapunta a `CAT_TURNOS`
+  (+ `VAC`/`X`), de modo que no hay dos fuentes de la definición; el antiguo
+  rango auxiliar de turnos en `PARAMETROS` se retiró.
+
+### Rotación automática de turnos (6.3)
+
+El turno ya no es un dato de entrada: se **deriva por aritmética modular** de la
+posición del técnico en el anillo del ciclo. La entrada queda en dos campos de
+`TECNICOS` (`rotativo` sí/no, `orden_rotacion` 1..N) y un parámetro
+(`semana_referencia`, una **fecha**). El usuario normalmente no toca nada.
+
+**El anillo.** Para una especialidad con `N` posiciones (banco = `N-3` puestos de
+Banco), el orden de avance semanal es:
+
+```
+B(N-3), B(N-4), …, B1, T3, T2, T1  → y vuelve a B(N-3)
+(ej. N=7:  B4, B3, B2, B1, T3, T2, T1 → B4)
+```
+
+Avanza **+1 posición por semana**. El relevo `B1→T3` y el cierre `T1→B(N-3)`
+salen solos del avance, sin tratarse aparte.
+
+**La derivación** (por fila de `ASIGNACIONES`, técnico rotativo):
+
+```
+N       = COUNTIFS(TECNICOS: rotativo=sí, especialidad=E, area=A)
+semanas = (lunes de la semana de la fila − semana_referencia) / 7
+pos     = MOD( (orden_rotacion − 1) + semanas , N )
+posicion_ciclo = si pos<N-3 → "B"&(N-3-pos) ; si no → "T"&(N-pos)
+banda   = si pos<N-3 → "B" ; si no → la etiqueta T
+```
+
+Se aplica de **lunes a sábado**; el **domingo** queda sin turno (fuera de la base
+L-S, 6.1). `AUT` (no rotativo) es Banco fijo (`posicion_ciclo="B"`, L-S).
+
+**Alcance por (especialidad, área).** `N` se cuenta con `COUNTIFS` filtrando por
+especialidad **y** área, así una especialidad repartida en varias áreas tiene un
+ciclo por área. El flag `rotativo` es **explícito** por técnico (no se hardcodea
+a MEC/ELE).
+
+**Columnas de `ASIGNACIONES`.**
+- `n_ciclo` y `posicion_ciclo` (derivadas, auditoría): `N` y la etiqueta del
+  anillo (`B4`..`B1`/`T3`/`T2`/`T1`) para rotativos L-S; `""` el domingo; `"B"`
+  para AUT.
+- `turno_manual` (**entrada**, desplegable = `CAT_TURNOS` + `VAC`/`X`, vacío por
+  defecto): override de excepción. El desplegable se movió aquí desde `turno`.
+- `turno` pasa a **derivado (efectivo)**:
+  `=SI(turno_manual<>""; turno_manual; banda_de(posicion_ciclo))`. Es lo que leen
+  REGLA-5 y los lookups de franja (6.2).
+
+**UX.** Normalmente la rotación llena `turno` sola. Para una excepción puntual (o
+`VAC`/`X` hasta que 6.4 lo automatice) se escribe en `turno_manual` y **solo esa
+celda** se sobrescribe; vaciarla devuelve la rotación (verificado, VERIFICACION.md
+§0-d).
+
+**Capacidad sin cambios.** REGLA-5 lee el `turno` efectivo sin tocar su lógica:
+cada técnico rotativo/AUT sigue sumando **48 h/semana** (L-S, domingo 0). La banda
+cambia *qué* turno, no *cuántas* horas.
+
+**Doble implementación.** La derivación existe como función pura
+(`turno_derivado`, con `posicion_ciclo_de` y `etiqueta_anillo`) y como fórmula del
+libro en ambas variantes; coinciden celda a celda (las 448 filas).
 
 ### 10. Higiene de fórmulas
 
@@ -340,20 +397,22 @@ Auditado sobre los archivos finales: sin `OFFSET`, sin `INDIRECT`, sin
 columnas completas (`A:A`), sin enlaces externos, sin VBA, sin nombres
 definidos huérfanos.
 
-## Datos de ejemplo y verificación a mano (ancla 2026-07-22)
+## Datos de ejemplo y verificación a mano (ancla 2026-07-23)
 
-200 órdenes (tablas con capacidad 1.200) · 157 filas de ejecución (3
-huérfanas) · 4 ajustes (2 aplicados + 2 demos de error) · 12 técnicos · 336
-asignaciones · semanas del plan **2026-S29 … 2026-S32** · serie completa de
-reportes: 2026-S08 … 2027-S01.
+200 órdenes (tablas con capacidad 1.200) · 162 filas de ejecución (3
+huérfanas) · 4 ajustes (2 aplicados + 2 demos de error) · **16 técnicos**
+(7 MEC + 7 ELE rotativos en PRODUCCION + 2 AUT fijos) · **448 asignaciones**
+· semanas del plan **2026-S29 … 2026-S32** · semana de referencia de la
+rotación (lunes) **2026-07-13** · serie completa de reportes: 2026-S09 …
+2027-S01.
 
 ### Caso 1 — cruce de fin de año (REGLA-2 v2)
 
 | orden | fecha | semana | anio (YEAR) |
 |---|---|---|---|
-| OT-000182 | 2026-12-29 | **2026-S53** | 2026 |
-| OT-000183 | 2027-01-01 | **2026-S53** | **2027** ← año ISO ≠ YEAR |
-| OT-000184 | 2027-01-05 | **2027-S01** | 2027 |
+| OT-000165 | 2026-12-29 | **2026-S53** | 2026 |
+| OT-000166 | 2027-01-01 | **2026-S53** | **2027** ← año ISO ≠ YEAR |
+| OT-000167 | 2027-01-05 | **2027-S01** | 2027 |
 
 `2026-S53` y `2027-S01` aparecen como semanas distintas en la serie de
 PERFIL_HH/ADHERENCIA (las dos últimas filas visibles), sin mezcla.
@@ -363,75 +422,70 @@ PERFIL_HH/ADHERENCIA (las dos últimas filas visibles), sin mezcla.
 `tblAjustes` trae 4 filas demo: dos aplicadas, un duplicado (se ignora, gana
 la primera) y un huérfano (id `OT-0009990010`, inexistente).
 
-- **OT-000017** (MEC, preventiva, Técnico 01, martes 2026-S30): ajuste por
-  clave `OT-0000170010` con `horas_ajustadas` **12** (estimadas 8) →
+- **OT-000013** (MEC, preventiva, Técnico 01, 2026-S30): ajuste por clave
+  `OT-0000130010` con `horas_ajustadas` **12** (estimadas 8) →
   `horas_efectivas` 12.
-  - PERFIL_HH MEC 2026-S30: prev **84** (80 + 4 del ajuste), carga **68,8 %**.
-  - Gráfico de carga (selector 2026-S30): barra de Técnico 01 = **41** =
-    6+12+10+7 (L-V) + 6 (sábado correctivo) → **dentro de la capacidad
-    semanal 41,76 h** (sin rojo).
-  - HHA del martes = **12**, HHD = 6,96 − 12 = **−5,04** (rojo).
-- **OT-000061** (ELE, preventiva, Técnico 05): 6 → **4** → ELE 2026-S30 prev
-  63, carga 73,5 %.
+  - PERFIL_HH MEC 2026-S30: prev **82** (80 + 4 del ajuste − 2 del reparto),
+    carga **41,4 %**.
+  - Gráfico de carga (selector 2026-S30): barra de Técnico 01 = **32**, dentro
+    de la capacidad semanal **41,76 h** (sin rojo).
+  - HHA del día del ajuste = **12**, HHD = 6,96 − 12 = **−5,04** (rojo por día,
+    aunque la carga semanal no supere la capacidad).
+- **OT-000059** (ELE, preventiva, Técnico 08): 6 → **4** → ELE 2026-S30 prev
+  59, carga 28,4 %.
 - `VALIDACION`: **2** órdenes con ajuste, desviación total **+2 h**,
   **1** huérfano, **2** duplicados en tblAjustes.
-- **Reordenamiento** (VERIFICACION.md §3.4): con las 200 filas de ORDENES
-  invertidas, OT-000017 pasó de la fila 20 a la 187 y OT-000061 de la 64 a
-  la 143, y ambas conservaron sus horas efectivas (12 y 4).
+- **Reordenamiento** (VERIFICACION.md §3.4): el ajuste va por `id_operacion`, no
+  por posición; con las 200 filas de ORDENES invertidas ambas órdenes conservan
+  sus horas efectivas (12 y 4).
 
 ### PERFIL_HH esperado (REGLA-6, semanas del plan)
 
-Cuenta rápida: **MEC 2026-S29 = 4 técnicos × 6 días × 8 h = 192; × 0,87 =
-167,04; 82 prev + 20 corr = 102; carga 61,1 % → verde.**
+Cuenta rápida: **MEC 2026-S29 = 7 técnicos × 6 días × 8 h = 336; × 0,87 =
+292,32; 82 prev + 20 corr = 102; carga 34,9 % → verde.**
 
-Con la jornada de 8 h y la base semanal de 48 h (L-S, 6.1) la capacidad
-disponible subió respecto de la base anterior de 7 h × 5 días, así que el
-plan de muestra ahora cabe con holgura: ninguna especialidad queda en rojo.
-Los números de S30/S31 siguen reflejando el calendario laboral (v2.4): en
-2026-S31 el feriado del miércoles reduce la capacidad de todas las
-especialidades (MEC de 192 a 120 h), y las órdenes de fin de semana sumaron
-horas correctivas en 2026-S30.
+Con la dotación de 7 rotativos por especialidad (6.3) y la base de 48 h (L-S,
+6.1), la capacidad disponible es amplia y el plan de muestra cabe con holgura:
+ninguna especialidad queda en amarillo ni rojo. En **2026-S31** el feriado
+general del miércoles reduce la capacidad (MEC de 336 a **280 h** = 7 × 5 × 8),
+y las órdenes de fin de semana suman correctivas en 2026-S30.
 
 | esp | semana | disp | prod | prev | corr | plan | holgura | % carga |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| MEC | 2026-S29 | 192 | 167,04 | 82 | 20 | 102 | 65,04 | 61,1 % 🟢 |
-| MEC | 2026-S30 | 192 | 167,04 | 84 | 31 | 115 | 52,04 | 68,8 % 🟢 |
-| MEC | 2026-S31 | 120 | 104,40 | 80 | 20 | 100 | 4,40 | 95,8 % 🟡 |
-| MEC | 2026-S32 | 192 | 167,04 | 72 | 14 | 86 | 81,04 | 51,5 % 🟢 |
-| ELE | 2026-S29 | 144 | 125,28 | 60 | 15 | 75 | 50,28 | 59,9 % 🟢 |
-| ELE | 2026-S30 | 136 | 118,32 | 63 | 24 | 87 | 31,32 | 73,5 % 🟢 |
-| ELE | 2026-S31 | 120 | 104,40 | 60 | 10 | 70 | 34,40 | 67,0 % 🟢 |
-| ELE | 2026-S32 | 144 | 125,28 | 52 | 10 | 62 | 63,28 | 49,5 % 🟢 |
+| MEC | 2026-S29 | 336 | 292,32 | 82 | 20 | 102 | 190,32 | 34,9 % 🟢 |
+| MEC | 2026-S30 | 336 | 292,32 | 82 | 39 | 121 | 171,32 | 41,4 % 🟢 |
+| MEC | 2026-S31 | 280 | 243,60 | 80 | 20 | 100 | 143,60 | 41,1 % 🟢 |
+| MEC | 2026-S32 | 336 | 292,32 | 72 | 14 | 86 | 206,32 | 29,4 % 🟢 |
+| ELE | 2026-S29 | 336 | 292,32 | 60 | 15 | 75 | 217,32 | 25,7 % 🟢 |
+| ELE | 2026-S30 | 336 | 292,32 | 59 | 24 | 83 | 209,32 | 28,4 % 🟢 |
+| ELE | 2026-S31 | 280 | 243,60 | 60 | 10 | 70 | 173,60 | 28,7 % 🟢 |
+| ELE | 2026-S32 | 336 | 292,32 | 52 | 10 | 62 | 230,32 | 21,2 % 🟢 |
 | AUT | 2026-S29 | 96 | 83,52 | 40 | 10 | 50 | 33,52 | 59,9 % 🟢 |
 | AUT | 2026-S30 | 96 | 83,52 | 45 | 10 | 55 | 28,52 | 65,9 % 🟢 |
 | AUT | 2026-S31 | 80 | 69,60 | 35 | 7 | 42 | 27,60 | 60,3 % 🟢 |
 | AUT | 2026-S32 | 96 | 83,52 | 30 | 6 | 36 | 47,52 | 43,1 % 🟢 |
-| OP | 2026-S29 | 144 | 125,28 | 30 | 8 | 38 | 87,28 | 30,3 % 🟢 |
-| OP | 2026-S30 | 144 | 125,28 | 36 | 17 | 53 | 72,28 | 42,3 % 🟢 |
-| OP | 2026-S31 | 128 | 111,36 | 34 | 9 | 43 | 68,36 | 38,6 % 🟢 |
-| OP | 2026-S32 | 144 | 125,28 | 24 | 6 | 30 | 95,28 | 23,9 % 🟢 |
 | TERCERO | 2026-S30 | 0 | 0 | 16 | 0 | 16 | −16,00 | — |
 | TERCERO | 2026-S31 | 0 | 0 | 12 | 0 | 12 | −12,00 | — |
 
-Casos preparados: TEC-04 de vacaciones toda 2026-S31 · feriado el miércoles de
-2026-S31 (MEC de 192 a **120 h**) · domingo laborable de SERVICIOS en 2026-S31
-(OP recupera 8 h vía TEC-12 → 128 h) · TEC-07 ausente el viernes de 2026-S30
-(`X`, ELE 136 h) · TERCERO sin capacidad interna (% carga vacío).
+`AUT` (2 técnicos de Banco fijo) sigue con la carga más alta relativa (una
+dotación pequeña), pero dentro de capacidad. `TERCERO` es trabajo contratado
+sin capacidad interna (% carga vacío). Casos preparados: feriado general el
+miércoles de 2026-S31 (todas las especialidades caen) · rotación con cobertura
+completa cada semana (ver §Rotación arriba y la sección ROTACIÓN de `--resumen`).
 
 ### ADHERENCIA esperada (REGLA-7, solo días hábiles)
 
-2026-S29: 30/34 = 88,2 % (HH 229/265 = 86,4 %) · 2026-S30: 19/38 = 50,0 %
-(HH 163/310 = 52,6 %) · 2026-S31 y S32: 0 %. Los conteos excluyen las órdenes
-en día no laborable (se reportan en VALIDACION); con el sábado hábil (6.1) el
-denominador de S30 incluye más OT que antes.
+2026-S29: 26/29 = 89,7 % (HH 197/227 = 86,8 %) · 2026-S30: 16/32 = 50,0 %
+(HH 134/259 = 51,7 %) · 2026-S31 y S32: 0 %. Los conteos excluyen las órdenes
+en día no laborable (se reportan en VALIDACION); el sábado es hábil (6.1).
 
 ### REGLA-9 esperada (meta: correctivo ≤ 20 %)
 
-2026-S29: 0,25 (20,0 % → SI) · 2026-S30: 0,34 (25,2 % → NO, subió por las
-correctivas de fin de semana) · 2026-S31: 0,21 (17,2 % → SI) · 2026-S32: 0,20
-(16,8 % → SI).
+2026-S29: 0,25 (19,8 % → SI) · 2026-S30: 0,36 (26,5 % → NO, subió por las
+correctivas de fin de semana) · 2026-S31: 0,20 (16,5 % → SI) · 2026-S32: 0,19
+(16,3 % → SI).
 
-### BACKLOG esperado (pendientes por tramo, al 2026-07-22)
+### BACKLOG esperado (pendientes por tramo, al 2026-07-23)
 
 Envejecimiento en días **calendario** (`backlog_dias`, contractual): el tramo
 0–30 depende del día de apertura (`HOY()`). REGLA-3/REGLA-4 usan en cambio los
@@ -449,7 +503,7 @@ días **hábiles** (`backlog_habiles`).
 | Actividad fuera de catálogo | 1 |
 | Tipo de OT fuera de catálogo (`sin_clasificar`) | 2 |
 | EJECUCION sin par en ORDENES | 3 |
-| ORDENES sin par en EJECUCION (quedan `Pendiente`) | 45 |
+| ORDENES sin par en EJECUCION (quedan `Pendiente`) | 40 |
 | Órdenes con ajuste manual de horas (tblAjustes) | 2 |
 | Desviación total de horas (ajustadas − ERP) | +2 |
 | **Ajustes huérfanos (id no existe en ORDENES)** | **1** |
@@ -457,15 +511,14 @@ días **hábiles** (`backlog_habiles`).
 
 ### Carga por técnico (gráfico, selector 2026-S30)
 
-Técnico 01: **41** (dentro de la capacidad semanal 41,76 h; incluye el ajuste
-+4 h y la orden del sábado) · 02: 22 · 03: 26 · 04: 18 · 05: 24 · 06: **40** ·
-07: 15 (capacidad 34,80 por ausencia "X") · 08: 27 · 09: 18 · 10: 20 · 11: 10 ·
-12: 15. Con la base de 48 h/semana (6,96 h/día × 6 días = 41,76 h) **ningún
-técnico supera su capacidad semanal**, así que ninguna barra tiene tramo rojo.
-Conflicto demo: **OT-000026** asignada a Técnico 04 en su semana de
-vacaciones (2026-S31, turno "VAC") → HHA 10, **HHD −10,00** (la disponibilidad
-diaria del turno VAC es 0, así que el rojo de HHD persiste aunque la carga
-semanal no supere la capacidad).
+Capacidad semanal de cada técnico = 6,96 h/día × 6 días = **41,76 h** (48 h ×
+0,87). HHA de la semana: Técnico 01 **32** (incluye el ajuste +4 h y la orden
+del sábado) · 02: 20 · 03: 8 · 04: 13 · 05: 10 · 06: 8 · 07: 14 (MEC) · 08: 10 ·
+09: 10 · 10: 11 · 11: 10 · 12: 16 · 13: 10 · 14: 8 (ELE) · 15: 27 · 16: 18
+(AUT). **Ningún técnico supera su capacidad**, así que ninguna barra tiene tramo
+rojo. El detalle diario de HHD sí puede quedar en rojo (p. ej. Técnico 01 el
+día del ajuste: HHA 12, HHD 6,96 − 12 = **−5,04**): la capacidad es semanal, el
+HHD es por día.
 
 ### Correo generado por EXPORTAR (filtro por defecto: semana 2026-S30)
 
@@ -476,22 +529,24 @@ Buenos días.
 A continuación el programa de mantenimiento de Planta Ejemplo — Empresa Ejemplo S.A. para la semana 2026-S30, del 20/07/2026 al 26/07/2026.
 
 Resumen de carga:
-• Órdenes programadas: 40
-• HH planificadas: 326 h
-• Preventiva: 244 h (75%)
-• Correctiva: 82 h (25%)
-• Técnicos involucrados: 12
+• Órdenes programadas: 34
+• HH planificadas: 275 h
+• Preventiva: 202 h (73%)
+• Correctiva: 73 h (27%)
+• Técnicos involucrados: 16
 
 Tareas relevantes (top 5 por horas):
-   • EQ-102 — Lubricación programada en EQ-102 · 10 h · Técnico 04
-   • EQ-108 — Análisis predictivo en EQ-108 · 10 h · Técnico 06
-   • EQ-106 — Reparación de falla en EQ-106 · 10 h · Técnico 06 · permiso de trabajo · bloqueo de energía (LOTO)
+   • EQ-102 — Lubricación programada en EQ-102 · 10 h · Técnico 02
+   • EQ-108 — Análisis predictivo en EQ-108 · 10 h · Técnico 13
+   • EQ-106 — Reparación de falla en EQ-106 · 10 h · Técnico 12 · permiso de trabajo · bloqueo de energía (LOTO)
    … 
 
 Programa completo:
 
 Lunes:
-   T1 · Técnico 01 · OT-0000210010 — Inspección de rutina en EQ-110 (6 h)
+   B · Técnico 02 · OT-0000160010 — Lubricación programada en EQ-102 (10 h)
+   B · Técnico 07 · OT-0000210010 — Inspección de rutina en EQ-110 (6 h)
+   T2 · Técnico 12 · OT-0000610010 — Lubricación programada en EQ-102 (6 h)
    …
 Sábado:
    … (orden correctiva de fin de semana) …
@@ -501,13 +556,15 @@ Domingo:
 Cualquier ajuste, favor comunicarlo antes del inicio del turno.
 ```
 
-Números verificables a mano: **40** órdenes programadas (incluye 3 de fin de
-semana → el programa ahora recorre los 7 días), **326 h** = 244 preventiva
-(75 %) + 82 correctiva (25 %). Con la capacidad semanal en **41,76 h** (jornada
-8 h × base 48 h L-S, 6.1) ningún técnico queda sobreasignado en 2026-S30
-—Técnico 01 con 41 h y Técnico 06 con 40 h quedan por debajo—, así que el
-**bloque de alerta condicional no aparece** en el correo; se sigue verificando
-que desaparece limpio, sin encabezado ni línea en blanco huérfana
+El turno que muestra cada línea del programa (`B`, `T2`, …) es el **turno
+efectivo derivado de la rotación** (6.3), no un dato tecleado.
+
+Números verificables a mano: **34** órdenes programadas (incluye 3 de fin de
+semana → el programa recorre los 7 días), **275 h** = 202 preventiva (73 %) +
+73 correctiva (27 %). Con la capacidad semanal en **41,76 h** ningún técnico
+queda sobreasignado en 2026-S30, así que el **bloque de alerta condicional no
+aparece** en el correo; se sigue verificando que desaparece limpio, sin
+encabezado ni línea en blanco huérfana
 (VERIFICACION.md §3.5).
 
 ### Calendario laboral: casos verificables a mano (v2.4)
@@ -519,14 +576,14 @@ SERVICIOS (2026-08-02), paro de la sub-área Vapor el jueves de 2026-S30
 
 | Caso | Resultado |
 |---|---|
-| **Feriado general** (mié 2026-07-29) | `horas_disponibles = 0` para TEC-01, TEC-05, TEC-12 (todas las áreas). PERFIL_HH **MEC 2026-S31 cae de 192 a 120 h** disponibles (3 técnicos activos × 5 días × 8). |
-| **Domingo laborable SERVICIOS** (2026-08-02) | TEC-12 (SERVICIOS) = **8 h**; TEC-01 (PRODUCCION) = **0**. La excepción por área da capacidad solo a SERVICIOS. |
+| **Feriado general** (mié 2026-07-29) | `horas_disponibles = 0` el miércoles para todos los técnicos activos. PERFIL_HH **MEC 2026-S31 cae de 336 a 280 h** disponibles (7 técnicos × 5 días × 8). La rotación no altera este efecto (solo cambia qué turno). |
+| **Excepción por área** (dom 2026-08-02) | `es_habil(SERVICIOS)` = **sí**, `es_habil(PRODUCCION)` = **no**. La excepción por área da capacidad solo a SERVICIOS. |
 | **Paro sub-área Vapor** (jue 2026-07-23) | `es_habil` = **no** para órdenes de Vapor; **sí** para PRODUCCION, EMPAQUE y Refrigeración. La excepción por sub-área no afecta a las demás sub-áreas. |
-| **Orden que cruza fines de semana** (OT-000138, 2026-06-07) | `backlog_dias` = **45**, `backlog_habiles` = **37**, diferencia **8** días no hábiles en medio (solo domingos, con el sábado hábil de 6.1). |
-| **VALIDACION** | 21 órdenes en día no laborable · 1 excepción con área desconocida · 1 con sub-área desconocida. |
+| **Orden que cruza fines de semana** (2026-06-08) | `backlog_dias` = **45**, `backlog_habiles` = **38**, diferencia **7** domingos no hábiles en medio (el sábado es hábil, 6.1). |
+| **VALIDACION** | 11 órdenes en día no laborable · 1 excepción con área desconocida · 1 con sub-área desconocida. |
 
 Los totales por área siguen cuadrando: la reconciliación COSTOS área = Σ
-sub-áreas se mantiene (verificada dentro de las 9.486 comparaciones).
+sub-áreas se mantiene (verificada dentro de las 11.409 comparaciones).
 
 ### Sub-áreas: agrupamiento con herencia (COSTOS real, USD)
 
@@ -534,16 +591,16 @@ Jerarquía de muestra y `costo_total` real por sub-área (suma de sus CECOs):
 
 | área | sub-área | CECOs | costo_total |
 |---|---|---|---:|
-| PRODUCCION | *PRODUCCION* (heredado) | CC-110, CC-120 | 13.185 |
-| EMPAQUE | *EMPAQUE* (heredado) | CC-210, CC-220 | 10.385 |
-| SERVICIOS | Vapor | CC-310 + CC-311 | **5.820** |
-| SERVICIOS | Refrigeración | CC-320 + CC-321 | 3.280 |
+| PRODUCCION | *PRODUCCION* (heredado) | CC-110, CC-120 | 12.025 |
+| EMPAQUE | *EMPAQUE* (heredado) | CC-210, CC-220 | 10.975 |
+| SERVICIOS | Vapor | CC-310 + CC-311 | **6.020** |
+| SERVICIOS | Refrigeración | CC-320 + CC-321 | 2.050 |
 | SERVICIOS | CO2 | CC-330 | 200 |
 | SERVICIOS | Aire comprimido | CC-340 | 160 |
 
-Números verificables a mano: **Vapor = CC-310 (4.280) + CC-311 (1.540) =
-5.820** en una sola fila con el nombre de proceso. **SERVICIOS = 5.820 + 3.280
-+ 200 + 160 = 9.460**, que es exactamente el total del área SERVICIOS
+Números verificables a mano: **Vapor = CC-310 (4.480) + CC-311 (1.540) =
+6.020** en una sola fila con el nombre de proceso. **SERVICIOS = 6.020 + 2.050
++ 200 + 160 = 8.430**, que es exactamente el total del área SERVICIOS
 (reconciliación). PRODUCCION y EMPAQUE, sin sub-área, reportan bajo el **nombre
 de su área**, no bajo `CC-110`/`CC-210`.
 
@@ -552,7 +609,7 @@ de su área**, no bajo `CC-110`/`CC-210`.
 Costos: `costo_plan` = horas **estimadas** × 25 (prev) / × 40 (corr) — el
 costo plan es del ERP y no se recalcula con el ajuste manual; `precio` = 40 %
 del plan (REGLA-8 → materiales 60 %); dos órdenes históricas con `precio >
-plan` (materiales 0). Equipo de mayor gasto: EQ-110 (5.810 USD).
+plan` (materiales 0). Equipo de mayor gasto: EQ-110 (4.430 USD).
 
 ## Estructura del libro (24 hojas)
 
@@ -560,9 +617,11 @@ plan` (materiales 0). Equipo de mayor gasto: EQ-110 (5.810 USD).
 `2_IMPORTAR_EJECUCION` (`tblEjecucion`, 1.200 filas) · `ORDENES`
 (`tblOrdenes`, 1.200 filas × 42 columnas: 12 importadas A:L, 5 editables en
 azul, 26 calculadas incl. `es_habil` y `backlog_habiles`; `id_operacion` al
-final) · `TECNICOS` · `ASIGNACIONES` (con `fecha`, REGLA-5 sobre el
-calendario y la franja horaria del turno `hora_inicio`/`hora_fin` traída de
-`CAT_TURNOS`) · `AJUSTES` (`tblAjustes`, 300 filas) · `CALENDARIO` (patrón
+final) · `TECNICOS` (con `rotativo` y `orden_rotacion` para la rotación) ·
+`ASIGNACIONES` (448 filas; rotación derivada `n_ciclo`/`posicion_ciclo`/
+`turno_manual`/`turno` efectivo, `fecha`, REGLA-5 sobre el calendario y la
+franja horaria `hora_inicio`/`hora_fin` desde `CAT_TURNOS`) · `AJUSTES`
+(`tblAjustes`, 300 filas) · `CALENDARIO` (patrón
 semanal + `tblExcepciones` 200 filas + grid de 760 días) · `PERFIL_HH` (serie
 dinámica de 60 semanas + matriz semáforo + REGLA-9) · `PLAN_SEMANAL` (7
 selectores + gráfico de carga + grilla 1.200) · `ADHERENCIA` (bloque semanal
