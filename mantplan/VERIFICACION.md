@@ -1,11 +1,68 @@
-# VERIFICACION.md — MantPlan v2.7.0
+# VERIFICACION.md — MantPlan v2.8.0
 
-Reporte de verificación del entregable A. Esta versión añade el bloque **6.3
-— rotación automática derivada por especialidad** sobre 6.2 (CAT_TURNOS), 6.1
-(jornada 8 h / base 48 h), v2.4 (calendario), v2.3 (sub_area), v2.2 (EXPORTAR),
-v2.1 y v2.0. Fecha de la corrida: **2026-07-23** (ancla de los datos sintéticos).
+Reporte de verificación del entregable A. Esta versión añade el bloque **6.4
+— vacaciones que arrastran (VAC automático, posición vacía)** sobre 6.3
+(rotación), 6.2 (CAT_TURNOS), 6.1 (jornada 8 h / base 48 h), v2.4 (calendario),
+v2.3 (sub_area), v2.2 (EXPORTAR), v2.1 y v2.0. Fecha de la corrida: **2026-07-23**
+(ancla de los datos sintéticos).
 
-## 0. Cambio 6.3 — rotación automática derivada por especialidad
+## 0. Cambio 6.4 — vacaciones que arrastran (VAC automático, posición vacía)
+
+El plan de vacaciones marca **VAC automáticamente** en ASIGNACIONES y saca al
+técnico de la rotación esas semanas, dejando su **posición VACÍA** (hueco
+visible). No se cierra ninguna fila ni se recalcula N: **la rotación de los demás
+no se toca** (se preserva la derivación cerrada de 6.3). Modelo A: cubrir un
+turno vacío es acción **manual** del supervisor vía `turno_manual`. Verificado
+sobre el libro recalculado, ancla 2026-07-23. Demo: **Técnico 05** (MEC, orden 5)
+de vacaciones ~4 semanas (dos periodos), que solapan S30 (estaría en T2), S31
+(T1) y S32 (Banco):
+
+- **Ambas variantes se generan sin excepción** (`--refs estructuradas` y
+  `--refs compatibles`).
+- **(a) Filas del técnico de VAC**: dentro del rango, `turno` = **"VAC"**,
+  `horas_disponibles` = **0** (REGLA-5, VAC está en `codigos_no_disponible`) y
+  `posicion_ciclo` sigue mostrando la **posición derivada** (T2/T1/B4). Verificado
+  celda a celda: Técnico 05 en 2026-S30 lunes → posición T2, en_vacaciones sí,
+  turno VAC, 0 h.
+- **(b) COBERTURA**: por **posición derivada** cada semana sigue 1 T1 / 1 T2 / 1
+  T3 / N-3 Banco (rotación intacta); el **hueco** (turno efectivo VAC) aparece
+  EXACTAMENTE en la posición del técnico de VAC —S30→T2, S31→T1, S32→Banco— y en
+  **ninguna otra**. El ciclo ELE (sin VAC) mantiene turnos llenos las 4 semanas.
+- **(c) Rotación de los demás idéntica a 6.3**: en toda fila sin VAC ni override,
+  el `turno` efectivo recalculado iguala a `turno_derivado` (la banda de 6.3); y
+  `posicion_ciclo` iguala a `posicion_ciclo_de` en las 448 filas (las posiciones
+  no se desplazan).
+- **(d) PRECEDENCIA (manual > VAC)**: fijar `turno_manual` = "T1" en una celda VAC
+  (Técnico 05, S30, martes) la sobrescribe → `turno` = **T1**, franja 06:00–15:00,
+  capacidad **8 h**; `en_vacaciones` (el plan) no cambia. Al **vaciar**
+  `turno_manual`, vuelve **"VAC"**. **VAC nunca aparece en domingo** (la posición
+  vacía del domingo gana antes que VAC): Técnico 05 el domingo de S30 tiene
+  `en_vacaciones` = sí pero `turno` = "". Recalculado con LibreOffice en cada paso.
+- **(e) CAPACIDAD**: cada técnico **sin** VAC sigue en **48 h/semana** (16/16
+  comprobados en S30 dan 48 h salvo Técnico 05, que da **0 h** por estar de VAC
+  toda la semana). La capacidad de MEC baja en consecuencia (S30 de 336 a 288 h),
+  sin tocar REGLA-5.
+- **(f) Recálculo y comparación**: **73.262 fórmulas, 0 errores**; comparación
+  celda a celda motor Python ↔ Excel **12.350 comparaciones, 0 desviaciones**
+  (incluye la columna `en_vacaciones`, `PLAN_VACACIONES`, y las comprobaciones
+  directas de cobertura/hueco-VAC/avance/capacidad sobre el libro recalculado).
+
+**Inputs/columnas nuevos.** Hoja `PLAN_VACACIONES` (`tblVacaciones`: tecnico,
+fecha_inicio, fecha_fin, motivo; varias filas por técnico; `tecnico` validado
+contra `lista_tecnicos`). Columna derivada `en_vacaciones` en ASIGNACIONES
+(COUNTIFS tecnico + inicio<=fecha + fin>=fecha > 0). `turno` efectivo con
+precedencia manual > (domingo) > VAC > rotación. Doble implementación
+(`en_vacaciones_de` / `turno_efectivo` en Python + fórmula), coincide celda a celda.
+
+**Qué NO verifiqué / supuestos.** (i) No recalculé el principal `MantPlan.xlsx`
+(XLOOKUP); corrección heredada del modo compatible. (ii) Modelo A: la cobertura
+de un hueco es manual (no hay reemplazo automático — sería otro bloque). (iii)
+6.5 (domingo 22:00 / superávit) y 6.6 (coordinador auto) NO se implementaron.
+(iv) El recálculo independiente lo corre el usuario.
+
+---
+
+## 0-bis. Cambio 6.3 — rotación automática derivada por especialidad
 
 El turno pasa de ser un dato a **derivarse por aritmética modular** de la
 posición del técnico en el anillo del ciclo. Anillo (orden de avance semanal,
@@ -70,7 +127,7 @@ el usuario.
 
 ---
 
-## 0-bis. Cambio 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
+## 0-ter. Cambio 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
 
 Los turnos pasan de etiquetas sueltas a un catálogo con banda horaria. **La
 franja es metadato de horario; la capacidad NO se deriva de ella** (REGLA-5
@@ -114,7 +171,7 @@ independiente lo corre el usuario.
 
 ---
 
-## 0-ter. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
+## 0-quater. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
 
 Cambio de parámetro + patrón, sin tocar el modelo de turnos ni la rotación
 (eso es 6.3) ni ninguna otra hoja/regla. Verificado sobre el libro
@@ -171,7 +228,7 @@ estructuradas) se recalculó por completo con LibreOffice Calc 24.2:
 
 | Métrica | Valor |
 |---|---:|
-| Fórmulas recalculadas | **72.814** |
+| Fórmulas recalculadas | **73.262** |
 | Errores de fórmula (`#REF!`, `#VALUE!`, `#NAME?`, `#DIV/0!`, `#N/A`, …) | **0** |
 
 ## 2. Comparación motor Python ↔ Excel recalculado
@@ -181,15 +238,16 @@ Cada valor del libro recalculado se comparó contra el motor Python
 
 | Métrica | Valor |
 |---|---:|
-| Comparaciones automáticas | **11.409** |
+| Comparaciones automáticas | **12.350** |
 | Desviaciones | **0** |
 
 Cobertura: las 24 columnas calculadas de las 200 órdenes (incluidas es_habil y backlog_habiles, y
 `horas_efectivas` resuelta por búsqueda en `tblAjustes`); muestreo de filas
 provisionadas vacías (250, 700, 1.203) en blanco; `id_operacion` de las
 filas de EJECUCION; las **448 filas de ASIGNACIONES** (rotación derivada
-`n_ciclo`/`posicion_ciclo`/`turno_manual`/`turno`, fecha, REGLA-5 y franja
-horaria) + las 38 comprobaciones directas de cobertura/avance/capacidad (6.3);
+`n_ciclo`/`posicion_ciclo`, `en_vacaciones`, `turno_manual`/`turno`, fecha,
+REGLA-5 y franja horaria) + las comprobaciones directas de cobertura/hueco-VAC/
+avance/capacidad sobre el libro recalculado (6.3/6.4); `PLAN_VACACIONES`;
 la hoja AJUSTES (descripcion,
 estado_ajuste y desviacion_h de las 4 filas demo + fila vacía); PERFIL_HH
 completo (serie de 60 posiciones, REGLA-6 por semana × especialidad,
@@ -234,8 +292,8 @@ total **+2 h**, huérfanos **1**, duplicados en tblAjustes **2**.
 
 ### 3.3 Recálculo de la variante compatible
 
-**0 errores en 72.814 fórmulas** (§1), mismos números que el motor Python en
-las 11.409 comparaciones (§2).
+**0 errores en 73.262 fórmulas** (§1), mismos números que el motor Python en
+las 12.350 comparaciones (§2).
 
 ### 3.4 Reordenamiento deliberado de `tblOrdenes`
 
@@ -294,7 +352,7 @@ recalculado (matriz REAL por sub-área de COSTOS):
   matriz por sub-área coincide con el de la matriz por área.
 
 Todos los desgloses por sub-área (ADHERENCIA, COSTOS, BACKLOG) se
-compararon celda a celda contra el motor Python dentro de las 11.409
+compararon celda a celda contra el motor Python dentro de las 12.350
 comparaciones, con 0 desviaciones. La dimensión no toca ninguna de las 10
 reglas del motor.
 
@@ -321,7 +379,7 @@ catálogo. Verificado sobre el libro recalculado:
 - **VALIDACION**: 11 órdenes en día no laborable, 1 excepción con área
   desconocida (ZONA-X), 1 con sub-área desconocida (Nitrógeno).
 - **Reconciliación**: los totales por área de COSTOS siguen cuadrando con la
-  suma de sus sub-áreas tras el cambio (dentro de las 11.409 comparaciones).
+  suma de sus sub-áreas tras el cambio (dentro de las 12.350 comparaciones).
 
 Las 448 filas de REGLA-5 (con el turno derivado de la rotación, la fecha de
 semana+día y el calendario) y las 26 columnas calculadas de las 200 órdenes

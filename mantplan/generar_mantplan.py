@@ -44,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.7.0"
+VERSION = "2.8.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -392,9 +392,35 @@ def banda_de(posicion):
 
 
 def turno_derivado(turno_manual, posicion):
-    """Turno efectivo: el override manual (excepción/VAC/X) manda; si está vacío,
-    la banda que dicta la rotación."""
+    """Turno de rotación 6.3 (sin vacaciones): el override manual manda; si no,
+    la banda del anillo. Se conserva para verificar que 6.4 no mueve la rotación."""
     return turno_manual if turno_manual else banda_de(posicion)
+
+
+# ── Vacaciones que arrastran (6.4) ─────────────────────────────────────────
+# El plan de vacaciones marca VAC automáticamente y saca al técnico de la
+# rotación esas semanas, dejando su POSICIÓN VACÍA (hueco visible). No se cierra
+# ninguna fila ni se recalcula N: la derivación cerrada de 6.3 no se toca.
+def en_vacaciones_de(tecnico, fecha, plan_vacaciones):
+    """True si la fecha cae dentro de algún periodo [inicio, fin] de ese técnico
+    (soporta varios periodos por técnico). Espejo del COUNTIFS del libro."""
+    return any(v["tecnico"] == tecnico and v["fecha_inicio"] <= fecha <= v["fecha_fin"]
+               for v in plan_vacaciones)
+
+
+def turno_efectivo(turno_manual, posicion, en_vacaciones):
+    """Turno efectivo (6.4) por precedencia:
+      1) turno_manual <> ""     → turno_manual   (manual manda siempre)
+      2) sin posición de ciclo  → ""             (domingo/sin turno; VAC no aplica)
+      3) en_vacaciones          → "VAC"          (arrastra, solo L-S)
+      4) si no                  → banda del anillo (rotación de 6.3)."""
+    if turno_manual:
+        return turno_manual
+    if not posicion:
+        return ""
+    if en_vacaciones:
+        return "VAC"
+    return banda_de(posicion)
 
 
 def regla_6_perfil_hh(hh_disponible, hh_preventiva, hh_correctiva, factor=FACTOR_PRODUCTIVIDAD):
@@ -513,23 +539,37 @@ def generar_datos(hoy):
             n_por_ciclo[(t[TEC_ESP], t[TEC_AREA])] = \
                 n_por_ciclo.get((t[TEC_ESP], t[TEC_AREA]), 0) + 1
 
+    # 6.4: plan de vacaciones. Demo: un técnico MEC (Técnico 05) ~4 semanas que
+    # SOLAPAN semanas en las que estaría en turno (S30→T2, S31→T1) → hueco de
+    # cobertura visible en un turno; en S32 estaría en Banco (hueco en banco).
+    # Dos periodos (varias filas por técnico) para ejercitar el COUNTIFS.
+    plan_vacaciones = [
+        {"tecnico": "Técnico 05", "fecha_inicio": lunes_sem[1],
+         "fecha_fin": lunes_sem[3] + timedelta(days=13), "motivo": "Vacaciones anuales"},
+        {"tecnico": "Técnico 05", "fecha_inicio": lunes_sem[3] + timedelta(days=35),
+         "fecha_fin": lunes_sem[3] + timedelta(days=41), "motivo": "Permiso"},
+    ]
+
     # --- ASIGNACIONES: 4 semanas × 16 técnicos × 7 días = 448 filas -------
-    # El turno se DERIVA de la rotación (6.3): posicion_ciclo por (esp, área) y
-    # semana; el domingo queda fuera de la base (L-S). Sin overrides en el
-    # sintético (turno_manual vacío) → cobertura limpia cada semana.
+    # El turno se DERIVA de la rotación (6.3) y, si el técnico está de VAC en esa
+    # fecha (6.4), arrastra a "VAC" dejando su posición vacía (hueco). La rotación
+    # de los DEMÁS no se toca. Sin overrides manuales en el sintético.
     asignaciones = []
     for si, sem in enumerate(semanas):
         semanas_desde = (lunes_sem[si] - semana_referencia).days // 7
         for tid, nombre, esp, area, rot, ordrot in TECNICOS:
             n = n_por_ciclo.get((esp, area), 0)
             for di, dia in enumerate(DIAS):
+                fecha = lunes_sem[si] + timedelta(days=di)
                 pc = posicion_ciclo_de(rot == "SI", ordrot or 0, n,
                                        semanas_desde, di == 6)
-                turno_manual = ""            # sin excepciones en el sintético
-                turno = turno_derivado(turno_manual, pc)
+                en_vac = en_vacaciones_de(nombre, fecha, plan_vacaciones)
+                turno_manual = ""            # sin excepciones manuales en el sintético
+                turno = turno_efectivo(turno_manual, pc, en_vac)
                 asignaciones.append({"semana": sem, "dia": dia, "tecnico": nombre,
                                      "area": area, "especialidad": esp,
                                      "n_ciclo": n, "posicion_ciclo": pc,
+                                     "en_vacaciones": "sí" if en_vac else "no",
                                      "turno_manual": turno_manual, "turno": turno})
 
     # --- ORDENES ----------------------------------------------------------
@@ -693,6 +733,14 @@ def generar_datos(hoy):
         k += 1
     assert len(ordenes) == 200, f"se generaron {len(ordenes)} órdenes, no 200"
 
+    # 6.4: una orden planificada para un técnico que ESE día está de vacaciones
+    # se queda sin técnico (el supervisor la reasignará): así el técnico de VAC
+    # no aparece sobreasignado (0 h de capacidad) y el hueco es solo de cobertura.
+    for o in ordenes:
+        if o["tecnico_asignado"] and o["fecha_inicio"] \
+                and en_vacaciones_de(o["tecnico_asignado"], o["fecha_inicio"], plan_vacaciones):
+            o["tecnico_asignado"] = ""
+
     for o in ordenes:
         o["id_operacion"] = o["orden"] + (o["operacion"] or "0010")
 
@@ -764,6 +812,7 @@ def generar_datos(hoy):
 
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
             "semana_referencia": semana_referencia, "n_por_ciclo": n_por_ciclo,
+            "plan_vacaciones": plan_vacaciones,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
             "ajustes": ajustes, "excepciones": excepciones, "edge_regla8": edge_regla8}
 
@@ -1116,10 +1165,15 @@ CAMPOS_EJECUCION = ["orden", "operacion", "estado_sistema", "prioridad",
 # 6.3: turno pasa a DERIVADO (efectivo). Entradas nuevas: turno_manual (override
 # de excepción). Derivadas de auditoría: n_ciclo (N del ciclo) y posicion_ciclo
 # (etiqueta del anillo). REGLA-5 y los lookups de franja (6.2) leen `turno`.
+# 6.4: en_vacaciones (derivada, helper) — sí si la fecha cae en un periodo de
+# PLAN_VACACIONES del técnico; el turno efectivo arrastra a "VAC".
 CAMPOS_ASIGNACIONES = ["semana", "dia", "tecnico", "area", "especialidad",
-                       "n_ciclo", "posicion_ciclo", "turno_manual", "turno",
+                       "n_ciclo", "posicion_ciclo", "en_vacaciones",
+                       "turno_manual", "turno",
                        "coordinador", "fecha", "horas_disponibles", "clave",
                        "hora_inicio", "hora_fin"]
+CAMPOS_VACACIONES = ["tecnico", "fecha_inicio", "fecha_fin", "motivo"]
+CAP_VACACIONES = 100         # filas provisionadas de tblVacaciones
 CAMPOS_EXCEPCIONES = ["fecha", "tipo", "habil", "area", "sub_area", "motivo", "clave"]
 CAP_EXCEPCIONES = 200        # filas provisionadas de tblExcepciones
 CAP_CAL_DIAS = 760           # días del grid del calendario (nivel planta)
@@ -1361,6 +1415,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                              ["id", "nombre", "especialidad", "area", "coordinador",
                               "rotativo", "orden_rotacion", "activo"], len(TECNICOS)),
         "tblAsignaciones": Tabla("tblAsignaciones", "ASIGNACIONES", 3, CAMPOS_ASIGNACIONES, n_asig),
+        "tblVacaciones": Tabla("tblVacaciones", "PLAN_VACACIONES", 3, CAMPOS_VACACIONES, CAP_VACACIONES),
         "tblExcepciones": Tabla("tblExcepciones", "CALENDARIO", 14, CAMPOS_EXCEPCIONES, CAP_EXCEPCIONES),
         "tblCECO": Tabla("tblCECO", "CAT_CENTROS_COSTO", 3,
                          ["codigo", "descripcion", "planta", "area", "sub_area", "linea", "coordinador"],
@@ -1628,14 +1683,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws = wb.create_sheet("ASIGNACIONES")
     ws.sheet_properties.tabColor = "4472C4"
     A = TAB["tblAsignaciones"]
-    celda(ws, 1, 1, "ASIGNACIONES — el turno se DERIVA de la rotación (6.3): posicion_ciclo por "
-                    "(especialidad, área) y semana. Para una excepción puntual (o VAC/X) escriba "
-                    "en turno_manual y solo esa celda se sobrescribe; REGLA-5 lee el turno efectivo.",
+    celda(ws, 1, 1, "ASIGNACIONES — el turno se DERIVA de la rotación (6.3) y arrastra a \"VAC\" si el "
+                    "técnico está en PLAN_VACACIONES esa fecha (6.4), dejando su posición vacía "
+                    "(hueco). Precedencia: turno_manual > (domingo) > VAC > rotación. REGLA-5 lee el "
+                    "turno efectivo. Para cubrir un hueco, el supervisor escribe en turno_manual.",
           font=F_SEC)
     encabezados(ws, A.fila_enc, A.campos)
     rot_col = R.col("tblTecnicos", "rotativo")
     esp_col = R.col("tblTecnicos", "especialidad")
     area_col = R.col("tblTecnicos", "area")
+    vt_col = R.col("tblVacaciones", "tecnico")
+    vi_col = R.col("tblVacaciones", "fecha_inicio")
+    vf_col = R.col("tblVacaciones", "fecha_fin")
     for i, a in enumerate(datos["asignaciones"]):
         fila = A.fila_ini + i
         nb = R.this("tblAsignaciones", "tecnico", fila)
@@ -1645,6 +1704,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         esp_c = R.this("tblAsignaciones", "especialidad", fila)
         ncell = R.this("tblAsignaciones", "n_ciclo", fila)
         pccell = R.this("tblAsignaciones", "posicion_ciclo", fila)
+        evcell = R.this("tblAsignaciones", "en_vacaciones", fila)
         tmcell = R.this("tblAsignaciones", "turno_manual", fila)
         tu = R.this("tblAsignaciones", "turno", fila)
         fe = R.this("tblAsignaciones", "fecha", fila)
@@ -1660,6 +1720,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         # 6.3 posicion_ciclo (auditoría): etiqueta del anillo B(N-3)..B1/T3/T2/T1.
         # Anillo: pos<banco → "B"&(banco-pos); si no → "T"&(N-pos). banco=N-3.
         # "" el domingo (fuera de la base L-S) o sin técnico/semana; "B" si no rotativo.
+        # NO cambia con VAC: el hueco se lee "iba a T2, está VAC".
         yy = f"VALUE(LEFT({sm},4))"
         lunes_iso = f'DATE({yy},1,4)-WEEKDAY(DATE({yy},1,4),2)+1+(VALUE(MID({sm},7,2))-1)*7'
         rot_lu = R.busca(nb, "tblTecnicos", "nombre", "rotativo", '"NO"')
@@ -1670,34 +1731,67 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         label = f'IF({pos}<{banco},"B"&({banco}-{pos}),"T"&({ncell}-{pos}))'
         celda(ws, fila, 7, f'=IF(OR({nb}="",{sm}="",{dia_c}="domingo"),"",'
                            f'IF({rot_lu}<>"SI","B",{label}))')
+        # 6.4 en_vacaciones (helper): sí si la fecha cae en algún periodo de
+        # PLAN_VACACIONES del técnico (COUNTIFS soporta varios periodos por técnico).
+        celda(ws, fila, 8, f'=IF(COUNTIFS({vt_col},{nb},{vi_col},"<="&{fe},'
+                           f'{vf_col},">="&{fe})>0,"sí","no")')
         # 6.3 turno_manual: override de excepción (desplegable = CAT_TURNOS + VAC/X).
-        celda(ws, fila, 8, a["turno_manual"] or None, font=F_EDIT)
-        # 6.3 turno EFECTIVO (derivado): el override manda; si no, la banda del anillo.
-        celda(ws, fila, 9, f'=IF({tmcell}<>"",{tmcell},'
-                           f'IF(LEFT({pccell},1)="B","B",{pccell}))')
-        celda(ws, fila, 10, "=" + R.busca(nb, "tblTecnicos", "nombre", "coordinador", '""'))
+        celda(ws, fila, 9, a["turno_manual"] or None, font=F_EDIT)
+        # 6.4 turno EFECTIVO por precedencia: manual > (domingo "") > VAC > banda.
+        celda(ws, fila, 10, f'=IF({tmcell}<>"",{tmcell},'
+                            f'IF({pccell}="","",'
+                            f'IF({evcell}="sí","VAC",'
+                            f'IF(LEFT({pccell},1)="B","B",{pccell}))))')
+        celda(ws, fila, 11, "=" + R.busca(nb, "tblTecnicos", "nombre", "coordinador", '""'))
         # fecha real de la celda (para consultar el calendario): lunes ISO + día.
-        celda(ws, fila, 11, f'=IF({sm}="","",{lunes_iso}+MATCH({dia_c},lista_dias,0)-1)',
+        celda(ws, fila, 12, f'=IF({sm}="","",{lunes_iso}+MATCH({dia_c},lista_dias,0)-1)',
               fmt=FMT_FECHA)
         habil = formula_es_habil(R, fe, area_c, '""')
         # REGLA-5 v2.4: 0 si turno (efectivo) no disponible/vacío O día no hábil.
-        # SIN CAMBIOS: lee el turno efectivo; la rotación no altera la capacidad.
-        celda(ws, fila, 12, f'=IF(OR({tu}="",ISNUMBER(MATCH({tu},lista_no_disponible,0)),'
+        # SIN CAMBIOS: lee el turno efectivo; VAC ya da 0 (está en no disponible).
+        celda(ws, fila, 13, f'=IF(OR({tu}="",ISNUMBER(MATCH({tu},lista_no_disponible,0)),'
                             f'({habil})<>"sí"),0,p_horas_jornada)')
-        celda(ws, fila, 13, f'={sm}&"|"&{dia_c}&"|"&{nb}')
+        celda(ws, fila, 14, f'={sm}&"|"&{dia_c}&"|"&{nb}')
         # 6.2: franja horaria del turno efectivo desde CAT_TURNOS (metadato; NO
         # alimenta capacidad). En blanco si el turno es VAC/X/vacío.
-        celda(ws, fila, 14, "=" + R.busca(tu, "tblTurnos", "turno", "hora_inicio", '""'))
-        celda(ws, fila, 15, "=" + R.busca(tu, "tblTurnos", "turno", "hora_fin", '""'))
+        celda(ws, fila, 15, "=" + R.busca(tu, "tblTurnos", "turno", "hora_inicio", '""'))
+        celda(ws, fila, 16, "=" + R.busca(tu, "tblTurnos", "turno", "hora_fin", '""'))
     agregar_tabla(ws, A)
     ws.freeze_panes = "A4"
-    # 6.3: el desplegable se MUEVE de turno a turno_manual (H); turno es derivado.
+    # 6.3: el desplegable se MUEVE de turno a turno_manual (I); turno es derivado.
     dv = DataValidation(type="list", formula1="lista_turnos", allow_blank=True)
     ws.add_data_validation(dv)
-    dv.add(f"H{A.fila_ini}:H{A.fila_fin}")
+    dv.add(f"I{A.fila_ini}:I{A.fila_fin}")
     for colw, w in (("A", 9), ("B", 11), ("C", 13), ("D", 13), ("E", 12), ("F", 8),
-                    ("G", 14), ("H", 13), ("I", 8), ("J", 15), ("K", 12), ("L", 16),
-                    ("M", 26), ("N", 11), ("O", 11)):
+                    ("G", 14), ("H", 13), ("I", 13), ("J", 8), ("K", 15), ("L", 12),
+                    ("M", 16), ("N", 26), ("O", 11), ("P", 11)):
+        ws.column_dimensions[colw].width = w
+
+    # --------------------------------------------------- PLAN_VACACIONES
+    # 6.4: hoja de entrada (catálogo editable). Varias filas por técnico
+    # (varios periodos). ASIGNACIONES marca VAC automáticamente cuando la fecha
+    # de la fila cae dentro de algún periodo del técnico.
+    ws = wb.create_sheet("PLAN_VACACIONES")
+    ws.sheet_properties.tabColor = "4472C4"
+    V = TAB["tblVacaciones"]
+    celda(ws, 1, 1, "PLAN_VACACIONES (tblVacaciones) — periodos de vacaciones/permiso. Azul = "
+                    "editable. El técnico de VAC sale de la rotación esas semanas (turno \"VAC\", "
+                    "0 h) dejando su posición VACÍA; cubrir el hueco es acción manual (turno_manual).",
+          font=F_SEC)
+    encabezados(ws, V.fila_enc, V.campos)
+    for i in range(CAP_VACACIONES):
+        v = datos["plan_vacaciones"][i] if i < len(datos["plan_vacaciones"]) else {}
+        fila = V.fila_ini + i
+        celda(ws, fila, 1, v.get("tecnico"), font=F_EDIT)
+        celda(ws, fila, 2, v.get("fecha_inicio"), font=F_EDIT, fmt=FMT_FECHA)
+        celda(ws, fila, 3, v.get("fecha_fin"), font=F_EDIT, fmt=FMT_FECHA)
+        celda(ws, fila, 4, v.get("motivo"), font=F_EDIT)
+    agregar_tabla(ws, V)
+    ws.freeze_panes = "A4"
+    dv = DataValidation(type="list", formula1="lista_tecnicos", allow_blank=True)
+    ws.add_data_validation(dv)
+    dv.add(f"A{V.fila_ini}:A{V.fila_fin}")
+    for colw, w in (("A", 14), ("B", 13), ("C", 13), ("D", 26)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------------ AJUSTES
@@ -2673,11 +2767,36 @@ def imprimir_resumen(datos, esperado):
                 for sem in datos["semanas"])
             print("    " + f"{t[1].split()[-1]}(o{t[TEC_ORDROT]})".ljust(16) + fila)
         for sem in datos["semanas"]:
-            bandas = [tu for (_nb, _p, tu) in pos_lunes[(esp, area, sem)]]
-            c = {b: bandas.count(b) for b in ("B", "T1", "T2", "T3")}
+            # Cobertura por POSICIÓN derivada (rotación 6.3, intacta): siempre
+            # 1/1/1/(N-3). Los huecos VAC (6.4) se listan aparte: el turno efectivo
+            # de esa posición es "VAC", pero la posición sigue asignada al técnico.
+            c = {b: 0 for b in ("B", "T1", "T2", "T3")}
+            huecos = []
+            for (_nb, pos, tu) in pos_lunes[(esp, area, sem)]:
+                c[banda_de(pos)] += 1
+                if tu == "VAC":
+                    huecos.append(banda_de(pos))
             ok = c["T1"] == 1 and c["T2"] == 1 and c["T3"] == 1 and c["B"] == n - 3
-            print(f"      cobertura {sem}: B={c['B']} T1={c['T1']} T2={c['T2']} "
-                  f"T3={c['T3']}  {'OK' if ok else 'FALLO'}")
+            hueco_txt = f" · huecos VAC en: {', '.join(huecos)}" if huecos else ""
+            print(f"      cobertura {sem} (por posición): B={c['B']} T1={c['T1']} "
+                  f"T2={c['T2']} T3={c['T3']}  {'OK' if ok else 'FALLO'}{hueco_txt}")
+
+    print("\nVACACIONES QUE ARRASTRAN (6.4, PLAN_VACACIONES → VAC automático):")
+    for v in datos["plan_vacaciones"]:
+        print(f"  {v['tecnico']}: {v['fecha_inicio']} … {v['fecha_fin']} ({v['motivo']})")
+    tec_vac = datos["plan_vacaciones"][0]["tecnico"]
+    print(f"  {tec_vac} — turno efectivo por semana (lunes) [posición derivada se conserva]:")
+    for sem in datos["semanas"]:
+        a = next(a for a in datos["asignaciones"] if a["tecnico"] == tec_vac
+                 and a["semana"] == sem and a["dia"] == "lunes")
+        disp = a["horas_disponibles"]
+        print(f"    {sem}: posición {a['posicion_ciclo']:>2} · en_vacaciones={a['en_vacaciones']:>2} "
+              f"· turno={a['turno']:>4} · {disp} h")
+    cap_vac = FACTOR_PRODUCTIVIDAD * sum(
+        a["horas_disponibles"] for a in datos["asignaciones"]
+        if a["tecnico"] == tec_vac and a["semana"] == datos["semanas"][1])
+    print(f"  Capacidad de {tec_vac} en {datos['semanas'][1]} (semana de VAC completa): "
+          f"{cap_vac:.2f} h (0 h)")
 
     print("\nPERFIL_HH esperado (REGLA-6, solo semanas del plan; el libro genera hasta 60):")
     print(f"{'esp':8}{'semana':10}{'disp':>7}{'prod':>9}{'prev':>7}{'corr':>7}{'plan':>7}{'holgura':>9}{'%carga':>9}")
