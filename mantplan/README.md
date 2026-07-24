@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v2.8.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v2.9.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -24,7 +24,7 @@ están implementadas dos veces y verificadas una contra la otra:
 | `README.md` | Este documento | — |
 
 Ambos libros llevan las mismas 200 órdenes sintéticas ancladas al
-**2026-07-23**, sobre tablas provisionadas para **1.200 filas**, y producen
+**2026-07-24**, sobre tablas provisionadas para **1.200 filas**, y producen
 números idénticos (verificado, ver §1).
 
 ## Cómo regenerarlo
@@ -33,7 +33,7 @@ números idénticos (verificado, ver §1).
 pip install openpyxl
 python generar_mantplan.py                                        # MantPlan.xlsx (principal)
 python generar_mantplan.py --salida MantPlan_compatible.xlsx --refs compatibles
-python generar_mantplan.py --fecha-ancla 2026-07-23               # fija el "hoy" de los datos
+python generar_mantplan.py --fecha-ancla 2026-07-24               # fija el "hoy" de los datos
 python generar_mantplan.py --resumen                              # imprime los números esperados (incl. rotación)
 ```
 
@@ -44,9 +44,9 @@ python generar_mantplan.py --resumen                              # imprime los 
 - El generador emite el libro en dos modos desde **las mismas plantillas de
   fórmula** (`class Refs`): `estructuradas` (XLOOKUP, entregable principal) y
   `compatibles` (INDEX/MATCH + rangos A1 acotados).
-- La variante compatible se recalculó con LibreOffice: **73.262 fórmulas, 0
+- La variante compatible se recalculó con LibreOffice: **74.182 fórmulas, 0
   errores**.
-- Cada valor recalculado se comparó contra el motor Python: **12.350
+- Cada valor recalculado se comparó contra el motor Python: **14.178
   comparaciones automáticas, 0 desviaciones**, incluidas la rotación derivada de
   turnos y las **vacaciones que arrastran** (cobertura, avance, huecos VAC y
   turno efectivo de las 448 filas de ASIGNACIONES), el calendario laboral
@@ -428,13 +428,57 @@ técnicos **no se toca** (se preserva la derivación cerrada de 6.3).
   está de vacaciones se queda **sin técnico** (el supervisor la reasignará), así
   el técnico de VAC no aparece sobreasignado (0 h de capacidad).
 
+### Horas reales de seguimiento (6.5)
+
+Capa de **seguimiento del cumplimiento individual** (base de bono) y de déficit
+por VAC. **NO toca la planificación**: la base de 48 h (6.1) y la capacidad de
+PERFIL_HH siguen en 48 h. Es reporte, no motor.
+
+- **Horas reales por técnico y semana** (deriva de la rotación 6.3/6.4):
+  - en **TURNO** (T1/T2/T3) → trabaja los 7 días → **56 h** (el domingo 22:00
+    del relevo es el 7.º día; es **superávit** sobre las 48);
+  - en **BANCO** → L-S → **48 h**;
+  - en **VAC** toda la semana → **0 h**;
+  - un **feriado** resta: banco en semana con feriado = 40 h, turno = 48 h.
+  - Regla operativa: `horas_reales = horas_disponibles (L-S, REGLA-5) + (8 si la
+    posición es de turno y no está en VAC ese domingo)`. **El domingo NO se
+    vuelve planificable**: PERFIL_HH y la capacidad siguen en 48 h.
+- **`trabaja_domingo`** (sí/no) en ASIGNACIONES: helper (como `en_vacaciones`) =
+  posición de turno (T*) y no VAC.
+- **Hoja `SEGUIMIENTO_HH`** (técnico × semana): `posicion` · `horas_reales` ·
+  `base_semanal` (48) · `superavit_deficit` (= reales − 48: **+8** turno, **0**
+  banco, **−48** VAC, −8 banco en feriado). Incluye un bloque **déficit de
+  capacidad por VAC** (esp × semana) = técnicos en VAC × 48 h (informativo, para
+  decidir contratar externo; **no cambia la capacidad base**).
+- **Hoja `SEGUIMIENTO_MENSUAL`** (técnico × mes, base del bono): `horas_reales_mes`
+  (acumula SEGUIMIENTO_HH) · `horas_requeridas_mes` (= nº de semanas del mes × 48;
+  cada semana se asigna a un mes por su lunes) · `cumple` (sí/no) · `brecha`. El
+  umbral usa el parámetro **`tolerancia_horas_bono`** (default 0), para no
+  hardcodear. Un técnico con VAC en el mes queda por debajo (p. ej. Técnico 05,
+  julio: 56 de 144 h).
+- **Tipo de ausencia**: el `motivo` de `PLAN_VACACIONES` distingue vacaciones de
+  día libre pagado; ambos dan 0 h y déficit — el motivo **no** cambia la lógica
+  de capacidad.
+
+### Supervisor fijo por técnico (6.6)
+
+Cada técnico tiene un **supervisor fijo** (atributo del técnico; **no rota, no
+cambia con VAC**, no crea ni consume capacidad). Tres supervisores por
+especialidad: **Supervisor Mecánico** (MEC), **Supervisor Eléctrico** (ELE),
+**Jefe de Automatización** (AUT). Sin suplencia automática (se hace a mano).
+
+- `TECNICOS.supervisor` es la **fuente única**. En `ASIGNACIONES`, la columna que
+  antes derivaba `coordinador` (por área) pasa a `supervisor`, con búsqueda a
+  `TECNICOS.supervisor`. La dimensión `coordinador` de ÓRDENES/COSTOS (por CECO)
+  es independiente y no cambia.
+
 ### 10. Higiene de fórmulas
 
 Auditado sobre los archivos finales: sin `OFFSET`, sin `INDIRECT`, sin
 columnas completas (`A:A`), sin enlaces externos, sin VBA, sin nombres
 definidos huérfanos.
 
-## Datos de ejemplo y verificación a mano (ancla 2026-07-23)
+## Datos de ejemplo y verificación a mano (ancla 2026-07-24)
 
 200 órdenes (tablas con capacidad 1.200) · 162 filas de ejecución (3
 huérfanas) · 4 ajustes (2 aplicados + 2 demos de error) · **16 técnicos**
@@ -524,7 +568,7 @@ en día no laborable (se reportan en VALIDACION); el sábado es hábil (6.1).
 correctivas de fin de semana) · 2026-S31: 0,20 (16,5 % → SI) · 2026-S32: 0,19
 (16,3 % → SI).
 
-### BACKLOG esperado (pendientes por tramo, al 2026-07-23)
+### BACKLOG esperado (pendientes por tramo, al 2026-07-24)
 
 Envejecimiento en días **calendario** (`backlog_dias`, contractual): el tramo
 0–30 depende del día de apertura (`HOY()`). REGLA-3/REGLA-4 usan en cambio los
@@ -618,11 +662,11 @@ SERVICIOS (2026-08-02), paro de la sub-área Vapor el jueves de 2026-S30
 | **Feriado general** (mié 2026-07-29) | `horas_disponibles = 0` el miércoles para todos los técnicos activos. El feriado reduce **MEC 2026-S31 de 336 a 280 h** (7 × 5 × 8); con la VAC de Técnico 05 (6.4) el disponible final de MEC esa semana es **240 h**. La rotación no altera este efecto (solo cambia qué turno). |
 | **Excepción por área** (dom 2026-08-02) | `es_habil(SERVICIOS)` = **sí**, `es_habil(PRODUCCION)` = **no**. La excepción por área da capacidad solo a SERVICIOS. |
 | **Paro sub-área Vapor** (jue 2026-07-23) | `es_habil` = **no** para órdenes de Vapor; **sí** para PRODUCCION, EMPAQUE y Refrigeración. La excepción por sub-área no afecta a las demás sub-áreas. |
-| **Orden que cruza fines de semana** (2026-06-08) | `backlog_dias` = **45**, `backlog_habiles` = **38**, diferencia **7** domingos no hábiles en medio (el sábado es hábil, 6.1). |
-| **VALIDACION** | 11 órdenes en día no laborable · 1 excepción con área desconocida · 1 con sub-área desconocida. |
+| **Orden que cruza fines de semana** (2026-06-09) | `backlog_dias` = **45**, `backlog_habiles` = **38**, diferencia **7** domingos no hábiles en medio (el sábado es hábil, 6.1). |
+| **VALIDACION** | 34 órdenes en día no laborable · 1 excepción con área desconocida · 1 con sub-área desconocida. |
 
 Los totales por área siguen cuadrando: la reconciliación COSTOS área = Σ
-sub-áreas se mantiene (verificada dentro de las 12.350 comparaciones).
+sub-áreas se mantiene (verificada dentro de las 14.178 comparaciones).
 
 ### Sub-áreas: agrupamiento con herencia (COSTOS real, USD)
 
@@ -650,17 +694,19 @@ costo plan es del ERP y no se recalcula con el ajuste manual; `precio` = 40 %
 del plan (REGLA-8 → materiales 60 %); dos órdenes históricas con `precio >
 plan` (materiales 0). Equipo de mayor gasto: EQ-110 (4.430 USD).
 
-## Estructura del libro (25 hojas)
+## Estructura del libro (27 hojas)
 
 `INICIO` · `PARAMETROS` · `1_IMPORTAR_ORDENES` (paso único de pegado) ·
 `2_IMPORTAR_EJECUCION` (`tblEjecucion`, 1.200 filas) · `ORDENES`
 (`tblOrdenes`, 1.200 filas × 42 columnas: 12 importadas A:L, 5 editables en
 azul, 26 calculadas incl. `es_habil` y `backlog_habiles`; `id_operacion` al
-final) · `TECNICOS` (con `rotativo` y `orden_rotacion` para la rotación) ·
-`ASIGNACIONES` (448 filas; rotación derivada `n_ciclo`/`posicion_ciclo`,
-`en_vacaciones`, `turno_manual`/`turno` efectivo, `fecha`, REGLA-5 sobre el
-calendario y la franja horaria `hora_inicio`/`hora_fin` desde `CAT_TURNOS`) ·
-`PLAN_VACACIONES` (`tblVacaciones`, periodos de vacaciones por técnico) ·
+final) · `TECNICOS` (con `rotativo`/`orden_rotacion` para la rotación y
+`supervisor` fijo) · `ASIGNACIONES` (448 filas; rotación derivada
+`n_ciclo`/`posicion_ciclo`, `en_vacaciones`, `turno_manual`/`turno` efectivo,
+`supervisor`, `trabaja_domingo`, `fecha`, REGLA-5 y franja horaria desde
+`CAT_TURNOS`) · `PLAN_VACACIONES` (`tblVacaciones`, periodos por técnico) ·
+`SEGUIMIENTO_HH` (horas reales técnico × semana + déficit por VAC) ·
+`SEGUIMIENTO_MENSUAL` (acumulado técnico × mes, base del bono) ·
 `AJUSTES` (`tblAjustes`, 300 filas) · `CALENDARIO` (patrón
 semanal + `tblExcepciones` 200 filas + grid de 760 días) · `PERFIL_HH` (serie
 dinámica de 60 semanas + matriz semáforo + REGLA-9) · `PLAN_SEMANAL` (7

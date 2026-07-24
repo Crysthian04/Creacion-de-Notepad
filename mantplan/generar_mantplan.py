@@ -44,7 +44,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.8.0"
+VERSION = "2.9.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -82,6 +82,9 @@ PARAMETROS = [
     # del anillo. Su valor se escribe al generar el libro (depende del ancla).
     ("semana_referencia", None,
      "FECHA (lunes) de la semana de referencia de la rotación de turnos (6.3)."),
+    # 6.5: tolerancia del cumplimiento mensual de horas reales (base del bono).
+    ("tolerancia_horas_bono", 0,
+     "Horas de tolerancia para 'cumple' del seguimiento mensual (6.5). No toca capacidad."),
 ]
 # Fila de cada parámetro dentro de la hoja PARAMETROS (encabezado en fila 3).
 FILA_PARAM = {p[0]: 4 + i for i, p in enumerate(PARAMETROS)}
@@ -229,7 +232,12 @@ ESTADOS_ERP = [
 # (no rotativo). El flag `rotativo` es explícito por técnico (no se hardcodea a
 # MEC/ELE); orden_rotacion 1..N es único por especialidad×área entre rotativos y
 # fija la posición de arranque en la semana de referencia.
-TECNICOS = [
+# 6.6: supervisor FIJO por técnico (atributo del técnico; no rota, no cambia con
+# VAC, no crea ni consume capacidad). Tres supervisores por especialidad; sin
+# suplencia (se hace a mano). Fuente única del supervisor de ASIGNACIONES.
+SUPERVISOR_POR_ESP = {"MEC": "Supervisor Mecánico", "ELE": "Supervisor Eléctrico",
+                      "AUT": "Jefe de Automatización"}
+_TECNICOS_BASE = [
     # id, nombre, especialidad, area, rotativo, orden_rotacion
     ("TEC-01", "Técnico 01", "MEC", "PRODUCCION", "SI", 1),
     ("TEC-02", "Técnico 02", "MEC", "PRODUCCION", "SI", 2),
@@ -248,8 +256,10 @@ TECNICOS = [
     ("TEC-15", "Técnico 15", "AUT", "PRODUCCION", "NO", ""),
     ("TEC-16", "Técnico 16", "AUT", "PRODUCCION", "NO", ""),
 ]
+# 7.ª columna = supervisor fijo (derivado de la especialidad, atributo del técnico).
+TECNICOS = [t + (SUPERVISOR_POR_ESP[t[2]],) for t in _TECNICOS_BASE]
 # Índices dentro de la tupla de TECNICOS
-TEC_ESP, TEC_AREA, TEC_ROT, TEC_ORDROT = 2, 3, 4, 5
+TEC_ESP, TEC_AREA, TEC_ROT, TEC_ORDROT, TEC_SUP = 2, 3, 4, 5, 6
 COORD_POR_AREA = {"PRODUCCION": "Coordinador A", "EMPAQUE": "Coordinador B", "SERVICIOS": "Coordinador C"}
 EQUIPOS_POR_AREA = {
     "PRODUCCION": ["EQ-101", "EQ-102", "EQ-103", "EQ-104", "EQ-105"],
@@ -423,6 +433,25 @@ def turno_efectivo(turno_manual, posicion, en_vacaciones):
     return banda_de(posicion)
 
 
+# ── Horas reales de seguimiento (6.5) ──────────────────────────────────────
+# Capa de SEGUIMIENTO (cumplimiento individual / base de bono), NO de
+# planificación: la base de 48 h (6.1) y la capacidad de PERFIL_HH NO se tocan.
+# Un técnico en TURNO trabaja también el domingo (relevo 22:00, 7.º día) → 56 h
+# reales = 48 + 8 de SUPERÁVIT; en BANCO = 48; en VAC = 0. El domingo NO se
+# vuelve planificable.
+def trabaja_domingo_de(posicion, en_vacaciones):
+    """¿El técnico trabaja el domingo de esa semana? Sí si su posición es de
+    turno (T1/T2/T3) y no está de vacaciones. Helper por fila (como en_vacaciones)."""
+    return bool(posicion) and posicion[0] == "T" and not en_vacaciones
+
+
+def horas_reales_semana(horas_disponibles_ls, trabaja_domingo):
+    """Horas reales de la semana (seguimiento) = horas disponibles L-S (REGLA-5)
+    + 8 h si trabaja el domingo. 56 turno / 48 banco / 0 VAC en semana normal;
+    el +8 es superávit y NO entra en PERFIL_HH (la capacidad sigue en 48 h)."""
+    return horas_disponibles_ls + (8 if trabaja_domingo else 0)
+
+
 def regla_6_perfil_hh(hh_disponible, hh_preventiva, hh_correctiva, factor=FACTOR_PRODUCTIVIDAD):
     """REGLA-6: perfil de HH de una celda especialidad × semana."""
     hh_productiva = hh_disponible * factor
@@ -557,7 +586,7 @@ def generar_datos(hoy):
     asignaciones = []
     for si, sem in enumerate(semanas):
         semanas_desde = (lunes_sem[si] - semana_referencia).days // 7
-        for tid, nombre, esp, area, rot, ordrot in TECNICOS:
+        for tid, nombre, esp, area, rot, ordrot, sup in TECNICOS:
             n = n_por_ciclo.get((esp, area), 0)
             for di, dia in enumerate(DIAS):
                 fecha = lunes_sem[si] + timedelta(days=di)
@@ -566,11 +595,15 @@ def generar_datos(hoy):
                 en_vac = en_vacaciones_de(nombre, fecha, plan_vacaciones)
                 turno_manual = ""            # sin excepciones manuales en el sintético
                 turno = turno_efectivo(turno_manual, pc, en_vac)
+                # 6.5: ¿trabaja el domingo? (turno y no VAC) — helper de seguimiento.
+                trab_dom = trabaja_domingo_de(pc, en_vac)
                 asignaciones.append({"semana": sem, "dia": dia, "tecnico": nombre,
                                      "area": area, "especialidad": esp,
                                      "n_ciclo": n, "posicion_ciclo": pc,
                                      "en_vacaciones": "sí" if en_vac else "no",
-                                     "turno_manual": turno_manual, "turno": turno})
+                                     "turno_manual": turno_manual, "turno": turno,
+                                     "supervisor": sup,
+                                     "trabaja_domingo": "sí" if trab_dom else "no"})
 
     # --- ORDENES ----------------------------------------------------------
     ordenes = []
@@ -840,7 +873,7 @@ def calcular_esperado(datos):
         a["fecha"] = monday_por_semana[a["semana"]] + timedelta(days=DIAS.index(a["dia"]))
         a["habil"] = es_habil(a["fecha"], a["area"], "", exc)   # capacidad: nivel área
         a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"], a["habil"])
-        a["coordinador"] = COORD_POR_AREA[a["area"]]
+        # 6.6: supervisor fijo del técnico (ya viene de generar_datos, por esp).
         a["hora_inicio"], a["hora_fin"] = franja_turno.get(a["turno"], ("", ""))
     aj_por_id = {}
     for a in datos["ajustes"]:
@@ -993,6 +1026,55 @@ def calcular_esperado(datos):
                 a["horas_disponibles"] for a in datos["asignaciones"]
                 if a["tecnico"] == nombre and a["semana"] == sem)
 
+    # ── 6.5: SEGUIMIENTO de horas reales (capa de cumplimiento, NO de capacidad;
+    #    la base de 48 h y PERFIL_HH no se tocan). horas_reales = disp L-S + 8 si
+    #    trabaja el domingo (turno). 56 turno / 48 banco / 0 VAC en semana normal.
+    base_sem, tol = BASE_SEMANAL_HORAS, 0     # 48 h; tolerancia_horas_bono (default 0)
+    disp_ls_por, posicion_por, trab_dom_por = {}, {}, {}
+    for a in datos["asignaciones"]:
+        k = (a["tecnico"], a["semana"])
+        if a["dia"] != "domingo":
+            disp_ls_por[k] = disp_ls_por.get(k, 0) + a["horas_disponibles"]
+        if a["dia"] == "lunes":
+            posicion_por[k] = a["posicion_ciclo"]
+            trab_dom_por[k] = a["trabaja_domingo"]
+    esp_por_tec = {t[1]: t[TEC_ESP] for t in TECNICOS}
+    seguimiento_hh = []
+    for _tid, nombre, *_ in TECNICOS:
+        for sem in datos["semanas"]:
+            k = (nombre, sem)
+            hr = horas_reales_semana(disp_ls_por.get(k, 0), trab_dom_por.get(k) == "sí")
+            seguimiento_hh.append({
+                "tecnico": nombre, "semana": sem, "especialidad": esp_por_tec[nombre],
+                "posicion": posicion_por.get(k, ""), "horas_reales": hr,
+                "base_semanal": base_sem, "superavit_deficit": hr - base_sem})
+    hr_por = {(s["tecnico"], s["semana"]): s["horas_reales"] for s in seguimiento_hh}
+    # Cada semana del plan se asigna a un mes por su LUNES (clave "AAAA-MM").
+    mes_de_sem = {datos["semanas"][i]: f"{d.year}-{d.month:02d}"
+                  for i, d in enumerate(datos["lunes_sem"])}
+    meses_seg = sorted(set(mes_de_sem.values()))
+    semanas_de_mes = {m: [s for s in datos["semanas"] if mes_de_sem[s] == m] for m in meses_seg}
+    seguimiento_mensual = []
+    for _tid, nombre, *_ in TECNICOS:
+        for m in meses_seg:
+            ws_mes = semanas_de_mes[m]
+            reales = sum(hr_por[(nombre, s)] for s in ws_mes)
+            req = len(ws_mes) * base_sem
+            seguimiento_mensual.append({
+                "tecnico": nombre, "mes": m, "horas_reales_mes": reales,
+                "horas_requeridas_mes": req, "brecha": reales - req,
+                "cumple": "sí" if reales >= req - tol else "no"})
+    # Déficit de capacidad por VAC (esp × semana): técnicos en VAC × base 48 h.
+    # Informativo (para decidir contratar externo); NO cambia la capacidad base.
+    esps_con_tec = [e for e in ESPECIALIDADES if any(t[TEC_ESP] == e for t in TECNICOS)]
+    deficit_vac = {}
+    for e in esps_con_tec:
+        for sem in datos["semanas"]:
+            nvac = sum(1 for a in datos["asignaciones"]
+                       if a["especialidad"] == e and a["semana"] == sem
+                       and a["dia"] == "lunes" and a["en_vacaciones"] == "sí")
+            deficit_vac[(e, sem)] = nvac * base_sem
+
     # Estado esperado de cada fila de tblAjustes (aplicado/duplicado/huérfano)
     ids_ordenes = {o["id_operacion"] for o in datos["ordenes"]}
     est_por_id = {}
@@ -1070,6 +1152,9 @@ def calcular_esperado(datos):
             "exportar": exportar, "exportar_fn": exportar_esperado,
             "costos_sub": costos_sub, "backlog_sub": backlog_sub,
             "asignaciones": datos["asignaciones"], "excepciones": exc,
+            "seguimiento_hh": seguimiento_hh, "seguimiento_mensual": seguimiento_mensual,
+            "deficit_vac": deficit_vac, "meses_seg": meses_seg,
+            "semanas_de_mes": semanas_de_mes, "esps_con_tec": esps_con_tec,
             "validacion": regla_10_validacion(datos["ordenes"], datos["ejecucion"])}
 
 
@@ -1167,13 +1252,19 @@ CAMPOS_EJECUCION = ["orden", "operacion", "estado_sistema", "prioridad",
 # (etiqueta del anillo). REGLA-5 y los lookups de franja (6.2) leen `turno`.
 # 6.4: en_vacaciones (derivada, helper) — sí si la fecha cae en un periodo de
 # PLAN_VACACIONES del técnico; el turno efectivo arrastra a "VAC".
+# 6.6: coordinador → supervisor (fijo del técnico). 6.5: trabaja_domingo (helper).
 CAMPOS_ASIGNACIONES = ["semana", "dia", "tecnico", "area", "especialidad",
                        "n_ciclo", "posicion_ciclo", "en_vacaciones",
                        "turno_manual", "turno",
-                       "coordinador", "fecha", "horas_disponibles", "clave",
-                       "hora_inicio", "hora_fin"]
+                       "supervisor", "fecha", "horas_disponibles", "clave",
+                       "hora_inicio", "hora_fin", "trabaja_domingo"]
 CAMPOS_VACACIONES = ["tecnico", "fecha_inicio", "fecha_fin", "motivo"]
 CAP_VACACIONES = 100         # filas provisionadas de tblVacaciones
+# 6.5: seguimiento de horas reales (capa de cumplimiento, no de planificación).
+CAMPOS_SEG_HH = ["tecnico", "semana", "especialidad", "posicion", "horas_reales",
+                 "base_semanal", "superavit_deficit"]
+CAMPOS_SEG_MES = ["tecnico", "mes", "horas_reales_mes", "horas_requeridas_mes",
+                  "cumple", "brecha"]
 CAMPOS_EXCEPCIONES = ["fecha", "tipo", "habil", "area", "sub_area", "motivo", "clave"]
 CAP_EXCEPCIONES = 200        # filas provisionadas de tblExcepciones
 CAP_CAL_DIAS = 760           # días del grid del calendario (nivel planta)
@@ -1412,10 +1503,14 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "tblEjecucion": Tabla("tblEjecucion", "2_IMPORTAR_EJECUCION", 8, CAMPOS_EJECUCION, CAP_FILAS),
         "tblAjustes": Tabla("tblAjustes", "AJUSTES", 3, CAMPOS_AJUSTES, CAP_AJUSTES),
         "tblTecnicos": Tabla("tblTecnicos", "TECNICOS", 3,
-                             ["id", "nombre", "especialidad", "area", "coordinador",
+                             ["id", "nombre", "especialidad", "area", "supervisor",
                               "rotativo", "orden_rotacion", "activo"], len(TECNICOS)),
         "tblAsignaciones": Tabla("tblAsignaciones", "ASIGNACIONES", 3, CAMPOS_ASIGNACIONES, n_asig),
         "tblVacaciones": Tabla("tblVacaciones", "PLAN_VACACIONES", 3, CAMPOS_VACACIONES, CAP_VACACIONES),
+        "tblSegHH": Tabla("tblSegHH", "SEGUIMIENTO_HH", 3, CAMPOS_SEG_HH,
+                          len(TECNICOS) * len(semanas)),
+        "tblSegMes": Tabla("tblSegMes", "SEGUIMIENTO_MENSUAL", 3, CAMPOS_SEG_MES,
+                           len(TECNICOS) * len(esperado["meses_seg"])),
         "tblExcepciones": Tabla("tblExcepciones", "CALENDARIO", 14, CAMPOS_EXCEPCIONES, CAP_EXCEPCIONES),
         "tblCECO": Tabla("tblCECO", "CAT_CENTROS_COSTO", 3,
                          ["codigo", "descripcion", "planta", "area", "sub_area", "linea", "coordinador"],
@@ -1535,6 +1630,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "p_dias_laborables_base": FILA_PARAM["dias_laborables_base"],
         "p_base_semanal_horas": FILA_PARAM["base_semanal_horas"],
         "p_semana_referencia": FILA_PARAM["semana_referencia"],
+        "p_tolerancia_horas_bono": FILA_PARAM["tolerancia_horas_bono"],
     }
     for nom, fila in nombres.items():
         wb.defined_names.add(DefinedName(nom, attr_text=f"PARAMETROS!$B${fila}"))
@@ -1654,12 +1750,12 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     T = TAB["tblTecnicos"]
     celda(ws, 1, 1, "TECNICOS (tblTecnicos) — catálogo editable de personal propio. "
                     "6.3: rotativo (sí/no) y orden_rotacion (1..N por especialidad×área "
-                    "entre rotativos) alimentan la rotación de turnos.", font=F_SEC)
+                    "entre rotativos) alimentan la rotación. 6.6: supervisor fijo del técnico.",
+          font=F_SEC)
     encabezados(ws, T.fila_enc, T.campos)
-    for i, (tid, nombre, esp, area, rot, ordrot) in enumerate(TECNICOS):
+    for i, (tid, nombre, esp, area, rot, ordrot, sup) in enumerate(TECNICOS):
         fila = T.fila_ini + i
-        for j, v in enumerate([tid, nombre, esp, area, COORD_POR_AREA[area],
-                               rot, ordrot, "SI"], start=1):
+        for j, v in enumerate([tid, nombre, esp, area, sup, rot, ordrot, "SI"], start=1):
             celda(ws, fila, j, v, font=F_EDIT)
     agregar_tabla(ws, T)
     dv = DataValidation(type="list", formula1='"ELE,MEC,AUT"', allow_blank=False)
@@ -1742,7 +1838,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                             f'IF({pccell}="","",'
                             f'IF({evcell}="sí","VAC",'
                             f'IF(LEFT({pccell},1)="B","B",{pccell}))))')
-        celda(ws, fila, 11, "=" + R.busca(nb, "tblTecnicos", "nombre", "coordinador", '""'))
+        # 6.6: supervisor FIJO del técnico (búsqueda a TECNICOS; no rota, no
+        # cambia con VAC; fuente única). Reemplaza al antiguo coordinador de área.
+        celda(ws, fila, 11, "=" + R.busca(nb, "tblTecnicos", "nombre", "supervisor", '""'))
         # fecha real de la celda (para consultar el calendario): lunes ISO + día.
         celda(ws, fila, 12, f'=IF({sm}="","",{lunes_iso}+MATCH({dia_c},lista_dias,0)-1)',
               fmt=FMT_FECHA)
@@ -1756,6 +1854,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         # alimenta capacidad). En blanco si el turno es VAC/X/vacío.
         celda(ws, fila, 15, "=" + R.busca(tu, "tblTurnos", "turno", "hora_inicio", '""'))
         celda(ws, fila, 16, "=" + R.busca(tu, "tblTurnos", "turno", "hora_fin", '""'))
+        # 6.5 trabaja_domingo (helper de seguimiento): sí si la posición es de
+        # turno (T*) y no está de vacaciones. El domingo (posición "") da "no".
+        celda(ws, fila, 17, f'=IF(AND(LEFT({pccell},1)="T",{evcell}="no"),"sí","no")')
     agregar_tabla(ws, A)
     ws.freeze_panes = "A4"
     # 6.3: el desplegable se MUEVE de turno a turno_manual (I); turno es derivado.
@@ -1763,8 +1864,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws.add_data_validation(dv)
     dv.add(f"I{A.fila_ini}:I{A.fila_fin}")
     for colw, w in (("A", 9), ("B", 11), ("C", 13), ("D", 13), ("E", 12), ("F", 8),
-                    ("G", 14), ("H", 13), ("I", 13), ("J", 8), ("K", 15), ("L", 12),
-                    ("M", 16), ("N", 26), ("O", 11), ("P", 11)):
+                    ("G", 14), ("H", 13), ("I", 13), ("J", 8), ("K", 18), ("L", 12),
+                    ("M", 16), ("N", 26), ("O", 11), ("P", 11), ("Q", 14)):
         ws.column_dimensions[colw].width = w
 
     # --------------------------------------------------- PLAN_VACACIONES
@@ -1792,6 +1893,94 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws.add_data_validation(dv)
     dv.add(f"A{V.fila_ini}:A{V.fila_fin}")
     for colw, w in (("A", 14), ("B", 13), ("C", 13), ("D", 26)):
+        ws.column_dimensions[colw].width = w
+
+    # --------------------------------------------------- SEGUIMIENTO_HH
+    # 6.5: horas REALES por técnico × semana (capa de seguimiento; NO cambia la
+    # base de 48 h ni PERFIL_HH). horas_reales = disp L-S (REGLA-5, suma domingo=0)
+    # + 8 si trabaja el domingo. superavit_deficit = horas_reales − 48.
+    ws = wb.create_sheet("SEGUIMIENTO_HH")
+    ws.sheet_properties.tabColor = "70AD47"
+    SH = TAB["tblSegHH"]
+    celda(ws, 1, 1, "SEGUIMIENTO DE HORAS REALES (6.5) — capa de cumplimiento individual. 56 h en "
+                    "turno (48 + domingo), 48 en banco, 0 en VAC. El +8 del domingo es superávit y "
+                    "NO entra en PERFIL_HH (la capacidad de planificación sigue en 48 h).", font=F_SEC)
+    encabezados(ws, SH.fila_enc, SH.campos)
+    ah_disp = R.col("tblAsignaciones", "horas_disponibles")
+    ah_tec = R.col("tblAsignaciones", "tecnico")
+    ah_sem = R.col("tblAsignaciones", "semana")
+    ah_dom = R.col("tblAsignaciones", "trabaja_domingo")
+    for i, s in enumerate(esperado["seguimiento_hh"]):
+        fila = SH.fila_ini + i
+        tc = R.this("tblSegHH", "tecnico", fila)
+        sc = R.this("tblSegHH", "semana", fila)
+        hrc = R.this("tblSegHH", "horas_reales", fila)
+        bsc = R.this("tblSegHH", "base_semanal", fila)
+        celda(ws, fila, 1, s["tecnico"])
+        celda(ws, fila, 2, s["semana"])
+        celda(ws, fila, 3, "=" + R.busca(tc, "tblTecnicos", "nombre", "especialidad", '""'))
+        # posición derivada de la semana (lunes) — muestra la posición aunque VAC.
+        celda(ws, fila, 4, "=" + R.busca(f'{sc}&"|lunes|"&{tc}', "tblAsignaciones",
+                                         "clave", "posicion_ciclo", '""'))
+        # horas_reales = SUMIFS(disp L-S) + 8 si algún día de turno trabaja el domingo.
+        celda(ws, fila, 5, f'=SUMIFS({ah_disp},{ah_tec},{tc},{ah_sem},{sc})'
+                           f'+IF(COUNTIFS({ah_tec},{tc},{ah_sem},{sc},{ah_dom},"sí")>0,8,0)')
+        celda(ws, fila, 6, "=p_base_semanal_horas")
+        celda(ws, fila, 7, f"={hrc}-{bsc}")
+    agregar_tabla(ws, SH)
+    ws.freeze_panes = "A4"
+    # Déficit de capacidad por VAC (esp × semana) — informativo (contratar externo);
+    # NO cambia la capacidad base. = técnicos en VAC esa semana × base 48 h.
+    fdef = SH.fila_fin + 3
+    celda(ws, fdef, 1, "DÉFICIT DE CAPACIDAD POR VACACIONES (esp × semana) — informativo, "
+                       "no cambia la capacidad base", font=F_SEC)
+    encabezados(ws, fdef + 1, ["especialidad", "semana", "tecnicos_vac", "deficit_horas"])
+    ah_esp = R.col("tblAsignaciones", "especialidad")
+    ah_dia = R.col("tblAsignaciones", "dia")
+    ah_vac = R.col("tblAsignaciones", "en_vacaciones")
+    r = fdef + 2
+    for e in esperado["esps_con_tec"]:
+        for sem in semanas:
+            celda(ws, r, 1, e)
+            celda(ws, r, 2, sem)
+            celda(ws, r, 3, f'=COUNTIFS({ah_esp},"{e}",{ah_sem},"{sem}",'
+                            f'{ah_dia},"lunes",{ah_vac},"sí")')
+            celda(ws, r, 4, f'=C{r}*p_base_semanal_horas')
+            r += 1
+    for colw, w in (("A", 14), ("B", 11), ("C", 13), ("D", 10), ("E", 14), ("F", 13), ("G", 16)):
+        ws.column_dimensions[colw].width = w
+
+    # ----------------------------------------------- SEGUIMIENTO_MENSUAL
+    # 6.5: acumulado por técnico × mes (base del bono). Cada semana se asigna a un
+    # mes por su lunes. horas_requeridas_mes = nº de semanas × 48. cumple con
+    # tolerancia p_tolerancia_horas_bono. NO cambia la capacidad ni PERFIL_HH.
+    ws = wb.create_sheet("SEGUIMIENTO_MENSUAL")
+    ws.sheet_properties.tabColor = "70AD47"
+    SM = TAB["tblSegMes"]
+    celda(ws, 1, 1, "SEGUIMIENTO MENSUAL (6.5) — base del bono. horas_reales_mes acumula el "
+                    "SEGUIMIENTO_HH; requeridas = nº de semanas del mes × 48. cumple usa la "
+                    "tolerancia p_tolerancia_horas_bono. Un técnico con VAC en el mes queda por debajo.",
+          font=F_SEC)
+    encabezados(ws, SM.fila_enc, SM.campos)
+    sh_hr = R.col("tblSegHH", "horas_reales")
+    sh_tec = R.col("tblSegHH", "tecnico")
+    sh_sem = R.col("tblSegHH", "semana")
+    for i, s in enumerate(esperado["seguimiento_mensual"]):
+        fila = SM.fila_ini + i
+        tc = R.this("tblSegMes", "tecnico", fila)
+        hrm = R.this("tblSegMes", "horas_reales_mes", fila)
+        reqm = R.this("tblSegMes", "horas_requeridas_mes", fila)
+        semanas_mes = esperado["semanas_de_mes"][s["mes"]]
+        celda(ws, fila, 1, s["tecnico"])
+        celda(ws, fila, 2, s["mes"])
+        suma = "+".join(f'SUMIFS({sh_hr},{sh_tec},{tc},{sh_sem},"{w}")' for w in semanas_mes)
+        celda(ws, fila, 3, "=" + suma)
+        celda(ws, fila, 4, f"={len(semanas_mes)}*p_base_semanal_horas")
+        celda(ws, fila, 5, f'=IF({hrm}>={reqm}-p_tolerancia_horas_bono,"sí","no")')
+        celda(ws, fila, 6, f"={hrm}-{reqm}")
+    agregar_tabla(ws, SM)
+    ws.freeze_panes = "A4"
+    for colw, w in (("A", 14), ("B", 10), ("C", 16), ("D", 18), ("E", 9), ("F", 10)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------------ AJUSTES
@@ -2797,6 +2986,27 @@ def imprimir_resumen(datos, esperado):
         if a["tecnico"] == tec_vac and a["semana"] == datos["semanas"][1])
     print(f"  Capacidad de {tec_vac} en {datos['semanas'][1]} (semana de VAC completa): "
           f"{cap_vac:.2f} h (0 h)")
+
+    print("\nSEGUIMIENTO DE HORAS REALES (6.5, capa de cumplimiento; NO cambia PERFIL_HH):")
+    print("  horas_reales por técnico × semana (56 turno / 48 banco / 0 VAC; feriado resta):")
+    print("    " + "técnico".ljust(12) + "".join(s.rjust(11) for s in datos["semanas"]))
+    seg = {(s["tecnico"], s["semana"]): s for s in esperado["seguimiento_hh"]}
+    for _tid, nombre, *_ in TECNICOS:
+        fila = "".join(f"{seg[(nombre, sem)]['posicion'] or '-':>3}:{seg[(nombre, sem)]['horas_reales']:>2.0f}h"
+                       .rjust(11) for sem in datos["semanas"])
+        print("    " + nombre.split()[-1].rjust(2).ljust(12) + fila)
+    print("  superavit_deficit (=reales−48): +8 turno · 0 banco · −48 VAC · −8 banco en feriado")
+    print("  Déficit de capacidad por VAC (esp × semana, técnicos_vac × 48 h):")
+    for (e, sem), d in esperado["deficit_vac"].items():
+        if d:
+            print(f"    {e} {sem}: {d:.0f} h ({d // 48:.0f} técnico(s) en VAC)")
+    print("\nSEGUIMIENTO MENSUAL (6.5, base del bono; tolerancia p_tolerancia_horas_bono=0):")
+    print("    " + "técnico".ljust(12) + "mes".ljust(9) + "reales".rjust(7)
+          + "requer.".rjust(8) + "brecha".rjust(8) + "  cumple")
+    for s in esperado["seguimiento_mensual"]:
+        print("    " + s["tecnico"].split()[-1].rjust(2).ljust(12) + s["mes"].ljust(9)
+              + f"{s['horas_reales_mes']:>7.0f}{s['horas_requeridas_mes']:>8.0f}"
+              + f"{s['brecha']:>+8.0f}  {s['cumple']}")
 
     print("\nPERFIL_HH esperado (REGLA-6, solo semanas del plan; el libro genera hasta 60):")
     print(f"{'esp':8}{'semana':10}{'disp':>7}{'prod':>9}{'prev':>7}{'corr':>7}{'plan':>7}{'holgura':>9}{'%carga':>9}")
