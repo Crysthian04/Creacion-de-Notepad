@@ -47,11 +47,15 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.1.0"
+VERSION = "3.2.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
 CAP_FILAS = 1200
+
+# 7.2: dominio sí/no UNIFICADO en minúsculas y con tilde ("sí"/"no"), que es lo
+# que ya producían es_habil, en_vacaciones, trabaja_domingo y el patrón semanal.
+SI, NO = "sí", "no"
 
 # ══════════════════════════════════════════════════════════════════════════
 # 1. PARÁMETROS (Tabla 10) Y CATÁLOGOS SINTÉTICOS
@@ -206,13 +210,19 @@ def construir_excepciones(hoy):
     return [{"fecha": f, "tipo": t, "habil": h, "area": a, "sub_area": s, "motivo": m}
             for f, t, h, a, s, m in exc]
 
+# 7.2: `es_especialidad_propia` marca qué especialidades son de personal propio.
+# OP y TERCERO existen en las órdenes del ERP pero NO son técnicos propios: no
+# deben poder entrar al ciclo de rotación ni a la capacidad. La restricción queda
+# EXPLÍCITA y editable en el catálogo, no escondida en una lista hardcodeada.
 PUESTOS = [
-    ("PU-MEC", "MEC", "Puesto mecánico"),
-    ("PU-ELE", "ELE", "Puesto eléctrico"),
-    ("PU-AUT", "AUT", "Puesto automatización"),
-    ("PU-OP", "OP", "Puesto operaciones"),
-    ("PU-TER", "TERCERO", "Contratista externo"),
+    ("PU-MEC", "MEC", "Puesto mecánico", SI),
+    ("PU-ELE", "ELE", "Puesto eléctrico", SI),
+    ("PU-AUT", "AUT", "Puesto automatización", SI),
+    ("PU-OP", "OP", "Puesto operaciones", NO),
+    ("PU-TER", "TERCERO", "Contratista externo", NO),
 ]
+# Especialidades de personal propio, derivadas del catálogo (fuente única).
+ESPECIALIDADES_PROPIAS = [e for _c, e, _d, propia in PUESTOS if propia == SI]
 
 # PRESUPUESTO OPEX: la categoría de presupuesto y su clasificación (fijo/variable)
 # son ATRIBUTOS DE CATÁLOGO de la actividad — se eligió ACTIVIDADES y no TIPOS_OT
@@ -271,31 +281,47 @@ ESTADOS_ERP = [
 # 6.6: supervisor FIJO por técnico (atributo del técnico; no rota, no cambia con
 # VAC, no crea ni consume capacidad). Tres supervisores por especialidad; sin
 # suplencia (se hace a mano). Fuente única del supervisor de ASIGNACIONES.
-SUPERVISOR_POR_ESP = {"MEC": "Supervisor Mecánico", "ELE": "Supervisor Eléctrico",
-                      "AUT": "Jefe de Automatización"}
-_TECNICOS_BASE = [
-    # id, nombre, especialidad, area, rotativo, orden_rotacion
-    ("TEC-01", "Técnico 01", "MEC", "PRODUCCION", "SI", 1),
-    ("TEC-02", "Técnico 02", "MEC", "PRODUCCION", "SI", 2),
-    ("TEC-03", "Técnico 03", "MEC", "PRODUCCION", "SI", 3),
-    ("TEC-04", "Técnico 04", "MEC", "PRODUCCION", "SI", 4),
-    ("TEC-05", "Técnico 05", "MEC", "PRODUCCION", "SI", 5),
-    ("TEC-06", "Técnico 06", "MEC", "PRODUCCION", "SI", 6),
-    ("TEC-07", "Técnico 07", "MEC", "PRODUCCION", "SI", 7),
-    ("TEC-08", "Técnico 08", "ELE", "PRODUCCION", "SI", 1),
-    ("TEC-09", "Técnico 09", "ELE", "PRODUCCION", "SI", 2),
-    ("TEC-10", "Técnico 10", "ELE", "PRODUCCION", "SI", 3),
-    ("TEC-11", "Técnico 11", "ELE", "PRODUCCION", "SI", 4),
-    ("TEC-12", "Técnico 12", "ELE", "PRODUCCION", "SI", 5),
-    ("TEC-13", "Técnico 13", "ELE", "PRODUCCION", "SI", 6),
-    ("TEC-14", "Técnico 14", "ELE", "PRODUCCION", "SI", 7),
-    ("TEC-15", "Técnico 15", "AUT", "PRODUCCION", "NO", ""),
-    ("TEC-16", "Técnico 16", "AUT", "PRODUCCION", "NO", ""),
+# 7.2: los supervisores dejan de ser cadenas sueltas y pasan a CATÁLOGO.
+SUPERVISORES = [
+    # codigo, nombre, especialidad
+    ("SUP-MEC", "Supervisor Mecánico", "MEC"),
+    ("SUP-ELE", "Supervisor Eléctrico", "ELE"),
+    ("SUP-AUT", "Jefe de Automatización", "AUT"),
 ]
-# 7.ª columna = supervisor fijo (derivado de la especialidad, atributo del técnico).
-TECNICOS = [t + (SUPERVISOR_POR_ESP[t[2]],) for t in _TECNICOS_BASE]
-# Índices dentro de la tupla de TECNICOS
-TEC_ESP, TEC_AREA, TEC_ROT, TEC_ORDROT, TEC_SUP = 2, 3, 4, 5, 6
+SUPERVISOR_POR_ESP = {e: n for _c, n, e in SUPERVISORES}
+# 7.2: motivos de ausencia como catálogo editable (no hardcode en la fórmula).
+MOTIVOS_AUSENCIA = [("Vacaciones anuales",), ("Día libre pagado",), ("Permiso",)]
+# 7.2: roster REAL (id numérico de 8 dígitos). El orden 1..7 por especialidad es
+# el mismo que había, así la rotación y la cobertura no cambian.
+_TECNICOS_BASE = [
+    # id, nombre, especialidad, area, rotativo, orden_rotacion, activo
+    (80205524, "Carlos Pérez", "MEC", "PRODUCCION", SI, 1, SI),
+    (80205525, "María Gómez", "MEC", "PRODUCCION", SI, 2, SI),
+    (80205526, "Luis Rodríguez", "MEC", "PRODUCCION", SI, 3, SI),
+    (80205527, "Miguel Martínez", "MEC", "PRODUCCION", SI, 4, SI),
+    (80205528, "Ana Sánchez", "MEC", "PRODUCCION", SI, 5, SI),
+    (80205529, "David Torres", "MEC", "PRODUCCION", SI, 6, SI),
+    (80205530, "Francisco Ramírez", "MEC", "PRODUCCION", SI, 7, SI),
+    (80205531, "Jorge Díaz", "ELE", "PRODUCCION", SI, 1, SI),
+    (80205532, "Roberto Castro", "ELE", "PRODUCCION", SI, 2, SI),
+    (80205533, "Laura Morales", "ELE", "PRODUCCION", SI, 3, SI),
+    (80205534, "Ricardo Ortiz", "ELE", "PRODUCCION", SI, 4, SI),
+    (80205535, "Eduardo Silva", "ELE", "PRODUCCION", SI, 5, SI),
+    (80205536, "Gabriela Rojas", "ELE", "PRODUCCION", SI, 6, SI),
+    (80205537, "Fernando Mendoza", "ELE", "PRODUCCION", SI, 7, SI),
+    (80205538, "Alberto Vargas", "AUT", "PRODUCCION", NO, "", SI),
+    (80205539, "Daniela Medina", "AUT", "PRODUCCION", NO, "", SI),
+]
+# El supervisor es atributo del técnico y sale del catálogo por su especialidad.
+TECNICOS = [t[:4] + (SUPERVISOR_POR_ESP[t[2]],) + t[4:] for t in _TECNICOS_BASE]
+# Índices dentro de la tupla de TECNICOS:
+#   0 id · 1 nombre · 2 especialidad · 3 area · 4 supervisor · 5 rotativo
+#   6 orden_rotacion · 7 activo
+TEC_ESP, TEC_AREA, TEC_SUP, TEC_ROT, TEC_ORDROT, TEC_ACT = 2, 3, 4, 5, 6, 7
+# 7.2: `activo` deja de ser decorativo. Solo los técnicos activos entran en las
+# listas, en ASIGNACIONES, en el N de la rotación, en la capacidad y en el
+# seguimiento. TECNICOS_ACTIVOS es la fuente única de "quién cuenta".
+TECNICOS_ACTIVOS = [t for t in TECNICOS if t[TEC_ACT] == SI]
 COORD_POR_AREA = {"PRODUCCION": "Coordinador A", "EMPAQUE": "Coordinador B", "SERVICIOS": "Coordinador C"}
 EQUIPOS_POR_AREA = {
     "PRODUCCION": ["EQ-101", "EQ-102", "EQ-103", "EQ-104", "EQ-105"],
@@ -307,7 +333,7 @@ ESPECIALIDADES = ("MEC", "ELE", "AUT", "TERCERO")
 CAT_TIPOS = {c: cl for c, _, cl in TIPOS_OT}
 CAT_ESTADOS = dict(ESTADOS_ERP)
 CAT_CECO = {c[0]: c for c in CENTROS_COSTO}
-CAT_PUESTOS = {c: e for c, e, _ in PUESTOS}
+CAT_PUESTOS = {c: e for c, e, *_ in PUESTOS}
 CAT_ACTIVIDADES = {c: d for c, d, *_ in ACTIVIDADES}
 # actividad → (categoria_presupuesto, clasificacion); "" si el catálogo no la asigna
 CAT_CATEGORIA_PPTO = {a[0]: (a[3], a[4]) for a in ACTIVIDADES}
@@ -605,10 +631,11 @@ def semanas_iso_del_anio(anio):
 
 
 def _n_por_ciclo():
-    """N (nº de posiciones del anillo) por (especialidad, área) entre rotativos."""
+    """N (nº de posiciones del anillo) por (especialidad, área) entre rotativos
+    ACTIVOS. 7.2: un técnico con activo=no no cuenta para el ciclo."""
     n = {}
-    for t in TECNICOS:
-        if t[TEC_ROT] == "SI":
+    for t in TECNICOS_ACTIVOS:
+        if t[TEC_ROT] == SI:
             n[(t[TEC_ESP], t[TEC_AREA])] = n.get((t[TEC_ESP], t[TEC_AREA]), 0) + 1
     return n
 
@@ -621,11 +648,11 @@ def _asignaciones_de(lunes_list, semanas_list, semana_referencia, plan_vacacione
     asignaciones = []
     for si, sem in enumerate(semanas_list):
         semanas_desde = (lunes_list[si] - semana_referencia).days // 7
-        for tid, nombre, esp, area, rot, ordrot, sup in TECNICOS:
+        for tid, nombre, esp, area, sup, rot, ordrot, _act in TECNICOS_ACTIVOS:
             n = n_por_ciclo.get((esp, area), 0)
             for di, dia in enumerate(DIAS):
                 fecha = lunes_list[si] + timedelta(days=di)
-                pc = posicion_ciclo_de(rot == "SI", ordrot or 0, n,
+                pc = posicion_ciclo_de(rot == SI, ordrot or 0, n,
                                        semanas_desde, di == 6)
                 en_vac = en_vacaciones_de(nombre, fecha, plan_vacaciones)
                 turno_manual = ""            # sin excepciones manuales en el sintético
@@ -642,6 +669,16 @@ def _asignaciones_de(lunes_list, semanas_list, semana_referencia, plan_vacacione
     return asignaciones
 
 
+def _tec(esp, orden):
+    """Nombre del técnico ACTIVO de esa especialidad con ese orden_rotacion (1..N),
+    o el n-ésimo si no es rotativo. Evita hardcodear nombres del roster."""
+    de_esp = [t for t in TECNICOS_ACTIVOS if t[TEC_ESP] == esp]
+    for t in de_esp:
+        if t[TEC_ORDROT] == orden:
+            return t[1]
+    return de_esp[min(orden - 1, len(de_esp) - 1)][1]
+
+
 def generar_datos(hoy):
     """Construye ORDENES, EJECUCION, TECNICOS y ASIGNACIONES sintéticos."""
     lunes = hoy - timedelta(days=hoy.weekday())
@@ -656,14 +693,14 @@ def generar_datos(hoy):
     # N = nº de posiciones del ciclo por (especialidad, área) entre rotativos.
     n_por_ciclo = _n_por_ciclo()
 
-    # 6.4: plan de vacaciones. Demo: un técnico MEC (Técnico 05) ~4 semanas que
+    # 6.4: plan de vacaciones. Demo: el 5.º mecánico de la rotación, ~4 semanas que
     # SOLAPAN semanas en las que estaría en turno (S30→T2, S31→T1) → hueco de
     # cobertura visible en un turno; en S32 estaría en Banco (hueco en banco).
     # Dos periodos (varias filas por técnico) para ejercitar el COUNTIFS.
     plan_vacaciones = [
-        {"tecnico": "Técnico 05", "fecha_inicio": lunes_sem[1],
+        {"tecnico": _tec("MEC", 5), "fecha_inicio": lunes_sem[1],
          "fecha_fin": lunes_sem[3] + timedelta(days=13), "motivo": "Vacaciones anuales"},
-        {"tecnico": "Técnico 05", "fecha_inicio": lunes_sem[3] + timedelta(days=35),
+        {"tecnico": _tec("MEC", 5), "fecha_inicio": lunes_sem[3] + timedelta(days=35),
          "fecha_fin": lunes_sem[3] + timedelta(days=41), "motivo": "Permiso"},
     ]
 
@@ -722,13 +759,17 @@ def generar_datos(hoy):
     for esp, filas in PRESUPUESTO_PLAN.items():
         tecs = _tecnicos_de(esp)
         for si, (hh_prev, hh_corr) in enumerate(filas):
-            disponibles = [t for t in tecs if not (t[0] == "TEC-04" and si == 2)]
+            # Dos huecos deliberados del sintético (heredados, se mantienen tal
+            # cual): el 4.º mecánico no recibe carga en la 3.ª semana y el 7.º no
+            # trabaja el viernes de la 2.ª. Antes iban clavados al código
+            # "TEC-04"/"TEC-07"; con el roster real se expresan por rotación.
+            disponibles = [t for t in tecs if not (t[1] == _tec("MEC", 4) and si == 2)]
             for clasif, total in (("preventiva", hh_prev), ("correctiva", hh_corr)):
                 for h in partir_horas(total):
                     dia_idx = idx_plan % 5
                     tec = disponibles[idx_plan % len(disponibles)]
-                    if tec[0] == "TEC-07" and si == 1 and dia_idx == 4:
-                        dia_idx = 3  # evitar el día de ausencia 'X'
+                    if tec[1] == _tec("MEC", 7) and si == 1 and dia_idx == 4:
+                        dia_idx = 3
                     nombre_tec = "" if idx_plan % 12 == 11 else tec[1]  # algunas sin técnico
                     nueva(lunes_sem[si] + timedelta(days=dia_idx), h, esp, clasif, "plan",
                           si=si, dia_idx=dia_idx, tecnico=nombre_tec,
@@ -743,12 +784,12 @@ def generar_datos(hoy):
     # Órdenes de fin de semana (6.1: base L-S). El SÁBADO es hábil (consume
     # capacidad y cuenta en adherencia); el DOMINGO es el día normal no hábil
     # (prueba VALIDACION y que EXPORTAR recorre los 7 días). Los casos ad-hoc
-    # viejos (TEC-04 VAC, domingo especial de SERVICIOS) se retiran del sintético
+    # viejos (vacaciones ad-hoc, domingo especial de SERVICIOS) se retiran del sintético
     # y se reservan para §7 (la rotación exige cobertura limpia cada semana).
     s30_sab = lunes_sem[1] + timedelta(days=5)   # sábado de la semana corriente (hábil)
     s30_dom = lunes_sem[1] + timedelta(days=6)   # domingo (no hábil)
-    nueva(s30_sab, 6, "MEC", "correctiva", "finde", tecnico="Técnico 01", ceco="CC-110")
-    nueva(s30_sab, 4, "ELE", "correctiva", "finde", tecnico="Técnico 08", ceco="CC-120")
+    nueva(s30_sab, 6, "MEC", "correctiva", "finde", tecnico=_tec("MEC", 1), ceco="CC-110")
+    nueva(s30_sab, 4, "ELE", "correctiva", "finde", tecnico=_tec("ELE", 1), ceco="CC-120")
     nueva(s30_dom, 8, "MEC", "correctiva", "finde", tecnico="", ceco="CC-210")
 
     # Ajustes manuales de horas (v2.1: viven en tblAjustes, con clave). Se fijan
@@ -759,14 +800,14 @@ def generar_datos(hoy):
         o["costo_plan"] = h * TARIFA["preventiva" if o["_clasif"] == "preventiva" else "correctiva"]
     aj1 = next(o for o in ordenes if o["_grupo"] == "plan" and o["_si"] == 1
                and o["puesto_trabajo"] == "PU-MEC" and o["_clasif"] == "preventiva")
-    aj1["tecnico_asignado"] = "Técnico 01"
+    aj1["tecnico_asignado"] = _tec("MEC", 1)
     _fijar_horas(aj1, 8)
     aj1["observaciones"] = "Ajuste 8 → 12 h en hoja AJUSTES"
     aj2 = next(o for o in ordenes if o["_grupo"] == "plan" and o["_si"] == 1
                and o["puesto_trabajo"] == "PU-ELE" and o["_clasif"] == "preventiva"
                and o is not aj1)
     if not aj2["tecnico_asignado"]:
-        aj2["tecnico_asignado"] = "Técnico 08"
+        aj2["tecnico_asignado"] = _tec("ELE", 1)
     _fijar_horas(aj2, 6)
     aj2["observaciones"] = "Ajuste 6 → 4 h en hoja AJUSTES"
 
@@ -963,13 +1004,13 @@ def generar_datos_banco(n_ordenes=1000, semanas_programadas=4, semilla=SEMILLA_B
     # --- Vacaciones del año (7 periodos; 2 solapan la ventana programada) ----
     plan_vacaciones = []
     for nombre, sini, nsemv, motivo in [
-            ("Técnico 03", 8, 3, "Vacaciones anuales"),
-            ("Técnico 06", 20, 2, "Vacaciones anuales"),
-            ("Técnico 15", 27, 2, "Vacaciones anuales"),
-            ("Técnico 09", 31, 3, "Vacaciones anuales"),
-            ("Técnico 12", 38, 2, "Vacaciones anuales"),
-            ("Técnico 02", SEMANA_VENTANA, 2, "Vacaciones anuales"),
-            ("Técnico 11", SEMANA_VENTANA + 2, 1, "Día libre pagado")]:
+            (_tec("MEC", 3), 8, 3, "Vacaciones anuales"),
+            (_tec("MEC", 6), 20, 2, "Vacaciones anuales"),
+            (TECNICOS_ACTIVOS[-2][1], 27, 2, "Vacaciones anuales"),
+            (_tec("ELE", 2), 31, 3, "Vacaciones anuales"),
+            (_tec("ELE", 5), 38, 2, "Vacaciones anuales"),
+            (_tec("MEC", 2), SEMANA_VENTANA, 2, "Vacaciones anuales"),
+            (_tec("ELE", 4), SEMANA_VENTANA + 2, 1, "Día libre pagado")]:
         ini = lunes_iso(anio, sini)
         plan_vacaciones.append({"tecnico": nombre, "fecha_inicio": ini,
                                 "fecha_fin": ini + timedelta(days=7 * nsemv - 1),
@@ -1538,7 +1579,7 @@ def calcular_esperado(datos):
                          ("sub_area", SUBAREAS),
                          ("especialidad", list(ESPECIALIDADES)),
                          ("coordinador", sorted(set(COORD_POR_AREA.values()))),
-                         ("tecnico_asignado", [t[1] for t in TECNICOS]),
+                         ("tecnico_asignado", [t[1] for t in TECNICOS_ACTIVOS]),
                          ("clasificacion", ["preventiva", "correctiva", "sin_clasificar"])):
         for v in valores:
             adherencia[(dim, v)] = regla_7_adherencia([o for o in habiles if o[dim] == v])
@@ -1587,7 +1628,7 @@ def calcular_esperado(datos):
     # Carga y capacidad semanal por técnico (zona de datos del gráfico de carga)
     carga_tecnicos, capacidad_tecnicos = {}, {}
     for sem in datos["semanas"]:
-        for _tid, nombre, *_ in TECNICOS:
+        for _tid, nombre, *_ in TECNICOS_ACTIVOS:
             carga_tecnicos[(sem, nombre)] = sum(
                 o["horas_efectivas"] or 0 for o in enriquecidas
                 if o["tecnico_asignado"] == nombre and o["semana"] == sem)
@@ -1607,9 +1648,9 @@ def calcular_esperado(datos):
         if a["dia"] == "lunes":
             posicion_por[k] = a["posicion_ciclo"]
             trab_dom_por[k] = a["trabaja_domingo"]
-    esp_por_tec = {t[1]: t[TEC_ESP] for t in TECNICOS}
+    esp_por_tec = {t[1]: t[TEC_ESP] for t in TECNICOS_ACTIVOS}
     seguimiento_hh = []
-    for _tid, nombre, *_ in TECNICOS:
+    for _tid, nombre, *_ in TECNICOS_ACTIVOS:
         for sem in datos["semanas"]:
             k = (nombre, sem)
             hr = horas_reales_semana(disp_ls_por.get(k, 0), trab_dom_por.get(k) == "sí")
@@ -1624,7 +1665,7 @@ def calcular_esperado(datos):
     meses_seg = sorted(set(mes_de_sem.values()))
     semanas_de_mes = {m: [s for s in datos["semanas"] if mes_de_sem[s] == m] for m in meses_seg}
     seguimiento_mensual = []
-    for _tid, nombre, *_ in TECNICOS:
+    for _tid, nombre, *_ in TECNICOS_ACTIVOS:
         for m in meses_seg:
             ws_mes = semanas_de_mes[m]
             reales = sum(hr_por[(nombre, s)] for s in ws_mes)
@@ -1635,7 +1676,7 @@ def calcular_esperado(datos):
                 "cumple": "sí" if reales >= req - tol else "no"})
     # Déficit de capacidad por VAC (esp × semana): técnicos en VAC × base 48 h.
     # Informativo (para decidir contratar externo); NO cambia la capacidad base.
-    esps_con_tec = [e for e in ESPECIALIDADES if any(t[TEC_ESP] == e for t in TECNICOS)]
+    esps_con_tec = [e for e in ESPECIALIDADES if any(t[TEC_ESP] == e for t in TECNICOS_ACTIVOS)]
     deficit_vac = {}
     for e in esps_con_tec:
         for sem in datos["semanas"]:
@@ -1692,11 +1733,11 @@ def calcular_esperado(datos):
         hh_total = sum(o["horas_efectivas"] or 0 for o in scope)
         hh_prev = sum(o["horas_efectivas"] or 0 for o in scope if o["clasificacion"] == "preventiva")
         hh_corr = sum(o["horas_efectivas"] or 0 for o in scope if o["clasificacion"] == "correctiva")
-        tecs = {t[1] for t in TECNICOS}
+        tecs = {t[1] for t in TECNICOS_ACTIVOS}
         n_tec = len({o["tecnico_asignado"] for o in scope
                      if o["tecnico_asignado"] in tecs})
         por_tec = {}
-        for _tid, nombre, *_ in TECNICOS:
+        for _tid, nombre, *_ in TECNICOS_ACTIVOS:
             hha = sum(o["horas_efectivas"] or 0 for o in scope if o["tecnico_asignado"] == nombre)
             cap = FACTOR_PRODUCTIVIDAD * sum(a["horas_disponibles"] for a in datos["asignaciones"]
                                              if a["tecnico"] == nombre and a["semana"] == sem)
@@ -2107,7 +2148,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                          ["codigo", "descripcion", "planta", "area", "sub_area", "linea", "coordinador"],
                          len(CENTROS_COSTO)),
         "tblPuestos": Tabla("tblPuestos", "CAT_PUESTOS", 3,
-                            ["codigo", "especialidad", "descripcion"], len(PUESTOS)),
+                            ["codigo", "especialidad", "descripcion",
+                             "es_especialidad_propia"], len(PUESTOS)),
         "tblActividades": Tabla("tblActividades", "CAT_ACTIVIDADES", 3,
                                 ["codigo", "descripcion", "tipo",
                                  "categoria_presupuesto", "clasificacion"], len(ACTIVIDADES)),
@@ -2117,6 +2159,11 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                             ["estado_sistema", "estado_normalizado"], len(ESTADOS_ERP)),
         "tblTurnos": Tabla("tblTurnos", "CAT_TURNOS", 3,
                            ["turno", "nombre", "hora_inicio", "hora_fin", "tipo"], len(TURNOS_CAT)),
+        # 7.2: supervisores y motivos de ausencia pasan a catálogo
+        "tblSupervisores": Tabla("tblSupervisores", "CAT_SUPERVISORES", 3,
+                                 ["codigo", "nombre", "especialidad"], len(SUPERVISORES)),
+        "tblMotivos": Tabla("tblMotivos", "CAT_MOTIVOS_AUSENCIA", 3,
+                            ["motivo"], len(MOTIVOS_AUSENCIA)),
     }
     R = Refs(refs, TAB)
     O = TAB["tblOrdenes"]
@@ -2233,9 +2280,71 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # lista_turnos (nombre) se define en CAT_TURNOS (6.2), fuente única.
     wb.defined_names.add(DefinedName("lista_no_disponible", attr_text="PARAMETROS!$G$5:$G$6"))
     wb.defined_names.add(DefinedName("lista_dias", attr_text="PARAMETROS!$I$5:$I$11"))
+
+    # 7.2: BLOQUE DE LISTAS DE VALIDACIÓN. Toda lista cuyo contenido dependa de un
+    # catálogo o de los datos vive aquí como RANGO (no como literal dentro de la
+    # validación): así se puede editar sin tocar código y no hay dos fuentes que
+    # puedan divergir. Las 1:1 con un catálogo se escriben como FÓRMULA (siguen
+    # las ediciones del catálogo en vivo); las derivadas (valores distintos,
+    # filtradas) se escriben como valores y se refrescan al regenerar.
+    celda(ws, 3, 11, "listas de validación (rangos con nombre) — no editar salvo para "
+                     "añadir valores", font=F_SEC)
+    col_aux = [11]                       # K en adelante
+
+    def lista_aux(nombre, titulo, valores, formulas=None):
+        """Escribe una lista en una columna libre y registra su nombre definido."""
+        c = col_aux[0]
+        celda(ws, 4, c, titulo, font=F_NOTA)
+        for i, v in enumerate(valores):
+            celda(ws, 5 + i, c, formulas[i] if formulas else v)
+        L_ = get_column_letter(c)
+        wb.defined_names.add(DefinedName(
+            nombre, attr_text=f"PARAMETROS!${L_}$5:${L_}${4 + len(valores)}"))
+        ws.column_dimensions[L_].width = 22
+        col_aux[0] += 1
+        return nombre
+
+    TODOS = "(todos)"
+    ct = TAB["tblTurnos"]
+    lista_aux("lista_f_turno", "filtro turno", [TODOS] + list(TURNOS),
+              formulas=[f'="{TODOS}"'] + [f"=CAT_TURNOS!$A${ct.fila_ini + i}"
+                                          for i in range(len(TURNOS_CAT))])
+    areas_cat = list(dict.fromkeys(c[CECO_AREA] for c in CENTROS_COSTO))
+    coords_cat = list(dict.fromkeys(c[CECO_COORD] for c in CENTROS_COSTO))
+    lista_aux("lista_f_area", "filtro área", [TODOS] + areas_cat)
+    lista_aux("lista_areas", "áreas (CAT_CENTROS_COSTO)", areas_cat)
+    lista_aux("lista_f_coordinador", "filtro coordinador", [TODOS] + coords_cat)
+    lista_aux("lista_f_subarea", "filtro sub-área", [TODOS] + SUBAREAS)
+    lista_aux("lista_subareas", "sub-áreas (CAT_SUBAREAS)", SUBAREAS)
+    lista_aux("lista_f_especialidad", "filtro especialidad", [TODOS] + list(ESPECIALIDADES))
+    # Especialidades de PERSONAL PROPIO: derivadas del atributo del catálogo
+    # (es_especialidad_propia), no de una lista paralela hardcodeada.
+    lista_aux("lista_esp_propias", "especialidad propia (CAT_PUESTOS)", ESPECIALIDADES_PROPIAS)
+    cc = TAB["tblCECO"]
+    lista_aux("lista_ceco", "centros de costo", [c[0] for c in CENTROS_COSTO],
+              formulas=[f"=CAT_CENTROS_COSTO!$A${cc.fila_ini + i}"
+                        for i in range(len(CENTROS_COSTO))])
+    cp = TAB["tblPuestos"]
+    lista_aux("lista_puestos", "puestos de trabajo", [p[0] for p in PUESTOS],
+              formulas=[f"=CAT_PUESTOS!$A${cp.fila_ini + i}" for i in range(len(PUESTOS))])
+    ca = TAB["tblActividades"]
+    lista_aux("lista_actividades", "actividades", [a[0] for a in ACTIVIDADES],
+              formulas=[f"=CAT_ACTIVIDADES!$A${ca.fila_ini + i}" for i in range(len(ACTIVIDADES))])
+    cti = TAB["tblTiposOT"]
+    lista_aux("lista_tipos_ot", "tipos de OT", [t[0] for t in TIPOS_OT],
+              formulas=[f"=CAT_TIPOS_OT!$A${cti.fila_ini + i}" for i in range(len(TIPOS_OT))])
+    cs = TAB["tblSupervisores"]
+    lista_aux("lista_supervisores", "supervisores", [s[1] for s in SUPERVISORES],
+              formulas=[f"=CAT_SUPERVISORES!$B${cs.fila_ini + i}" for i in range(len(SUPERVISORES))])
+    cmo = TAB["tblMotivos"]
+    lista_aux("lista_motivos_ausencia", "motivos de ausencia", [m[0] for m in MOTIVOS_AUSENCIA],
+              formulas=[f"=CAT_MOTIVOS_AUSENCIA!$A${cmo.fila_ini + i}"
+                        for i in range(len(MOTIVOS_AUSENCIA))])
+    # 7.2: lista_tecnicos = columna K de TECNICOS (activos compactados), no la
+    # columna de nombres: un técnico con activo=no no aparece en los desplegables.
     _T = TAB["tblTecnicos"]
     wb.defined_names.add(DefinedName(
-        "lista_tecnicos", attr_text=f"TECNICOS!$B${_T.fila_ini}:$B${_T.fila_fin}"))
+        "lista_tecnicos", attr_text=f"TECNICOS!$K${_T.fila_ini}:$K${_T.fila_fin}"))
 
     # --------------------------------------------- GUIA_IMPORTAR_ORDENES
     # 7.1: era `1_IMPORTAR_ORDENES` y PARECÍA zona de pegado (nombre numerado +
@@ -2334,6 +2443,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     dv = DataValidation(type="list", formula1="lista_tecnicos", allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"{let('tecnico_asignado')}{O.fila_ini}:{let('tecnico_asignado')}{O.fila_fin}")
+    # 7.2: campos importados que antes eran texto plano ahora tienen su lista de
+    # catálogo. La validación de Excel NO impide pegar: el pegado en ORDENES!A4
+    # sigue funcionando igual y el guardián real sigue siendo REGLA-10
+    # (hoja VALIDACION), que reporta lo que quede fuera de catálogo.
+    for campo, rango in (("centro_costo", "lista_ceco"),
+                         ("puesto_trabajo", "lista_puestos"),
+                         ("cod_actividad", "lista_actividades"),
+                         ("tipo_ot", "lista_tipos_ot")):
+        dvc = DataValidation(type="list", formula1=rango, allow_blank=True,
+                             showErrorMessage=False)
+        ws.add_data_validation(dvc)
+        dvc.add(f"{let(campo)}{O.fila_ini}:{let(campo)}{O.fila_fin}")
     # Resaltados obligatorios: backlog > 90 días y órdenes del plan sin técnico
     ws.conditional_formatting.add(
         f"{let('backlog_dias')}{O.fila_ini}:{let('backlog_dias')}{O.fila_fin}",
@@ -2362,16 +2483,24 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                     "entre rotativos) alimentan la rotación. 6.6: supervisor fijo del técnico.",
           font=F_SEC)
     encabezados(ws, T.fila_enc, T.campos)
-    for i, (tid, nombre, esp, area, rot, ordrot, sup) in enumerate(TECNICOS):
+    for i, fila_t in enumerate(TECNICOS):
         fila = T.fila_ini + i
-        for j, v in enumerate([tid, nombre, esp, area, sup, rot, ordrot, "SI"], start=1):
+        for j, v in enumerate(fila_t, start=1):
             celda(ws, fila, j, v, font=F_EDIT)
     agregar_tabla(ws, T)
-    dv = DataValidation(type="list", formula1='"ELE,MEC,AUT"', allow_blank=False)
+    # 7.2: especialidad desde el CATÁLOGO, filtrada por es_especialidad_propia
+    # (OP y TERCERO no pueden ser técnicos propios). Sin lista paralela hardcodeada.
+    dv = DataValidation(type="list", formula1="lista_esp_propias", allow_blank=False)
     ws.add_data_validation(dv)
     dv.add(f"C{T.fila_ini}:C{T.fila_fin}")
-    # rotativo (F) y activo (H): sí/no
-    dv = DataValidation(type="list", formula1='"SI,NO"', allow_blank=False)
+    dv = DataValidation(type="list", formula1="lista_areas", allow_blank=False)
+    ws.add_data_validation(dv)
+    dv.add(f"D{T.fila_ini}:D{T.fila_fin}")
+    dv = DataValidation(type="list", formula1="lista_supervisores", allow_blank=True)
+    ws.add_data_validation(dv)
+    dv.add(f"E{T.fila_ini}:E{T.fila_fin}")
+    # rotativo (F) y activo (H): dominio fijo sí/no, unificado con el resto del libro
+    dv = DataValidation(type="list", formula1=f'"{SI},{NO}"', allow_blank=False)
     ws.add_data_validation(dv)
     dv.add(f"F{T.fila_ini}:F{T.fila_fin}")
     dv.add(f"H{T.fila_ini}:H{T.fila_fin}")
@@ -2380,8 +2509,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                         allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"G{T.fila_ini}:G{T.fila_fin}")
-    for colw, w in (("A", 10), ("B", 14), ("C", 12), ("D", 14), ("E", 16),
-                    ("F", 9), ("G", 14), ("H", 8)):
+    # 7.2: `activo` conectado. Columnas auxiliares que COMPACTAN los técnicos
+    # activos: J numera los activos y K los lista sin huecos. `lista_tecnicos`
+    # apunta a K, así un técnico con activo=no desaparece de los desplegables.
+    celda(ws, T.fila_enc, 10, "nº activo", font=F_NOTA)
+    celda(ws, T.fila_enc, 11, "técnicos activos (lista_tecnicos) — no editar", font=F_NOTA)
+    for i in range(len(TECNICOS)):
+        fr = T.fila_ini + i
+        celda(ws, fr, 10, f'=IF($H{fr}="{SI}",COUNTIFS($H${T.fila_ini}:$H{fr},"{SI}"),"")')
+        celda(ws, fr, 11, f'=IFERROR(INDEX($B${T.fila_ini}:$B${T.fila_fin},'
+                          f'MATCH(ROW()-{T.fila_enc},$J${T.fila_ini}:$J${T.fila_fin},0)),"")')
+    for colw, w in (("A", 12), ("B", 20), ("C", 12), ("D", 14), ("E", 22),
+                    ("F", 9), ("G", 14), ("H", 8), ("J", 10), ("K", 24)):
         ws.column_dimensions[colw].width = w
 
     # ------------------------------------------------------- ASIGNACIONES
@@ -2397,6 +2536,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     rot_col = R.col("tblTecnicos", "rotativo")
     esp_col = R.col("tblTecnicos", "especialidad")
     area_col = R.col("tblTecnicos", "area")
+    act_col = R.col("tblTecnicos", "activo")
     vt_col = R.col("tblVacaciones", "tecnico")
     vi_col = R.col("tblVacaciones", "fecha_inicio")
     vf_col = R.col("tblVacaciones", "fecha_fin")
@@ -2421,21 +2561,25 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         # 6.3 n_ciclo: nº de posiciones del ciclo = rotativos de la MISMA
         # especialidad y área (soporta una especialidad repartida en varias
         # áreas: cada área su propio ciclo). 0 para no rotativos (Banco fijo).
-        celda(ws, fila, 6, f'=COUNTIFS({rot_col},"SI",{esp_col},{esp_c},{area_col},{area_c})')
+        # 7.2: solo los técnicos ACTIVOS cuentan para el N del ciclo.
+        celda(ws, fila, 6, f'=COUNTIFS({rot_col},"{SI}",{esp_col},{esp_c},{area_col},{area_c},'
+                           f'{act_col},"{SI}")')
         # 6.3 posicion_ciclo (auditoría): etiqueta del anillo B(N-3)..B1/T3/T2/T1.
         # Anillo: pos<banco → "B"&(banco-pos); si no → "T"&(N-pos). banco=N-3.
         # "" el domingo (fuera de la base L-S) o sin técnico/semana; "B" si no rotativo.
         # NO cambia con VAC: el hueco se lee "iba a T2, está VAC".
         yy = f"VALUE(LEFT({sm},4))"
         lunes_iso = f'DATE({yy},1,4)-WEEKDAY(DATE({yy},1,4),2)+1+(VALUE(MID({sm},7,2))-1)*7'
-        rot_lu = R.busca(nb, "tblTecnicos", "nombre", "rotativo", '"NO"')
+        rot_lu = R.busca(nb, "tblTecnicos", "nombre", "rotativo", f'"{NO}"')
+        act_lu = R.busca(nb, "tblTecnicos", "nombre", "activo", f'"{NO}"')
         ord_lu = R.busca(nb, "tblTecnicos", "nombre", "orden_rotacion", "0")
         semanas_expr = f'(({lunes_iso})-p_semana_referencia)/7'
         pos = f'MOD(({ord_lu}-1)+{semanas_expr},{ncell})'
         banco = f'({ncell}-3)'
         label = f'IF({pos}<{banco},"B"&({banco}-{pos}),"T"&({ncell}-{pos}))'
-        celda(ws, fila, 7, f'=IF(OR({nb}="",{sm}="",{dia_c}="domingo"),"",'
-                           f'IF({rot_lu}<>"SI","B",{label}))')
+        # 7.2: un técnico con activo=no queda sin posición → sin turno → 0 h.
+        celda(ws, fila, 7, f'=IF(OR({nb}="",{sm}="",{dia_c}="domingo",{act_lu}<>"{SI}"),"",'
+                           f'IF({rot_lu}<>"{SI}","B",{label}))')
         # 6.4 en_vacaciones (helper): sí si la fecha cae en algún periodo de
         # PLAN_VACACIONES del técnico (COUNTIFS soporta varios periodos por técnico).
         celda(ws, fila, 8, f'=IF(COUNTIFS({vt_col},{nb},{vi_col},"<="&{fe},'
@@ -2501,6 +2645,11 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     dv = DataValidation(type="list", formula1="lista_tecnicos", allow_blank=True)
     ws.add_data_validation(dv)
     dv.add(f"A{V.fila_ini}:A{V.fila_fin}")
+    # 7.2: motivo desde CAT_MOTIVOS_AUSENCIA (catálogo editable, no hardcode)
+    dvm = DataValidation(type="list", formula1="lista_motivos_ausencia", allow_blank=True,
+                         showErrorMessage=False)
+    ws.add_data_validation(dvm)
+    dvm.add(f"D{V.fila_ini}:D{V.fila_fin}")
     for colw, w in (("A", 14), ("B", 13), ("C", 13), ("D", 26)):
         ws.column_dimensions[colw].width = w
 
@@ -2846,6 +2995,18 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     dvx = DataValidation(type="list", formula1='"sí,no"', allow_blank=False)
     ws.add_data_validation(dvx)
     dvx.add(f"C{EX.fila_ini}:C{EX.fila_fin}")
+    # 7.2 (hallazgo del barrido): área y sub-área de las excepciones son
+    # editables y salen de catálogo — REGLA-10 ya las audita, pero faltaba el
+    # desplegable. En blanco = toda la planta / toda el área, así que se admite
+    # vacío y no se bloquea el pegado.
+    dva = DataValidation(type="list", formula1="lista_areas", allow_blank=True,
+                         showErrorMessage=False)
+    ws.add_data_validation(dva)
+    dva.add(f"D{EX.fila_ini}:D{EX.fila_fin}")
+    dvs = DataValidation(type="list", formula1="lista_subareas", allow_blank=True,
+                         showErrorMessage=False)
+    ws.add_data_validation(dvs)
+    dvs.add(f"E{EX.fila_ini}:E{EX.fila_fin}")
     ws.conditional_formatting.add(
         f"C{EX.fila_ini}:C{EX.fila_fin}",
         CellIsRule(operator="equal", formula=['"no"'], fill=FILL_ROJO))
@@ -2994,13 +3155,15 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         attr_text=f"PLAN_SEMANAL!${get_column_letter(COL_AUX)}$3:"
                   f"${get_column_letter(COL_AUX)}${fila_aux_fin}"))
 
+    # 7.2: solo "día" sigue siendo literal (dominio fijo); el resto sale de su
+    # catálogo o de los datos a través de un rango con nombre.
     criterios = [("semana", 2, "lista_semanas_plan", semanas[1]),
                  ("día", 4, ["(todos)"] + list(DIAS), "(todos)"),
-                 ("turno", 6, ["(todos)"] + list(TURNOS), "(todos)"),
-                 ("coordinador", 8, ["(todos)"] + sorted(set(COORD_POR_AREA.values())), "(todos)"),
-                 ("área", 10, ["(todos)"] + list(COORD_POR_AREA), "(todos)"),
-                 ("especialidad", 12, ["(todos)"] + list(ESPECIALIDADES), "(todos)"),
-                 ("sub-área", 14, ["(todos)"] + SUBAREAS, "(todos)")]
+                 ("turno", 6, "lista_f_turno", "(todos)"),
+                 ("coordinador", 8, "lista_f_coordinador", "(todos)"),
+                 ("área", 10, "lista_f_area", "(todos)"),
+                 ("especialidad", 12, "lista_f_especialidad", "(todos)"),
+                 ("sub-área", 14, "lista_f_subarea", "(todos)")]
     for nombre, colc, lista, defecto in criterios:
         celda(ws, 3, colc - 1, nombre + ":", font=F_SEC)
         celda(ws, 3, colc, defecto, font=F_EDIT, fill=FILL_GRIS)
@@ -3032,7 +3195,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     encabezados(ws, 3, ["tecnico", "especialidad", "etiqueta", "hha_seleccion",
                         "dentro_capacidad", "sobreasignacion", "capacidad"], col_ini=16)
     fila_tec0 = 4
-    for i, (_tid, nombre, esp_t, *_) in enumerate(TECNICOS):
+    for i, (_tid, nombre, esp_t, *_) in enumerate(TECNICOS_ACTIVOS):
         fr = fila_tec0 + i
         celda(ws, fr, 16, nombre)
         celda(ws, fr, 17, esp_t)
@@ -3199,7 +3362,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     f3 = bloque_adh(f2, "POR COORDINADOR", "coordinador", sorted(set(COORD_POR_AREA.values())))
     f4 = bloque_adh(f3, "POR CLASIFICACIÓN", "clasificacion",
                     ["preventiva", "correctiva", "sin_clasificar"])
-    bloque_adh(f4, "POR TÉCNICO", "tecnico_asignado", [t[1] for t in TECNICOS])
+    bloque_adh(f4, "POR TÉCNICO", "tecnico_asignado", [t[1] for t in TECNICOS_ACTIVOS])
     grafico = LineChart()
     grafico.title = "Adherencia semanal vs meta"
     grafico.height, grafico.width = 8, 16
@@ -3444,7 +3607,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ("CAT_CENTROS_COSTO", "tblCECO", CENTROS_COSTO,
          "Catálogo de centros de costo — se carga por empresa", None),
         ("CAT_PUESTOS", "tblPuestos", PUESTOS,
-         "Catálogo de puestos de trabajo → especialidad", ("B", '"ELE,MEC,AUT,OP,TERCERO"')),
+         "Catálogo de puestos de trabajo → especialidad. es_especialidad_propia marca "
+         "quién puede ser técnico propio (rotación y capacidad)",
+         [("B", '"ELE,MEC,AUT,OP,TERCERO"'), ("D", f'"{SI},{NO}"')]),
         ("CAT_ACTIVIDADES", "tblActividades", ACTIVIDADES,
          "Catálogo de actividades", ("C", '"correctivo,preventivo,predictivo,legal"')),
         ("CAT_TIPOS_OT", "tblTiposOT", TIPOS_OT,
@@ -3456,6 +3621,13 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ("CAT_TURNOS", "tblTurnos", TURNOS_CAT,
          "Turnos con su franja horaria (metadato; la capacidad no se deriva de ella)",
          ("E", '"banco,rotativo"')),
+        # 7.2: los supervisores dejan de ser cadenas sueltas; TECNICOS.supervisor
+        # los toma de aquí. Los motivos de ausencia, igual, para PLAN_VACACIONES.
+        ("CAT_SUPERVISORES", "tblSupervisores", SUPERVISORES,
+         "Supervisores por especialidad — TECNICOS.supervisor sale de aquí",
+         ("C", "lista_esp_propias")),
+        ("CAT_MOTIVOS_AUSENCIA", "tblMotivos", MOTIVOS_AUSENCIA,
+         "Motivos de ausencia — PLAN_VACACIONES.motivo sale de aquí", None),
     ]
     for hoja, tnombre, filas_cat, titulo, val in catalogos:
         ws = wb.create_sheet(hoja)
@@ -3467,8 +3639,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             for j, v in enumerate(fila_cat, start=1):
                 celda(ws, tb.fila_ini + i, j, v, font=F_EDIT)
         agregar_tabla(ws, tb)
-        if val:
-            colv, lista = val
+        for colv, lista in ([val] if isinstance(val, tuple) else (val or [])):
             dv = DataValidation(type="list", formula1=lista, allow_blank=False)
             ws.add_data_validation(dv)
             dv.add(f"{colv}{tb.fila_ini}:{colv}{tb.fila_fin}")
@@ -3504,18 +3675,20 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws.sheet_properties.tabColor = "ED7D31"
     celda(ws, 1, 1, "EXPORTAR — correo del programa semanal, listo para copiar y enviar. "
                     "Elija los filtros y copie la celda A6.", font=F_TIT)
-    for etiqueta, colc, lista, defecto in [("semana", 2, ["(todos)"] + semanas, semanas[1]),
-                                           ("turno", 4, ["(todos)"] + list(TURNOS), "(todos)"),
-                                           ("coordinador", 6,
-                                            ["(todos)"] + sorted(set(COORD_POR_AREA.values())), "(todos)"),
-                                           ("sub-área", 8, ["(todos)"] + SUBAREAS, "(todos)")]:
+    # 7.2: mismo criterio que PLAN_SEMANAL — los cuatro selectores salen de un
+    # rango con nombre. B3 usa `lista_semanas_plan` (TODAS las semanas con datos),
+    # que era el mismo bug de 7.1: antes listaba solo las 4 de la ventana.
+    for etiqueta, colc, lista, defecto in [("semana", 2, "lista_semanas_plan", semanas[1]),
+                                           ("turno", 4, "lista_f_turno", "(todos)"),
+                                           ("coordinador", 6, "lista_f_coordinador", "(todos)"),
+                                           ("sub-área", 8, "lista_f_subarea", "(todos)")]:
         celda(ws, 3, colc - 1, etiqueta + ":", font=F_SEC)
         celda(ws, 3, colc, defecto, font=F_EDIT, fill=FILL_GRIS)
-        dv = DataValidation(type="list", formula1='"' + ",".join(lista) + '"', allow_blank=False)
+        dv = DataValidation(type="list", formula1=lista, allow_blank=False)
         ws.add_data_validation(dv)
         dv.add(f"{get_column_letter(colc)}3")
 
-    MAXPROG, MAXTOP, NT = 200, 20, len(TECNICOS)
+    MAXPROG, MAXTOP, NT = 200, 20, len(TECNICOS_ACTIVOS)
     F0 = 8                       # primera fila de todas las zonas auxiliares
     FN = 7 + CAP_FILAS           # última fila de la zona por-orden (1:1 tblOrdenes)
     # columnas auxiliares
@@ -3770,7 +3943,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "2_IMPORTAR_EJECUCION", "TECNICOS", "CALENDARIO", "VALIDACION",
         # C. CONFIGURACIÓN, CATÁLOGOS Y GUÍAS
         "PARAMETROS", "CAT_CENTROS_COSTO", "CAT_PUESTOS", "CAT_ACTIVIDADES",
-        "CAT_TIPOS_OT", "CAT_ESTADOS_ERP", "CAT_TURNOS", "INICIO",
+        "CAT_TIPOS_OT", "CAT_ESTADOS_ERP", "CAT_TURNOS", "CAT_SUPERVISORES",
+        "CAT_MOTIVOS_AUSENCIA", "INICIO",
         "GUIA_IMPORTAR_ORDENES", "_COMPATIBILIDAD", "_BANCO_PRUEBA",
     ]
     pos = {n: i for i, n in enumerate(ORDEN_HOJAS)}
@@ -3837,14 +4011,15 @@ def imprimir_resumen(datos, esperado):
                 (a["tecnico"], a["posicion_ciclo"], a["turno"]))
     for (esp, area), n in datos["n_por_ciclo"].items():
         print(f"  Ciclo {esp} · {area} (N={n}) — posicion_ciclo por técnico y semana (lunes):")
-        techs = sorted([t for t in TECNICOS if t[TEC_ESP] == esp and t[TEC_AREA] == area
-                        and t[TEC_ROT] == "SI"], key=lambda x: x[TEC_ORDROT])
-        print("    " + "técnico(orden)".ljust(16) + "".join(s.rjust(10) for s in datos["semanas"]))
+        techs = sorted([t for t in TECNICOS_ACTIVOS if t[TEC_ESP] == esp
+                        and t[TEC_AREA] == area and t[TEC_ROT] == SI],
+                       key=lambda x: x[TEC_ORDROT])
+        print("    " + "técnico(orden)".ljust(23) + "".join(s.rjust(10) for s in datos["semanas"]))
         for t in techs:
             fila = "".join(
                 next(p for (nb, p, _tu) in pos_lunes[(esp, area, sem)] if nb == t[1]).rjust(10)
                 for sem in datos["semanas"])
-            print("    " + f"{t[1].split()[-1]}(o{t[TEC_ORDROT]})".ljust(16) + fila)
+            print("    " + f"{t[1][:18]} (o{t[TEC_ORDROT]})".ljust(23) + fila)
         for sem in datos["semanas"]:
             # Cobertura por POSICIÓN derivada (rotación 6.3, intacta): siempre
             # 1/1/1/(N-3). Los huecos VAC (6.4) se listan aparte: el turno efectivo
@@ -3881,20 +4056,20 @@ def imprimir_resumen(datos, esperado):
     print("  horas_reales por técnico × semana (56 turno / 48 banco / 0 VAC; feriado resta):")
     print("    " + "técnico".ljust(12) + "".join(s.rjust(11) for s in datos["semanas"]))
     seg = {(s["tecnico"], s["semana"]): s for s in esperado["seguimiento_hh"]}
-    for _tid, nombre, *_ in TECNICOS:
+    for _tid, nombre, *_ in TECNICOS_ACTIVOS:
         fila = "".join(f"{seg[(nombre, sem)]['posicion'] or '-':>3}:{seg[(nombre, sem)]['horas_reales']:>2.0f}h"
                        .rjust(11) for sem in datos["semanas"])
-        print("    " + nombre.split()[-1].rjust(2).ljust(12) + fila)
+        print("    " + nombre[:11].ljust(12) + fila)
     print("  superavit_deficit (=reales−48): +8 turno · 0 banco · −48 VAC · −8 banco en feriado")
     print("  Déficit de capacidad por VAC (esp × semana, técnicos_vac × 48 h):")
     for (e, sem), d in esperado["deficit_vac"].items():
         if d:
             print(f"    {e} {sem}: {d:.0f} h ({d // 48:.0f} técnico(s) en VAC)")
     print("\nSEGUIMIENTO MENSUAL (6.5, base del bono; tolerancia p_tolerancia_horas_bono=0):")
-    print("    " + "técnico".ljust(12) + "mes".ljust(9) + "reales".rjust(7)
+    print("    " + "técnico".ljust(18) + "mes".ljust(9) + "reales".rjust(7)
           + "requer.".rjust(8) + "brecha".rjust(8) + "  cumple")
     for s in esperado["seguimiento_mensual"]:
-        print("    " + s["tecnico"].split()[-1].rjust(2).ljust(12) + s["mes"].ljust(9)
+        print("    " + s["tecnico"][:17].ljust(18) + s["mes"].ljust(9)
               + f"{s['horas_reales_mes']:>7.0f}{s['horas_requeridas_mes']:>8.0f}"
               + f"{s['brecha']:>+8.0f}  {s['cumple']}")
 
@@ -3937,16 +4112,16 @@ def imprimir_resumen(datos, esperado):
         print(f"  {tramo:>6}: {n} órdenes · {hh:.0f} h")
     sem1 = semanas[1]
     print(f"\nCARGA SEMANAL POR TÉCNICO (gráfico de PLAN_SEMANAL, selector por defecto {sem1}):")
-    for _tid, nombre, esp_t, *_ in TECNICOS:
+    for _tid, nombre, esp_t, *_ in TECNICOS_ACTIVOS:
         c = esperado["carga_tecnicos"][(sem1, nombre)]
         cap = esperado["capacidad_tecnicos"][(sem1, nombre)]
         print(f"  {nombre} ({esp_t}): HHA {c:>5.1f} · capacidad {cap:>6.2f} · "
               f"dentro {min(c, cap):>6.2f} · sobre {max(0, c - cap):>5.2f}")
-    print(f"\nHHA/HHD por día — Técnico 01, semana {sem1} "
+    print(f"\nHHA/HHD por día — {_tec('MEC', 1)}, semana {sem1} "
           f"(disponibilidad normal = {HORAS_JORNADA} h × {FACTOR_PRODUCTIVIDAD} = "
           f"{HORAS_JORNADA * FACTOR_PRODUCTIVIDAD:.2f} h):")
     for dia in DIAS[:6]:
-        ords = [o for o in esperado["ordenes"] if o["tecnico_asignado"] == "Técnico 01"
+        ords = [o for o in esperado["ordenes"] if o["tecnico_asignado"] == _tec("MEC", 1)
                 and o["semana"] == sem1 and o["dia_semana"] == dia]
         if not ords:
             print(f"  {dia:10}: sin órdenes")

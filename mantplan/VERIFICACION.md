@@ -1,6 +1,260 @@
-# VERIFICACION.md — MantPlan v3.1.0 (cierre del entregable A)
+# VERIFICACION.md — MantPlan v3.2.0
 
-## 0. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
+## 0. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
+
+Tirada de correcciones. **No toca las 10 reglas, el presupuesto, VAC, el
+seguimiento ni el banco**: con los 16 técnicos activos el motor devuelve
+*exactamente* lo mismo que la versión anterior (comprobado abajo, punto e).
+
+### (a) `EXPORTAR!B3` usa el mismo rango dinámico que `PLAN_SEMANAL`
+
+Era el único selector de semana que había quedado fuera de la corrección 7.1.
+Ahora ambos apuntan al mismo nombre definido:
+
+| hoja | celda | validación |
+|---|---|---|
+| `PLAN_SEMANAL` | `B3` | `lista_semanas_plan` → `PLAN_SEMANAL!$X$3:$X$49` |
+| `EXPORTAR` | `B3` | `lista_semanas_plan` → `PLAN_SEMANAL!$X$3:$X$49` |
+
+Una sola fuente: si aparecen semanas nuevas en los datos, las dos listas crecen a
+la vez. **Default**: 47 entradas (`(todos)` + 2026-S09 … 2027-S01). **Banco**: 55.
+
+### (b) BARRIDO COMPLETO de validaciones — tabla íntegra del libro
+
+Criterio aplicado: **cualquier lista cuyo contenido cambie al editar un catálogo
+o los datos apunta a un rango**; solo quedan literales los dominios
+*estructuralmente fijos* (días de la semana, `sí/no`, `lunes/domingo`,
+`banco/rotativo`, `preventiva/correctiva`) y los vocabularios propios de las
+hojas `CAT_*`, que son la definición misma del dominio y no tienen catálogo
+aguas arriba.
+
+| hoja | celdas | clase | origen |
+|---|---|---|---|
+| `PLAN_SEMANAL` | `B3` | rango | `lista_semanas_plan` → `PLAN_SEMANAL!$X$3:$X$49` |
+| `PLAN_SEMANAL` | `D3` | literal | `(todos),lunes,…,domingo` — dominio fijo |
+| `PLAN_SEMANAL` | `F3` | rango | `lista_f_turno` → `PARAMETROS!$K$5:$K$9` |
+| `PLAN_SEMANAL` | `H3` | rango | `lista_f_coordinador` → `PARAMETROS!$N$5:$N$8` |
+| `PLAN_SEMANAL` | `J3` | rango | `lista_f_area` → `PARAMETROS!$L$5:$L$8` |
+| `PLAN_SEMANAL` | `L3` | rango | `lista_f_especialidad` → `PARAMETROS!$Q$5:$Q$9` |
+| `PLAN_SEMANAL` | `N3` | rango | `lista_f_subarea` → `PARAMETROS!$O$5:$O$11` |
+| `PRESUPUESTO` | `C8:O13` | decimal | `>= 0` (no es lista) |
+| `EXPORTAR` | `B3` | rango | `lista_semanas_plan` → `PLAN_SEMANAL!$X$3:$X$49` |
+| `EXPORTAR` | `D3` | rango | `lista_f_turno` → `PARAMETROS!$K$5:$K$9` |
+| `EXPORTAR` | `F3` | rango | `lista_f_coordinador` → `PARAMETROS!$N$5:$N$8` |
+| `EXPORTAR` | `H3` | rango | `lista_f_subarea` → `PARAMETROS!$O$5:$O$11` |
+| `ORDENES` | `F4:F1203` (centro_costo) | rango | `lista_ceco` → `PARAMETROS!$S$5:$S$14` |
+| `ORDENES` | `G4:G1203` (puesto_trabajo) | rango | `lista_puestos` → `PARAMETROS!$T$5:$T$9` |
+| `ORDENES` | `H4:H1203` (cod_actividad) | rango | `lista_actividades` → `PARAMETROS!$U$5:$U$12` |
+| `ORDENES` | `I4:I1203` (tipo_ot) | rango | `lista_tipos_ot` → `PARAMETROS!$V$5:$V$8` |
+| `ORDENES` | `AE4:AE1203` (tecnico_asignado) | rango | `lista_tecnicos` → `TECNICOS!$K$4:$K$19` |
+| `ASIGNACIONES` | `I4:I451` (turno_manual) | rango | `lista_turnos` → `CAT_TURNOS!$G$4:$G$9` |
+| `PLAN_VACACIONES` | `A4:A103` (tecnico) | rango | `lista_tecnicos` → `TECNICOS!$K$4:$K$19` |
+| `PLAN_VACACIONES` | `D4:D103` (motivo) | rango | `lista_motivos_ausencia` → `PARAMETROS!$X$5:$X$7` |
+| `TECNICOS` | `C4:C19` (especialidad) | rango | `lista_esp_propias` → `PARAMETROS!$R$5:$R$7` |
+| `TECNICOS` | `D4:D19` (area) | rango | `lista_areas` → `PARAMETROS!$M$5:$M$7` |
+| `TECNICOS` | `E4:E19` (supervisor) | rango | `lista_supervisores` → `PARAMETROS!$W$5:$W$7` |
+| `TECNICOS` | `F4:F19` `H4:H19` (rotativo, activo) | literal | `sí,no` — dominio fijo |
+| `TECNICOS` | `G4:G19` (orden_rotacion) | whole | `entre 1 y 30` (no es lista) |
+| `CALENDARIO` | `B5:B11` (patrón hábil) | literal | `sí,no` — dominio fijo |
+| `CALENDARIO` | `C15:C214` (excepción hábil) | literal | `sí,no` — dominio fijo |
+| `CALENDARIO` | `D15:D214` (área) | rango | `lista_areas` → `PARAMETROS!$M$5:$M$7` |
+| `CALENDARIO` | `E15:E214` (sub-área) | rango | `lista_subareas` → `PARAMETROS!$P$5:$P$10` |
+| `PARAMETROS` | `B15` | literal | `lunes,domingo` — dominio fijo |
+| `PARAMETROS` | `B7 B18` | decimal | `entre 1 y 24` (no es lista) |
+| `PARAMETROS` | `B8 B13 B14` | decimal | `entre 0 y 1` (no es lista) |
+| `PARAMETROS` | `B17` | whole | `entre 1 y 20` (no es lista) |
+| `CAT_PUESTOS` | `B4:B8` | literal | `ELE,MEC,AUT,OP,TERCERO` — vocabulario propio |
+| `CAT_PUESTOS` | `D4:D8` (es_especialidad_propia) | literal | `sí,no` — dominio fijo |
+| `CAT_ACTIVIDADES` | `C4:C11` | literal | `correctivo,preventivo,predictivo,legal` — vocabulario propio |
+| `CAT_TIPOS_OT` | `C4:C7` | literal | `preventiva,correctiva` — dominio fijo |
+| `CAT_ESTADOS_ERP` | `B4:B7` | literal | `Cerrada,Pendiente` — dominio fijo |
+| `CAT_TURNOS` | `E4:E7` | literal | `banco,rotativo` — dominio fijo |
+| `CAT_SUPERVISORES` | `C4:C6` (especialidad) | rango | `lista_esp_propias` → `PARAMETROS!$R$5:$R$7` |
+
+**Totales: 40 validaciones · 24 por rango · 11 literales · 5 no-lista**
+(19 nombres definidos `lista_*`). Ninguno de los 11 literales depende de un
+catálogo editable.
+
+Dos hallazgos del barrido, corregidos aquí aunque no estaban en la lista de (c):
+`CALENDARIO` **área** y **sub-área** de las excepciones eran editables y salen de
+catálogo (REGLA-10 ya audita «Excepciones con área/sub-área fuera de catálogo»)
+pero no tenían desplegable. Ahora apuntan a `lista_areas` y `lista_subareas`, con
+blanco permitido porque *área vacía = toda la planta* y *sub-área vacía = toda el
+área*.
+
+**Decisión declarada:** `2_IMPORTAR_EJECUCION` (`estado_sistema`, `prioridad`) se
+deja **sin** desplegable a propósito. Es una zona de pegado masivo de 1.200 filas
+que viene del ERP; `CAT_ESTADOS_ERP` es la tabla de *traducción*, no un dominio
+que el usuario elija a mano. Nada se pierde: REGLA-10 reporta los estados sin
+traducción.
+
+### El caso `especialidad` de TECNICOS, sin dos listas que puedan divergir
+
+`OP` y `TERCERO` existen en `CAT_PUESTOS` pero **no son personal propio**: no
+pueden entrar al ciclo de rotación ni sumar capacidad. La lista de `TECNICOS!C`
+no puede, por tanto, apuntar al catálogo completo — y tampoco podía ser una
+segunda lista escrita a mano, porque divergiría del catálogo en cuanto alguien
+añada una especialidad.
+
+Solución: `CAT_PUESTOS` gana la columna **`es_especialidad_propia` (`sí/no`)**.
+`lista_esp_propias` se deriva de ese atributo (`MEC, ELE, AUT`), y la usan tanto
+`TECNICOS!C` como `CAT_SUPERVISORES!C`. **Una sola fuente**: marcar `OP` como
+propia en el catálogo la haría aparecer en las dos listas a la vez; no hay forma
+de que se contradigan.
+
+### (c) Listas nuevas sin bloquear el pegado
+
+Las validaciones añadidas se crean con `showErrorMessage=False`: Excel muestra la
+flecha del desplegable pero **no rechaza** lo que se pegue ni lo que se escriba a
+mano. Verificado en el libro entregado: las **40** validaciones tienen
+`showErrorMessage=false`. El guardián real sigue siendo `VALIDACION`/REGLA-10,
+que **no se tocó** — sigue reportando «centros de costo / puestos / actividades /
+tipos de OT fuera de catálogo» exactamente igual (los 16 contadores del banco
+cuadran con el manifiesto, punto g).
+
+`ORDENES!estado` **no** lleva lista porque no es editable: es una fórmula que
+busca `estado_sistema` en `tblEjecucion` y lo traduce con `tblEstados`.
+
+### (d) `CAT_SUPERVISORES`
+
+Catálogo nuevo (`codigo · nombre · especialidad`) en el grupo C de catálogos,
+entre `CAT_TURNOS` y `CAT_MOTIVOS_AUSENCIA`. Tres filas: `SUP-MEC` Supervisor
+Mecánico (MEC), `SUP-ELE` Supervisor Eléctrico (ELE), `SUP-AUT` Jefe de
+Automatización (AUT). El supervisor de cada técnico (6.6) se toma de aquí por su
+especialidad, así que renombrar un supervisor en el catálogo se propaga solo.
+`CAT_MOTIVOS_AUSENCIA` (Vacaciones anuales · Día libre pagado · Permiso) alimenta
+`PLAN_VACACIONES!motivo`.
+
+### (e) `activo` conectado — VERIFICACIÓN OBLIGATORIA
+
+**Cómo funciona.** `lista_tecnicos` ya no apunta a `TECNICOS!B` (todos) sino a la
+columna auxiliar `TECNICOS!K`, que **compacta los activos sin huecos**:
+
+```
+J4 = IF($H4="sí",COUNTIFS($H$4:$H4,"sí"),"")                 ← numera activos
+K4 = IFERROR(INDEX($B$4:$B$19,MATCH(ROW()-3,$J$4:$J$19,0)),"")  ← lista sin huecos
+```
+
+Sin funciones de derrame ni `OFFSET`/`INDIRECT`, así que funciona en Excel 2016.
+En `ASIGNACIONES`, `n_ciclo` añade `activo="sí"` al `COUNTIFS`, y `posicion_ciclo`
+devuelve `""` si el técnico no está activo → sin turno → **0 h** por REGLA-5.
+
+**Prueba 1 — con los 16 activos, cero cambios.** Se importan como módulos el
+generador actual y el del commit anterior (`17d958a`), se ejecuta el motor con la
+misma ancla `2026-07-27` y se comparan **los 28 bloques** de `calcular_esperado`
+tras traducir los nombres del roster viejo al nuevo (correspondencia posicional):
+
+```
+A) 16 activos · bloques comparados: 28 · diferencias: 0
+   asignaciones prev=448 actual=448 · N por ciclo prev={MEC:7, ELE:7} actual={MEC:7, ELE:7}
+```
+
+**Cero diferencias**: órdenes, perfil, adherencia, presupuesto, costos, backlog,
+seguimiento, capacidad, rotación y validación son idénticos.
+
+> Durante esta prueba salieron **3 diferencias reales** que hubo que corregir: el
+> sintético llevaba dos huecos deliberados clavados a los códigos viejos
+> (`TEC-04` sin carga en la 3.ª semana, `TEC-07` sin viernes en la 2.ª). Al
+> cambiar el roster dejaron de aplicarse y el reparto de órdenes se movía. Se
+> reexpresaron por rotación (`_tec("MEC", 4)` / `_tec("MEC", 7)`), no se
+> eliminaron. Es exactamente el tipo de deriva que esta prueba existe para cazar.
+
+**Prueba 2 — un técnico inactivo, sobre el LIBRO recalculado.** No se regenera
+nada: se abre `MantPlan_compatible.xlsx` ya entregado, se escribe `no` en la celda
+`activo` de **Ana Sánchez** (MEC · PRODUCCION · orden 5) y se recalcula:
+
+| comprobación | resultado |
+|---|---|
+| Recálculo | 76.144 fórmulas · **0 errores** |
+| `lista_tecnicos` | **16 → 15** nombres, sin Ana Sánchez, resto del orden intacto |
+| `n_ciclo` en filas MEC·PRODUCCION | **7 → 6** |
+| `n_ciclo` en filas ELE·PRODUCCION | **7** (sin cambio) |
+| Filas de Ana Sánchez en `ASIGNACIONES` (28) | `posicion_ciclo=""`, `turno=""`, `horas_disponibles=0` en las 28 |
+| Capacidad total de Ana Sánchez | **0 h** |
+| Filas de otras especialidades/áreas alteradas | **0** |
+| Filas MEC·PRODUCCION recalculadas por el anillo más corto | 168 |
+
+El motor da lo mismo al marcarla inactiva en el roster: 15 activos, `N` MEC 7→6,
+ELE intacto, **0** filas de `ASIGNACIONES`, y desaparece de `carga_tecnicos`,
+`capacidad_tecnicos` y `seguimiento_hh`.
+
+**Diferencia de comportamiento, declarada:** al *generar* el libro, un técnico
+inactivo no produce filas de `ASIGNACIONES`; al *editar* el flag en un libro ya
+entregado, las filas existen pero quedan neutralizadas (sin posición, sin turno,
+0 h). El efecto sobre capacidad, cobertura y seguimiento es el mismo; lo que
+cambia es que el libro editado conserva la fila como rastro visible.
+
+### (f) Roster real de 16 técnicos
+
+`Técnico 01…16` y los códigos `TEC-nn` desaparecen del libro y del generador.
+Ahora hay 16 personas con **id numérico de 8 dígitos** (80205524 … 80205539) y
+nombre real: 7 mecánicos (Carlos Pérez, María Gómez, Luis Rodríguez, Miguel
+Martínez, Ana Sánchez, David Torres, Francisco Ramírez), 7 eléctricos (Jorge
+Díaz, Roberto Castro, Laura Morales, Ricardo Ortiz, Eduardo Silva, Gabriela
+Rojas, Fernando Mendoza) y 2 de automatización no rotativos (Alberto Vargas,
+Daniela Medina).
+
+Especialidad, área, rotativo y orden de rotación se mantienen posición por
+posición, y por eso la rotación y la cobertura no cambian: **N = 7 MEC y 7 ELE**,
+cobertura 1 T1 / 1 T2 / 1 T3 / (N−3) Banco en todas las semanas, los mismos
+huecos de VAC. Ningún sitio del generador vuelve a nombrar a una persona a mano:
+los casos sintéticos (vacaciones demo, órdenes de fin de semana, ajustes) usan
+`_tec(especialidad, orden_rotacion)`.
+
+### Unificación del dominio `sí/no`, con una excepción declarada
+
+`TECNICOS!rotativo` y `TECNICOS!activo` usaban `SI/NO` en mayúscula mientras el
+resto del libro (`es_habil`, `en_vacaciones`, `trabaja_domingo`, catálogos) usaba
+`sí/no`. Ahora todo el libro habla el mismo dominio `sí,no`, definido una sola vez
+en el generador (`SI, NO = "sí", "no"`).
+
+Al hacerlo apareció un bug latente: `imprimir_resumen` filtraba los rotativos con
+`t[TEC_ROT] == "SI"` y, tras la unificación, **la tabla de rotación de
+`--resumen` salía vacía** (los encabezados y la cobertura sí, las filas por
+técnico no). Corregido: filtra por `SI` y sobre `TECNICOS_ACTIVOS`, y la columna
+de nombre se ensanchó para que quepa el nombre real completo.
+
+**Excepción declarada:** `PERFIL_HH` conserva `"SI"/"NO"` en el indicador de
+cumplimiento de la meta de REGLA-9. No es el atributo `sí/no` de un catálogo sino
+la **salida de una regla**, y esta tirada tiene prohibido tocar las 10 reglas;
+cambiar ese literal alteraría lo que la regla emite y lo que el verificador
+compara.
+
+### (g) Recálculo independiente y contraste motor ↔ Excel
+
+| | fórmulas | errores | comparaciones | fallos |
+|---|---:|---:|---:|---:|
+| Default (compatible, ancla 2026-07-27) | 76.144 | **0** | 14.994 | **0** |
+| Banco §7 (compatible, 1.000 órdenes) | 147.508 | **0** | 60.177 | **0** |
+
+Los 16 contadores de `VALIDACION` del banco siguen cuadrando **uno a uno** con el
+manifiesto de siembra, la ventana programada mantiene 190 programadas / 75
+remanente / 0 fuera de especialidad / 0 no disponible / 0 sobre capacidad, y la
+reconciliación del presupuesto sigue en 12/12 meses. Los tests de edición
+anteriores (override de turno, precedencia VAC, las cinco pruebas del
+presupuesto, EXPORTAR en semana vacía) se reejecutaron y pasan. Higiene de
+fórmulas auditada sobre los **cuatro** archivos finales: 0 `OFFSET`, 0
+`INDIRECT`, 0 referencias de columna completa, 0 enlaces externos.
+
+### Qué NO se verificó / supuestos
+
+(i) Solo se recalculan las variantes **compatibles**: LibreOffice no evalúa
+`XLOOKUP`, así que las estructuradas se validan por construcción (mismo código,
+misma tabla de campos). (ii) El comportamiento del desplegable *en Excel* —que
+muestre la flecha y no bloquee el pegado— se comprueba leyendo la propiedad
+`showErrorMessage=false` del XML, no abriendo Excel. (iii) `lista_tecnicos` tiene
+16 celdas fijas: si algún día hay más de 16 técnicos hay que ampliar el rango de
+`tblTecnicos` (es el mismo límite que ya tenía la tabla). (iv) Los nombres del
+roster son datos de demostración: no hay validación de unicidad de nombre, y la
+compactación de `K` asume nombres distintos entre sí. (v) Las secciones
+históricas de más abajo conservan los nombres `Técnico nn` de la versión en
+que se escribieron: son registro de lo verificado entonces, no del libro
+actual. (vi) **No se implementó el
+DASHBOARD.** (vii) El recálculo independiente lo corre el usuario.
+
+---
+
+## 0-bis. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
 
 Hoja **derivada** nueva (`PRESUPUESTO`), colocada en el grupo de presentación
 justo después de `COSTOS`. **No toca las 10 reglas, la rotación, VAC, el
@@ -105,7 +359,7 @@ mide contra el día de apertura, igual que las columnas de envejecimiento.
 
 ---
 
-## 0-bis. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+## 0-ter. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
 
 Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
 rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los

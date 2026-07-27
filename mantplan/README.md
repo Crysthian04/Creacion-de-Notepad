@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.1.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.2.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -493,7 +493,7 @@ PERFIL_HH siguen en 48 h. Es reporte, no motor.
   (acumula SEGUIMIENTO_HH) · `horas_requeridas_mes` (= nº de semanas del mes × 48;
   cada semana se asigna a un mes por su lunes) · `cumple` (sí/no) · `brecha`. El
   umbral usa el parámetro **`tolerancia_horas_bono`** (default 0), para no
-  hardcodear. Un técnico con VAC en el mes queda por debajo (p. ej. Técnico 05,
+  hardcodear. Un técnico con VAC en el mes queda por debajo (p. ej. Ana Sánchez,
   julio: 56 de 144 h).
 - **Tipo de ausencia**: el `motivo` de `PLAN_VACACIONES` distingue vacaciones de
   día libre pagado; ambos dan 0 h y déficit — el motivo **no** cambia la lógica
@@ -634,6 +634,64 @@ factores por mes, de modo que el semáforo quede ejercitado: meses dentro de
 tolerancia, alguno por encima y alguno por debajo, más categorías presupuestadas
 que aún no gastaron.
 
+### Listas desplegables, roster y `activo` (7.2)
+
+**Ninguna lista que dependa de un catálogo es literal.** De las 40 validaciones
+del libro, **24 apuntan a un rango** (nombre definido) y **11 son literales**,
+todas ellas dominios estructuralmente fijos: días de la semana, `sí/no`,
+`lunes/domingo`, `banco/rotativo`, `preventiva/correctiva`, `Cerrada/Pendiente` y
+los vocabularios propios de las hojas `CAT_*`. Las 5 restantes no son listas
+(rangos numéricos). La tabla completa —hoja, celda, origen, clase— está en
+[`VERIFICACION.md`](VERIFICACION.md).
+
+Los rangos viven en columnas auxiliares de `PARAMETROS` (19 nombres `lista_*`) y
+casi todos son **fórmulas que leen el catálogo**, no copias: renombrar `ACT-04`
+en `CAT_ACTIVIDADES` cambia el desplegable de `ORDENES!cod_actividad` sin tocar
+nada más. El motivo de que sean rangos y no literales es doble: se mantienen
+solos, y una lista literal de Excel no admite más de ~255 caracteres.
+
+**Las validaciones no bloquean el pegado.** Todas se crean con
+`showErrorMessage=false`: Excel ofrece la flecha, pero acepta cualquier valor
+pegado o escrito. El guardián sigue siendo `VALIDACION` (REGLA-10), que *reporta*
+lo que está fuera de catálogo y nunca impide trabajar. Un libro que rechaza un
+pegado masivo del ERP es un libro que el planificador deja de usar.
+
+**`es_especialidad_propia`, para no tener dos listas que diverjan.** `OP` y
+`TERCERO` están en `CAT_PUESTOS` pero no son personal propio: no rotan ni suman
+capacidad. En vez de escribir a mano una segunda lista de "especialidades de
+técnico" —que se separaría del catálogo al primer cambio—, `CAT_PUESTOS` lleva la
+columna `es_especialidad_propia` (`sí/no`) y `lista_esp_propias` se deriva de
+ella. La usan `TECNICOS!especialidad` y `CAT_SUPERVISORES!especialidad`: una sola
+fuente, imposible que se contradigan.
+
+**Catálogos nuevos.** `CAT_SUPERVISORES` (`codigo · nombre · especialidad`) es
+ahora la fuente del supervisor fijo de 6.6: el técnico lo hereda por su
+especialidad, así que renombrar un supervisor se propaga a todo el libro.
+`CAT_MOTIVOS_AUSENCIA` alimenta `PLAN_VACACIONES!motivo`.
+
+**Roster real.** 16 técnicos con id numérico de 8 dígitos (80205524 … 80205539) y
+nombre de persona, en lugar de `TEC-nn` / `Técnico nn`: 7 mecánicos, 7
+eléctricos (rotativos, PRODUCCION) y 2 de automatización fijos. Especialidad,
+área, `rotativo` y `orden_rotacion` se conservan posición por posición, de modo
+que la rotación y la cobertura son las mismas que antes (**N = 7 y 7**, 1 T1 / 1
+T2 / 1 T3 / (N−3) Banco cada semana).
+
+**`activo` conectado de punta a punta.** Marcar `no` en `TECNICOS!activo` saca al
+técnico de todo el circuito, sin borrarlo:
+
+| dónde | efecto |
+|---|---|
+| `lista_tecnicos` (ORDENES, PLAN_VACACIONES) | desaparece del desplegable |
+| `ASIGNACIONES!n_ciclo` | el `COUNTIFS` filtra por `activo="sí"` → **N baja 1** en su especialidad y área |
+| `ASIGNACIONES!posicion_ciclo` | vacía → sin turno → **0 h** por REGLA-5 |
+| `PERFIL_HH`, `SEGUIMIENTO_*` | deja de aportar capacidad y de aparecer |
+
+El desplegable se alimenta de una columna auxiliar de `TECNICOS` que **compacta
+los activos sin huecos** con `COUNTIFS` + `INDEX/MATCH` (sin funciones de derrame
+ni `OFFSET`, para que funcione también en Excel 2016). Al generar el libro, un
+técnico inactivo directamente no produce filas de `ASIGNACIONES`; al marcar el
+flag en un libro ya entregado, las filas quedan neutralizadas y visibles.
+
 ### 10. Higiene de fórmulas
 
 Auditado sobre los archivos finales: sin `OFFSET`, sin `INDIRECT`, sin
@@ -646,8 +704,8 @@ definidos huérfanos.
 huérfanas) · 4 ajustes (2 aplicados + 2 demos de error) · **16 técnicos**
 (7 MEC + 7 ELE rotativos en PRODUCCION + 2 AUT fijos) · **448 asignaciones**
 · semanas del plan **2026-S30 … 2026-S33** · semana de referencia de la
-rotación (lunes) **2026-07-13** · **Técnico 05 de vacaciones** S30–S32 (demo
-6.4) · serie completa de reportes: 2026-S09 … 2027-S01.
+rotación (lunes) **2026-07-13** · **Ana Sánchez (MEC, orden 5) de vacaciones** S30–S32
+(demo 6.4) · serie completa de reportes: 2026-S09 … 2027-S01.
 
 ### Caso 1 — cruce de fin de año (REGLA-2 v2)
 
@@ -665,16 +723,16 @@ PERFIL_HH/ADHERENCIA (las dos últimas filas visibles), sin mezcla.
 `tblAjustes` trae 4 filas demo: dos aplicadas, un duplicado (se ignora, gana
 la primera) y un huérfano (id `OT-0009990010`, inexistente).
 
-- **OT-000013** (MEC, preventiva, Técnico 01, 2026-S31): ajuste por clave
+- **OT-000013** (MEC, preventiva, Carlos Pérez, 2026-S31): ajuste por clave
   `OT-0000130010` con `horas_ajustadas` **12** (estimadas 8) →
   `horas_efectivas` 12.
   - PERFIL_HH MEC 2026-S31: prev **82** (80 + 4 del ajuste − 2 del reparto),
     carga **41,4 %**.
-  - Gráfico de carga (selector 2026-S31): barra de Técnico 01 = **32**, dentro
+  - Gráfico de carga (selector 2026-S31): barra de Carlos Pérez = **32**, dentro
     de la capacidad semanal **41,76 h** (sin rojo).
   - HHA del día del ajuste = **12**, HHD = 6,96 − 12 = **−5,04** (rojo por día,
     aunque la carga semanal no supere la capacidad).
-- **OT-000059** (ELE, preventiva, Técnico 08): 6 → **4** → ELE 2026-S31 prev
+- **OT-000059** (ELE, preventiva, Jorge Díaz): 6 → **4** → ELE 2026-S31 prev
   59, carga 28,4 %.
 - `VALIDACION`: **2** órdenes con ajuste, desviación total **+2 h**,
   **1** huérfano, **2** duplicados en tblAjustes.
@@ -690,7 +748,7 @@ Cuenta rápida: **MEC 2026-S30 = 7 técnicos × 6 días × 8 h = 336; × 0,87 =
 Con la dotación de 7 rotativos por especialidad (6.3) y la base de 48 h (L-S,
 6.1), la capacidad es amplia y el plan cabe con holgura: ninguna especialidad
 queda en amarillo ni rojo. La capacidad de **MEC** baja desde S31 porque el
-Técnico 05 está de **vacaciones** (6.4): S31 = 6 × 48 = **288 h**. En **S32** se
+Ana Sánchez está de **vacaciones** (6.4): S31 = 6 × 48 = **288 h**. En **S32** se
 suma el feriado de planta del miércoles (6 × 5 × 8 = **240 h**) y en **S33** el
 feriado de Asunción del sábado (**240 h**); ELE, sin nadie de VAC, baja solo por
 los feriados (7 × 40 = **280 h** en S32 y S33). Las órdenes de fin de semana
@@ -758,12 +816,12 @@ días **hábiles** (`backlog_habiles`).
 ### Carga por técnico (gráfico, selector 2026-S31)
 
 Capacidad semanal de cada técnico = 6,96 h/día × 6 días = **41,76 h** (48 h ×
-0,87). HHA de la semana: Técnico 01 **32** (incluye el ajuste +4 h y la orden
+0,87). HHA de la semana: Carlos Pérez **32** (incluye el ajuste +4 h y la orden
 del sábado) · 02: 20 · 03: 8 · 04: 13 · **05: 0** (de vacaciones, capacidad 0) ·
 06: 8 · 07: 14 (MEC) · 08: 10 · 09: 10 · 10: 11 · 11: 10 · 12: 16 · 13: 10 ·
 14: 8 (ELE) · 15: 27 · 16: 18 (AUT). **Ningún técnico supera su capacidad**, así
 que ninguna barra tiene tramo rojo. El detalle diario de HHD sí puede quedar en
-rojo (p. ej. Técnico 01 el día del ajuste: HHA 12, HHD 6,96 − 12 = **−5,04**):
+rojo (p. ej. Carlos Pérez el día del ajuste: HHA 12, HHD 6,96 − 12 = **−5,04**):
 la capacidad es semanal, el HHD es por día.
 
 ### Correo generado por EXPORTAR (filtro por defecto: semana 2026-S31)
@@ -772,7 +830,7 @@ Texto real producido en `EXPORTAR!A6` con los datos de muestra (recalculado):
 
 ```
 Buenos días.
-A continuación el programa de mantenimiento de Planta Ejemplo — Empresa Ejemplo S.A. para la semana 2026-S31, del 20/07/2026 al 26/07/2026.
+A continuación el programa de mantenimiento de Planta Ejemplo — Empresa Ejemplo S.A. para la semana 2026-S31, del 27/07/2026 al 02/08/2026.
 
 Resumen de carga:
 • Órdenes programadas: 34
@@ -782,17 +840,17 @@ Resumen de carga:
 • Técnicos involucrados: 15
 
 Tareas relevantes (top 5 por horas):
-   • EQ-102 — Lubricación programada en EQ-102 · 10 h · Técnico 02
-   • EQ-108 — Análisis predictivo en EQ-108 · 10 h · Técnico 13
-   • EQ-106 — Reparación de falla en EQ-106 · 10 h · Técnico 12 · permiso de trabajo · bloqueo de energía (LOTO)
+   • EQ-102 — Lubricación programada en EQ-102 · 10 h · María Gómez
+   • EQ-108 — Análisis predictivo en EQ-108 · 10 h · Gabriela Rojas
+   • EQ-106 — Reparación de falla en EQ-106 · 10 h · Eduardo Silva · permiso de trabajo · bloqueo de energía (LOTO)
    … 
 
 Programa completo:
 
 Lunes:
-   B · Técnico 02 · OT-0000160010 — Lubricación programada en EQ-102 (10 h)
-   B · Técnico 07 · OT-0000210010 — Inspección de rutina en EQ-110 (6 h)
-   T2 · Técnico 12 · OT-0000610010 — Lubricación programada en EQ-102 (6 h)
+   B · María Gómez · OT-0000160010 — Lubricación programada en EQ-102 (10 h)
+   B · Francisco Ramírez · OT-0000210010 — Inspección de rutina en EQ-110 (6 h)
+   T2 · Eduardo Silva · OT-0000610010 — Lubricación programada en EQ-102 (6 h)
    …
 Sábado:
    … (orden correctiva de fin de semana) …
@@ -807,7 +865,7 @@ efectivo derivado de la rotación** (6.3), no un dato tecleado.
 
 Números verificables a mano: **34** órdenes programadas (incluye 3 de fin de
 semana → el programa recorre los 7 días), **275 h** = 202 preventiva (73 %) +
-73 correctiva (27 %). **15** técnicos involucrados (Técnico 05 está de VAC → sus
+73 correctiva (27 %). **15** técnicos involucrados (Ana Sánchez está de VAC → sus
 órdenes quedan sin técnico). Con la capacidad semanal en **41,76 h** ningún
 técnico queda sobreasignado en 2026-S31, así que el **bloque de alerta
 condicional no aparece** en el correo; se sigue verificando que desaparece
@@ -822,7 +880,7 @@ SERVICIOS (2026-08-09), paro de la sub-área Vapor el jueves de 2026-S31
 
 | Caso | Resultado |
 |---|---|
-| **Feriado general** (mié 2026-08-05) | `horas_disponibles = 0` el miércoles para todos los técnicos activos. El feriado reduce **MEC 2026-S32 de 336 a 280 h** (7 × 5 × 8); con la VAC de Técnico 05 (6.4) el disponible final de MEC esa semana es **240 h**. La rotación no altera este efecto (solo cambia qué turno). |
+| **Feriado general** (mié 2026-08-05) | `horas_disponibles = 0` el miércoles para todos los técnicos activos. El feriado reduce **MEC 2026-S32 de 336 a 280 h** (7 × 5 × 8); con la VAC de Ana Sánchez (6.4) el disponible final de MEC esa semana es **240 h**. La rotación no altera este efecto (solo cambia qué turno). |
 | **Excepción por área** (dom 2026-08-09) | `es_habil(SERVICIOS)` = **sí**, `es_habil(PRODUCCION)` = **no**. La excepción por área da capacidad solo a SERVICIOS. |
 | **Paro sub-área Vapor** (jue 2026-07-30) | `es_habil` = **no** para órdenes de Vapor; **sí** para PRODUCCION, EMPAQUE y Refrigeración. La excepción por sub-área no afecta a las demás sub-áreas. |
 | **Orden que cruza fines de semana** (2026-06-12) | `backlog_dias` = **45**, `backlog_habiles` = **38**, diferencia **7** domingos no hábiles en medio (el sábado es hábil, 6.1). |
@@ -857,7 +915,7 @@ costo plan es del ERP y no se recalcula con el ajuste manual; `precio` = 40 %
 del plan (REGLA-8 → materiales 60 %); dos órdenes históricas con `precio >
 plan` (materiales 0). Equipo de mayor gasto: EQ-110 (4.430 USD).
 
-## Estructura del libro (28 hojas; 29 en el banco §7, con `_BANCO_PRUEBA`)
+## Estructura del libro (30 hojas; 31 en el banco §7, con `_BANCO_PRUEBA`)
 
 Las hojas están ordenadas **por uso, no por historia**: primero lo que se
 muestra, después el trabajo diario, y al final la configuración, los catálogos y
@@ -879,13 +937,14 @@ importadas A:L, 5 editables en azul, 26 calculadas incl. `es_habil` y
 derivada `n_ciclo`/`posicion_ciclo`, `en_vacaciones`, `turno_manual`/`turno`
 efectivo, `supervisor`, `trabaja_domingo`, `fecha`, REGLA-5 y franja horaria) ·
 `AJUSTES` (`tblAjustes`, 300 filas) · `PLAN_VACACIONES` (`tblVacaciones`) ·
-`2_IMPORTAR_EJECUCION` (zona de pegado real) · `TECNICOS` (con
-`rotativo`/`orden_rotacion` y `supervisor` fijo) · `CALENDARIO` (patrón semanal +
+`2_IMPORTAR_EJECUCION` (zona de pegado real) · `TECNICOS` (16 personas con id,
+`rotativo`/`orden_rotacion`, `supervisor` fijo y `activo`) · `CALENDARIO` (patrón semanal +
 `tblExcepciones` 200 filas + grid de 760 días) · `VALIDACION` (9 chequeos
 REGLA-10 + 4 de ajustes + 3 de calendario).
 
-**C. Configuración, catálogos y guías** — `PARAMETROS` · los 6 catálogos
-`CAT_*` (incl. `CAT_TURNOS`) · `INICIO` (guía de texto) ·
+**C. Configuración, catálogos y guías** — `PARAMETROS` (parámetros + 19 rangos
+auxiliares que alimentan los desplegables) · los 8 catálogos `CAT_*` (incl.
+`CAT_TURNOS`, `CAT_SUPERVISORES` y `CAT_MOTIVOS_AUSENCIA`) · `INICIO` (guía de texto) ·
 `GUIA_IMPORTAR_ORDENES` (solo documentación) · `_COMPATIBILIDAD` ·
 `_BANCO_PRUEBA` (solo en el banco).
 
