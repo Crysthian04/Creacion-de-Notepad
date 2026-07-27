@@ -17,6 +17,7 @@ Uso:
     python generar_mantplan.py --fecha-ancla 2026-07-19
     python generar_mantplan.py --refs compatibles     # variante INDEX/MATCH + rangos A1
     python generar_mantplan.py --resumen              # imprime números esperados
+    python generar_mantplan.py --anio-completo        # §7: banco de prueba de un año
 
 `--refs compatibles` produce el mismo libro pero con INDEX/MATCH y rangos
 A1 acotados en lugar de XLOOKUP y referencias estructuradas. Se usa para
@@ -29,6 +30,8 @@ Requiere: openpyxl  (pip install openpyxl)
 from __future__ import annotations
 
 import argparse
+import random
+import time
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -44,7 +47,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "2.9.0"
+VERSION = "3.0.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -211,6 +214,10 @@ ACTIVIDADES = [
     ("ACT-03", "Reparación de falla", "correctivo"),
     ("ACT-04", "Análisis predictivo", "predictivo"),
     ("ACT-05", "Certificación legal", "legal"),
+    # §7: el banco de prueba necesita variedad de tipos de trabajo; el overhaul
+    # se añade al CATÁLOGO (no se hardcodea en la lógica). El dataset por
+    # defecto no lo usa: sus órdenes siguen saliendo de ACT-01…ACT-04.
+    ("ACT-06", "Overhaul mayor", "correctivo"),
 ]
 
 TIPOS_OT = [
@@ -550,6 +557,60 @@ def _tecnicos_de(esp):
     return [t for t in TECNICOS if t[2] == esp]
 
 
+def lunes_iso(anio, n):
+    """Lunes de la semana ISO n de ese año (misma aritmética que el libro)."""
+    j4 = date(anio, 1, 4)
+    return j4 - timedelta(days=j4.weekday()) + timedelta(weeks=n - 1)
+
+
+def lunes_de_semana(etiqueta):
+    """Lunes ISO de una etiqueta AAAA-Snn (inversa de regla_2_semana)."""
+    return lunes_iso(int(etiqueta[:4]), int(etiqueta[6:8]))
+
+
+def semanas_iso_del_anio(anio):
+    """Nº de semanas ISO del año: 52 o 53."""
+    return 53 if regla_2_semana(date(anio, 12, 28)).endswith("S53") else 52
+
+
+def _n_por_ciclo():
+    """N (nº de posiciones del anillo) por (especialidad, área) entre rotativos."""
+    n = {}
+    for t in TECNICOS:
+        if t[TEC_ROT] == "SI":
+            n[(t[TEC_ESP], t[TEC_AREA])] = n.get((t[TEC_ESP], t[TEC_AREA]), 0) + 1
+    return n
+
+
+def _asignaciones_de(lunes_list, semanas_list, semana_referencia, plan_vacaciones):
+    """Filas de ASIGNACIONES para las semanas dadas: turno DERIVADO de la
+    rotación (6.3), arrastrado a VAC por el plan de vacaciones (6.4), con el
+    supervisor fijo (6.6) y el helper de domingo trabajado (6.5)."""
+    n_por_ciclo = _n_por_ciclo()
+    asignaciones = []
+    for si, sem in enumerate(semanas_list):
+        semanas_desde = (lunes_list[si] - semana_referencia).days // 7
+        for tid, nombre, esp, area, rot, ordrot, sup in TECNICOS:
+            n = n_por_ciclo.get((esp, area), 0)
+            for di, dia in enumerate(DIAS):
+                fecha = lunes_list[si] + timedelta(days=di)
+                pc = posicion_ciclo_de(rot == "SI", ordrot or 0, n,
+                                       semanas_desde, di == 6)
+                en_vac = en_vacaciones_de(nombre, fecha, plan_vacaciones)
+                turno_manual = ""            # sin excepciones manuales en el sintético
+                turno = turno_efectivo(turno_manual, pc, en_vac)
+                # 6.5: ¿trabaja el domingo? (turno y no VAC) — helper de seguimiento.
+                trab_dom = trabaja_domingo_de(pc, en_vac)
+                asignaciones.append({"semana": sem, "dia": dia, "tecnico": nombre,
+                                     "area": area, "especialidad": esp,
+                                     "n_ciclo": n, "posicion_ciclo": pc,
+                                     "en_vacaciones": "sí" if en_vac else "no",
+                                     "turno_manual": turno_manual, "turno": turno,
+                                     "supervisor": sup,
+                                     "trabaja_domingo": "sí" if trab_dom else "no"})
+    return asignaciones
+
+
 def generar_datos(hoy):
     """Construye ORDENES, EJECUCION, TECNICOS y ASIGNACIONES sintéticos."""
     lunes = hoy - timedelta(days=hoy.weekday())
@@ -562,11 +623,7 @@ def generar_datos(hoy):
     # negativos). En ella orden_rotacion 1..N mapea directo a la posición.
     semana_referencia = lunes_sem[0]
     # N = nº de posiciones del ciclo por (especialidad, área) entre rotativos.
-    n_por_ciclo = {}
-    for t in TECNICOS:
-        if t[TEC_ROT] == "SI":
-            n_por_ciclo[(t[TEC_ESP], t[TEC_AREA])] = \
-                n_por_ciclo.get((t[TEC_ESP], t[TEC_AREA]), 0) + 1
+    n_por_ciclo = _n_por_ciclo()
 
     # 6.4: plan de vacaciones. Demo: un técnico MEC (Técnico 05) ~4 semanas que
     # SOLAPAN semanas en las que estaría en turno (S30→T2, S31→T1) → hueco de
@@ -583,27 +640,7 @@ def generar_datos(hoy):
     # El turno se DERIVA de la rotación (6.3) y, si el técnico está de VAC en esa
     # fecha (6.4), arrastra a "VAC" dejando su posición vacía (hueco). La rotación
     # de los DEMÁS no se toca. Sin overrides manuales en el sintético.
-    asignaciones = []
-    for si, sem in enumerate(semanas):
-        semanas_desde = (lunes_sem[si] - semana_referencia).days // 7
-        for tid, nombre, esp, area, rot, ordrot, sup in TECNICOS:
-            n = n_por_ciclo.get((esp, area), 0)
-            for di, dia in enumerate(DIAS):
-                fecha = lunes_sem[si] + timedelta(days=di)
-                pc = posicion_ciclo_de(rot == "SI", ordrot or 0, n,
-                                       semanas_desde, di == 6)
-                en_vac = en_vacaciones_de(nombre, fecha, plan_vacaciones)
-                turno_manual = ""            # sin excepciones manuales en el sintético
-                turno = turno_efectivo(turno_manual, pc, en_vac)
-                # 6.5: ¿trabaja el domingo? (turno y no VAC) — helper de seguimiento.
-                trab_dom = trabaja_domingo_de(pc, en_vac)
-                asignaciones.append({"semana": sem, "dia": dia, "tecnico": nombre,
-                                     "area": area, "especialidad": esp,
-                                     "n_ciclo": n, "posicion_ciclo": pc,
-                                     "en_vacaciones": "sí" if en_vac else "no",
-                                     "turno_manual": turno_manual, "turno": turno,
-                                     "supervisor": sup,
-                                     "trabaja_domingo": "sí" if trab_dom else "no"})
+    asignaciones = _asignaciones_de(lunes_sem, semanas, semana_referencia, plan_vacaciones)
 
     # --- ORDENES ----------------------------------------------------------
     ordenes = []
@@ -851,6 +888,406 @@ def generar_datos(hoy):
 
 
 # ══════════════════════════════════════════════════════════════════════════
+# 3-bis. §7 — BANCO DE PRUEBA: un año en crudo + ventana programada
+#    Es OPCIÓN del generador (--anio-completo). El dataset por defecto (4
+#    semanas ancladas a HOY) NO cambia: es el que se usa a diario.
+#    Ancla FIJA (año 2026): el banco nunca depende de date.today().
+#    No toca ninguna de las 10 reglas, ni la rotación, ni VAC, ni seguimiento.
+# ══════════════════════════════════════════════════════════════════════════
+
+ANIO_BANCO = 2026
+SEMANA_VENTANA = 45          # semana ISO donde arranca la ventana programada
+SEMILLA_BANCO = 20260101
+EQUIPOS_CRITICOS_BANCO = ("EQ-101", "EQ-106", "EQ-110")
+# Tareas de la ventana: cortas, para que quepan en la jornada productiva
+# (8 × 0,87 = 6,96 h/día). Fuera de la ventana el volumen es crudo.
+HORAS_VENTANA = (2, 3, 4)
+HORAS_CRUDO = (2, 3, 4, 6, 8, 10)
+# Combinaciones (actividad, tipo_ot) tomadas de los CATÁLOGOS, no hardcodeadas.
+COMBOS_PREV = [("ACT-01", "TIPO-P1"), ("ACT-02", "TIPO-P1"),
+               ("ACT-04", "TIPO-P2"), ("ACT-05", "TIPO-P2")]
+COMBOS_CORR = [("ACT-03", "TIPO-C1"), ("ACT-03", "TIPO-C2"), ("ACT-06", "TIPO-C1")]
+
+
+def generar_datos_banco(n_ordenes=1000, semanas_programadas=4, semilla=SEMILLA_BANCO):
+    """§7: banco de prueba. Volumen de un año (n_ordenes órdenes repartidas de
+    forma NO uniforme por las semanas ISO de 2026) + una ventana de
+    `semanas_programadas` semanas realmente programada (técnico asignado por
+    especialidad, disponibilidad y capacidad). Determinista por `semilla`."""
+    rnd = random.Random(semilla)
+    anio = ANIO_BANCO
+    n_sem = semanas_iso_del_anio(anio)
+    lunes_anio = [lunes_iso(anio, k + 1) for k in range(n_sem)]
+    sem_anio = [regla_2_semana(d) for d in lunes_anio]
+
+    i0 = SEMANA_VENTANA - 1
+    i1 = min(i0 + semanas_programadas, n_sem)
+    lunes_sem, semanas = lunes_anio[i0:i1], sem_anio[i0:i1]
+    hoy = lunes_sem[0]                       # "hoy" = lunes de la ventana
+    v_ini, v_fin = lunes_sem[0], lunes_sem[-1] + timedelta(days=6)
+
+    excepciones = construir_excepciones(hoy)
+    semana_referencia = lunes_anio[0]
+
+    # --- Vacaciones del año (7 periodos; 2 solapan la ventana programada) ----
+    plan_vacaciones = []
+    for nombre, sini, nsemv, motivo in [
+            ("Técnico 03", 8, 3, "Vacaciones anuales"),
+            ("Técnico 06", 20, 2, "Vacaciones anuales"),
+            ("Técnico 15", 27, 2, "Vacaciones anuales"),
+            ("Técnico 09", 31, 3, "Vacaciones anuales"),
+            ("Técnico 12", 38, 2, "Vacaciones anuales"),
+            ("Técnico 02", SEMANA_VENTANA, 2, "Vacaciones anuales"),
+            ("Técnico 11", SEMANA_VENTANA + 2, 1, "Día libre pagado")]:
+        ini = lunes_iso(anio, sini)
+        plan_vacaciones.append({"tecnico": nombre, "fecha_inicio": ini,
+                                "fecha_fin": ini + timedelta(days=7 * nsemv - 1),
+                                "motivo": motivo})
+
+    # ASIGNACIONES: el AÑO COMPLETO para el roster actual (rotación 6.3 + VAC 6.4).
+    asignaciones = _asignaciones_de(lunes_anio, sem_anio, semana_referencia, plan_vacaciones)
+    disp_h, turno_de = {}, {}
+    for a in asignaciones:
+        f = lunes_de_semana(a["semana"]) + timedelta(days=DIAS.index(a["dia"]))
+        hab = es_habil(f, a["area"], "", excepciones)
+        disp_h[(a["tecnico"], f)] = regla_5_horas_disponibles(a["turno"], hab)
+        turno_de[(a["tecnico"], f)] = a["turno"]
+
+    # --- Fábrica de órdenes -------------------------------------------------
+    ordenes, cons = [], [0]
+    cecos_esp = {"MEC": ["CC-110", "CC-210", "CC-310"],
+                 "ELE": ["CC-120", "CC-220", "CC-320"],
+                 "AUT": ["CC-110", "CC-220", "CC-340"]}
+    puesto_esp = {"MEC": "PU-MEC", "ELE": "PU-ELE", "AUT": "PU-AUT"}
+
+    def nueva(fecha, horas, esp, clasif, grupo, ceco=None, act=None, tipo=None,
+              puesto=None, orden_id=None, tecnico="", obs=""):
+        cons[0] += 1
+        oid = orden_id or f"OT-{cons[0]:06d}"
+        ceco = ceco or cecos_esp[esp][cons[0] % len(cecos_esp[esp])]
+        info = CAT_CECO.get(ceco)
+        area = info[CECO_AREA] if info else "PRODUCCION"
+        equipos = EQUIPOS_POR_AREA.get(area, EQUIPOS_POR_AREA["PRODUCCION"])
+        equipo = equipos[cons[0] % len(equipos)]
+        if act is None or tipo is None:
+            a2, t2 = rnd.choice(COMBOS_PREV if clasif == "preventiva" else COMBOS_CORR)
+            act, tipo = act or a2, tipo or t2
+        tarifa = TARIFA["preventiva" if clasif == "preventiva" else "correctiva"]
+        o = {"orden": oid, "operacion": "0010",
+             "descripcion_general": f"{CAT_ACTIVIDADES.get(act, 'Actividad')} — {equipo}",
+             "descripcion_operacion": f"{CAT_ACTIVIDADES.get(act, 'Actividad')} en {equipo}",
+             "equipo": equipo, "centro_costo": ceco,
+             "puesto_trabajo": puesto or puesto_esp[esp],
+             "cod_actividad": act, "tipo_ot": tipo,
+             "fecha_inicio": fecha, "horas_estimadas": horas,
+             "costo_plan": (horas or 0) * tarifa,
+             "tecnico_asignado": tecnico, "permiso_requerido": "",
+             "bloqueo_energia": "", "link_checklist": "", "observaciones": obs,
+             "_grupo": grupo, "_si": None, "_clasif": clasif}
+        if clasif == "preventiva" and act in ("ACT-01", "ACT-02"):
+            o["link_checklist"] = f"{act}.pdf"        # fecha comprometida (prioridad)
+        if clasif == "correctiva" and equipo in EQUIPOS_CRITICOS_BANCO:
+            o["permiso_requerido"], o["bloqueo_energia"] = "PT-CALIENTE", "LOTO"
+        ordenes.append(o)
+        return o
+
+    # El grid del calendario cubre 760 días desde el 1-ene del año del ancla, y
+    # la semana ISO 1 de 2026 arranca el 29-dic-2025: las fechas anteriores al
+    # 1-ene quedarían fuera del grid y `backlog_habiles` contaría de menos
+    # (limitación conocida del libro). El banco se acota al año natural.
+    ini_grid = date(anio, 1, 1)
+
+    def dia_habil_de(lunes, esp, ceco=None):
+        """Un día L-S de esa semana que sea HÁBIL para el área de la orden, para
+        que el volumen crudo no contamine los casos borde sembrados."""
+        info = CAT_CECO.get(ceco) if ceco else None
+        ar = info[CECO_AREA] if info else "PRODUCCION"
+        sa = sub_area_efectiva(info[CECO_SUBAREA], info[CECO_AREA]) if info else ar
+        for _ in range(12):
+            f = lunes + timedelta(days=rnd.randrange(6))
+            if f >= ini_grid and es_habil(f, ar, sa, excepciones) == "sí":
+                return f
+        return None
+
+    # --- Casos borde sembrados: cantidades EXACTAS conocidas ----------------
+    S = {"dup_ids": 3, "sin_fecha": 4, "sin_horas": 4, "ceco_desconocido": 3,
+         "puesto_desconocido": 3, "actividad_desconocida": 3, "tipo_desconocido": 3,
+         "domingo": 6, "feriado": 4, "paro_subarea": 3, "cruce_anio": 3,
+         "vac_mal_asignadas": 3, "ejec_sin_orden": 5, "sobrecargadas": 2,
+         "casi_vacias": 2, "ajustes_aplicados": 5, "ajustes_duplicados": 2,
+         "ajustes_huerfanos": 2, "regla8_precio_mayor": 2}
+
+    # Semanas sobrecargadas (>100 % de carga) y casi vacías: fuera de la ventana.
+    sem_sobrecarga = [12, 33]          # índices 0-based de semana ISO
+    sem_vacia = [5, 27]
+    n_reservadas = (S["dup_ids"] + S["sin_fecha"] + S["sin_horas"] + S["ceco_desconocido"]
+                    + S["puesto_desconocido"] + S["actividad_desconocida"]
+                    + S["tipo_desconocido"] + S["domingo"] + S["feriado"]
+                    + S["paro_subarea"] + S["cruce_anio"] + S["vac_mal_asignadas"])
+    n_sobre = 68                       # 34 órdenes de 10 h en cada semana sobrecargada
+    picos = ((0, "MEC", 34), (1, "ELE", 30), (2, "MEC", 26))   # parada dentro de la ventana
+    n_bulk = n_ordenes - n_reservadas - n_sobre - sum(p[2] for p in picos)
+    if n_bulk < 100:
+        raise ValueError("n_ordenes demasiado pequeño para el banco (mínimo ~300)")
+
+    # Reparto NO uniforme por semana: ondulación determinista + zona rica
+    # alrededor de la ventana + dos semanas casi vacías.
+    pesos = []
+    for k in range(n_sem):
+        w = rnd.uniform(0.55, 1.45)
+        if i0 - 3 <= k < i1 + 1:
+            w *= 3.4                   # zona rica: la ventana y su entorno
+        if k in sem_vacia:
+            w = 0.03
+        if k in sem_sobrecarga:
+            w *= 0.4                   # su volumen llega por las órdenes de 10 h
+        pesos.append(w)
+    total_peso = sum(pesos)
+    por_semana = [max(0, round(n_bulk * w / total_peso)) for w in pesos]
+    # Ajuste fino para cuadrar exactamente n_bulk
+    while sum(por_semana) > n_bulk:
+        por_semana[max(range(n_sem), key=lambda k: por_semana[k])] -= 1
+    while sum(por_semana) < n_bulk:
+        por_semana[i0] += 1
+
+    # Volumen crudo, semana a semana
+    mezcla_esp = ["MEC"] * 5 + ["ELE"] * 4 + ["AUT"] * 2
+    for k in range(n_sem):
+        en_ventana_k = i0 <= k < i1
+        for _ in range(por_semana[k]):
+            esp = rnd.choice(mezcla_esp)
+            ceco = cecos_esp[esp][rnd.randrange(len(cecos_esp[esp]))]
+            f = dia_habil_de(lunes_anio[k], esp, ceco)
+            if f is None:
+                continue
+            clasif = "preventiva" if rnd.random() < 0.68 else "correctiva"
+            horas = rnd.choice(HORAS_VENTANA if en_ventana_k else HORAS_CRUDO)
+            nueva(f, horas, esp, clasif, "ventana" if en_ventana_k else "anio", ceco=ceco)
+    # Picos de carga dentro de la ventana (parada de planta): generan el
+    # REMANENTE deliberado, porque no caben en la jornada productiva del día.
+    for off_sem, esp, cuantas in picos:
+        lun = lunes_sem[min(off_sem, len(lunes_sem) - 1)]
+        f = dia_habil_de(lun, esp) or (lun + timedelta(days=1))
+        for _ in range(cuantas):
+            nueva(f, rnd.choice((3, 4)), esp, "correctiva", "ventana_pico")
+
+    # Semanas sobrecargadas (>100 % de carga): 34 órdenes de 10 h cada una
+    for k, esp in zip(sem_sobrecarga, ("MEC", "ELE")):
+        for _ in range(34):
+            f = dia_habil_de(lunes_anio[k], esp) or lunes_anio[k]
+            nueva(f, 10, esp, "correctiva", "sobrecarga")
+
+    # ---- Casos borde (cantidades exactas del manifiesto) -------------------
+    f_ok = dia_habil_de(lunes_anio[10], "MEC") or lunes_anio[10]
+    for _ in range(S["sin_fecha"]):
+        nueva(None, 4, "MEC", "correctiva", "edge")
+    for _ in range(S["sin_horas"]):
+        nueva(dia_habil_de(lunes_anio[11], "ELE") or f_ok, None, "ELE", "correctiva", "edge")
+    for _ in range(S["ceco_desconocido"]):
+        nueva(f_ok, 4, "MEC", "correctiva", "edge", ceco="CC-999")
+    for _ in range(S["puesto_desconocido"]):
+        nueva(f_ok, 4, "ELE", "correctiva", "edge", puesto="PU-XXX")
+    for _ in range(S["actividad_desconocida"]):
+        nueva(f_ok, 4, "AUT", "correctiva", "edge", act="ACT-99", tipo="TIPO-C1")
+    for _ in range(S["tipo_desconocido"]):
+        nueva(f_ok, 4, "MEC", "correctiva", "edge", act="ACT-03", tipo="TIPO-X9")
+    # Domingos NO laborables (evita el domingo especial laborable de SERVICIOS)
+    dom_especial = lunes_sem[1] + timedelta(days=6)
+    doms = [lunes_anio[k] + timedelta(days=6) for k in (14, 18, 22, 26, 30, 34)]
+    for f in doms[:S["domingo"]]:
+        assert f != dom_especial
+        nueva(f, 4, "MEC", "correctiva", "edge_domingo", ceco="CC-110")
+    # Feriados generales del año
+    for f in [date(anio, 5, 1), date(anio, 8, 15), date(anio, 10, 12), date(anio, 12, 25)][:S["feriado"]]:
+        nueva(f, 4, "ELE", "correctiva", "edge_feriado", ceco="CC-120")
+    # Paro de la sub-área Vapor (excepción por sub-área), dentro de la ventana
+    f_paro = lunes_sem[0] + timedelta(days=3)
+    for _ in range(S["paro_subarea"]):
+        nueva(f_paro, 4, "MEC", "correctiva", "edge_paro", ceco="CC-310")
+    # Cruce de fin de año: 2026-S53 y 2027-S01 (no se pliegan)
+    nueva(date(anio, 12, 29), 4, "AUT", "preventiva", "cruce")
+    nueva(date(anio + 1, 1, 1), 4, "MEC", "preventiva", "cruce")
+    nueva(date(anio + 1, 1, 5), 4, "ELE", "preventiva", "cruce")
+    # Órdenes mal asignadas a técnicos que están de VACACIONES esas fechas.
+    # Van FUERA de la ventana programada a propósito: la ventana debe quedar
+    # coherente (§13) y este caso documenta el error humano que VALIDACION expone.
+    vac_mal = []
+    for v in plan_vacaciones[:S["vac_mal_asignadas"]]:
+        f = v["fecha_inicio"] + timedelta(days=1)
+        esp = next(t[TEC_ESP] for t in TECNICOS if t[1] == v["tecnico"])
+        o = nueva(f, 4, esp, "correctiva", "edge_vac", tecnico=v["tecnico"],
+                  obs="Demo: asignada a técnico de vacaciones (HHD = −HHA)")
+        vac_mal.append(o)
+
+    # Relleno determinista hasta exactamente n_ordenes (antes de duplicar ids)
+    k_rel = 0
+    while len(ordenes) < n_ordenes - S["dup_ids"]:
+        esp = mezcla_esp[k_rel % len(mezcla_esp)]
+        f = dia_habil_de(lunes_anio[(k_rel * 7) % n_sem], esp) or f_ok
+        nueva(f, rnd.choice(HORAS_CRUDO), esp, "preventiva", "anio")
+        k_rel += 1
+    # id_operacion duplicados (2 filas por id): se copian filas ya existentes
+    for j in range(S["dup_ids"]):
+        ordenes.append({**ordenes[40 + j * 7]})
+    assert len(ordenes) == n_ordenes, f"{len(ordenes)} órdenes, esperadas {n_ordenes}"
+
+    for o in ordenes:
+        o["id_operacion"] = o["orden"] + o["operacion"]
+
+    # --- Programación REAL de la ventana ------------------------------------
+    # Precedencia: (a) especialidad · (b) disponibilidad · (c) capacidad ·
+    # (d) prioridad. Si no cabe, la orden queda SIN TÉCNICO (remanente real).
+    cap_dia = HORAS_JORNADA * FACTOR_PRODUCTIVIDAD          # 6,96 h productivas
+    usado = {}
+
+    def prioridad(o):
+        if o["_clasif"] == "preventiva" and o["link_checklist"]:
+            return 0                                        # preventivo comprometido
+        if o["_clasif"] == "correctiva" and o["equipo"] in EQUIPOS_CRITICOS_BANCO:
+            return 1                                        # correctivo de equipo crítico
+        return 2
+
+    en_ventana = [o for o in ordenes
+                  if o["fecha_inicio"] and v_ini <= o["fecha_inicio"] <= v_fin
+                  and o["horas_estimadas"] and not o["tecnico_asignado"]]
+    en_ventana.sort(key=lambda o: (o["fecha_inicio"], prioridad(o), o["orden"]))
+    n_programadas = n_remanente = 0
+    for o in en_ventana:
+        info = CAT_CECO.get(o["centro_costo"])
+        ar = info[CECO_AREA] if info else SIN_CATALOGO
+        sa = sub_area_efectiva(info[CECO_SUBAREA], info[CECO_AREA]) if info else SIN_CATALOGO
+        if es_habil(o["fecha_inicio"], ar, sa, excepciones) != "sí":
+            continue                                        # día no laborable: no se programa
+        esp = CAT_PUESTOS.get(o["puesto_trabajo"])
+        if esp not in cecos_esp:
+            continue                                        # puesto fuera de catálogo
+        f = o["fecha_inicio"]
+        cands = sorted([t[1] for t in TECNICOS if t[TEC_ESP] == esp],
+                       key=lambda nb: usado.get((nb, f), 0))
+        for nb in cands:
+            if disp_h.get((nb, f), 0) <= 0:
+                continue                                    # domingo / VAC / no hábil
+            if usado.get((nb, f), 0) + o["horas_estimadas"] <= cap_dia + 1e-9:
+                o["tecnico_asignado"] = nb
+                usado[(nb, f)] = usado.get((nb, f), 0) + o["horas_estimadas"]
+                n_programadas += 1
+                break
+        else:
+            n_remanente += 1                                # remanente deliberado
+
+    # --- EJECUCION: notificaciones realistas --------------------------------
+    # Solo de órdenes ya vencidas o de la ventana en curso (nunca de semanas
+    # futuras sin programar), y se deja una proporción sin ejecución → la
+    # adherencia queda en un rango creíble en vez de 0 % o 100 %.
+    ejecucion, ya = [], set()
+    prioridades = ("1-ALTA", "2-MEDIA", "3-BAJA")
+    usuario = {"CERR": "CERRADA", "LIB": "LIBERADA", "EJEC": "EN EJECUCION", "ABIE": "ABIERTA"}
+    edge_regla8, n_cerradas = [], 0
+    for j, o in enumerate(ordenes):
+        f = o["fecha_inicio"]
+        if f is None or f > v_fin or o["id_operacion"] in ya:
+            continue
+        pasada = f < v_ini
+        if rnd.random() > (0.95 if pasada else 0.75):
+            continue                                        # vencida SIN ejecución
+        if pasada:
+            estado = "CERR" if rnd.random() < 0.92 else rnd.choice(("EJEC", "ABIE"))
+        else:
+            estado = rnd.choice(("CERR", "CERR", "EJEC", "LIB"))
+        plan = o["costo_plan"] or 0
+        precio = plan * 2 // 5
+        if len(edge_regla8) < S["regla8_precio_mayor"] and estado == "CERR" and j % 97 == 0:
+            precio = plan + 100                             # REGLA-8: materiales = 0
+            edge_regla8.append(o["id_operacion"])
+        ejecucion.append({"orden": o["orden"], "operacion": o["operacion"],
+                          "id_operacion": o["id_operacion"], "estado_sistema": estado,
+                          "prioridad": prioridades[j % 3],
+                          "estado_instalacion": ("OPERATIVO", "PARADO")[j % 2],
+                          "precio": precio, "costo_real": plan if estado == "CERR" else 0,
+                          "costo_plan_total": plan, "estado_usuario": usuario[estado]})
+        ya.add(o["id_operacion"])
+        n_cerradas += estado == "CERR"
+    # Ejecuciones huérfanas (sin orden en ORDENES)
+    for n in range(S["ejec_sin_orden"]):
+        oid = f"OT-99{n:04d}"
+        ejecucion.append({"orden": oid, "operacion": "0010", "id_operacion": oid + "0010",
+                          "estado_sistema": "LIB", "prioridad": "2-MEDIA",
+                          "estado_instalacion": "OPERATIVO", "precio": 50,
+                          "costo_real": 0, "costo_plan_total": 150,
+                          "estado_usuario": "LIBERADA"})
+
+    # --- tblAjustes: aplicados + duplicados + huérfanos ---------------------
+    con_horas = [o for o in ordenes if o["horas_estimadas"] and o["fecha_inicio"]
+                 and o["id_operacion"] not in {x["id_operacion"] for x in ordenes
+                                               if ordenes.count(x) > 1}]
+    elegidas = con_horas[:: max(1, len(con_horas) // (S["ajustes_aplicados"] + 3))][:S["ajustes_aplicados"]]
+    ajustes, desviacion_total = [], 0
+    for i, o in enumerate(elegidas):
+        nuevas_h = o["horas_estimadas"] + (2 if i % 2 == 0 else -1)
+        desviacion_total += nuevas_h - o["horas_estimadas"]
+        ajustes.append({"id_operacion": o["id_operacion"], "horas_ajustadas": nuevas_h,
+                        "motivo": "Alcance real distinto al estándar del ERP",
+                        "fecha_ajuste": hoy})
+    for i in range(S["ajustes_duplicados"]):                # duplicados dentro de tblAjustes
+        ajustes.append({"id_operacion": elegidas[i]["id_operacion"],
+                        "horas_ajustadas": elegidas[i]["horas_estimadas"] + 5,
+                        "motivo": "Duplicado (demo): se ignora, gana la primera fila",
+                        "fecha_ajuste": hoy})
+    for i in range(S["ajustes_huerfanos"]):                 # huérfanos (id inexistente)
+        ajustes.append({"id_operacion": f"OT-9999{i:02d}0010", "horas_ajustadas": 6,
+                        "motivo": "Huérfano (demo): la orden no existe en ORDENES",
+                        "fecha_ajuste": hoy})
+
+    # --- MANIFIESTO DE SIEMBRA (contraste contra VALIDACION, sin contar a ojo)
+    ids = [o["id_operacion"] for o in ordenes]
+    ids_ejec = {e["id_operacion"] for e in ejecucion}
+    manifiesto = {
+        "ventana_programada": f"{semanas[0]} … {semanas[-1]}  ({v_ini} → {v_fin})",
+        "ancla_hoy": hoy.isoformat(),
+        "semilla": semilla,
+        "ordenes": len(ordenes),
+        "ejecuciones": len(ejecucion),
+        "asignaciones": len(asignaciones),
+        "semanas_iso_cubiertas": n_sem,
+        # — Contraste directo contra VALIDACION (REGLA-10 + ajustes + calendario) —
+        "val_duplicadas": S["dup_ids"] * 2,
+        "val_sin_fecha": S["sin_fecha"],
+        "val_sin_horas": S["sin_horas"],
+        "val_ceco_desconocido": S["ceco_desconocido"],
+        "val_puesto_desconocido": S["puesto_desconocido"],
+        "val_actividad_desconocida": S["actividad_desconocida"],
+        "val_tipo_ot_desconocido": S["tipo_desconocido"],
+        "val_ejecucion_sin_par": S["ejec_sin_orden"],
+        "val_ordenes_sin_par": sum(1 for i in ids if i not in ids_ejec),
+        "val_ordenes_ajustadas": S["ajustes_aplicados"],
+        "val_desviacion_horas": desviacion_total,
+        "val_ajustes_huerfanos": S["ajustes_huerfanos"],
+        "val_ajustes_duplicados": S["ajustes_duplicados"] * 2,
+        "val_en_dia_no_habil": S["domingo"] + S["feriado"] + S["paro_subarea"],
+        "val_exc_area_desconocida": 1,
+        "val_exc_sub_desconocida": 1,
+        # — Casos sembrados que no son chequeos de VALIDACION —
+        "semanas_sobrecargadas": S["sobrecargadas"],
+        "semanas_casi_vacias": S["casi_vacias"],
+        "ordenes_asignadas_a_tecnico_en_vac": S["vac_mal_asignadas"],
+        "ordenes_cruce_de_anio": S["cruce_anio"],
+        "periodos_de_vacaciones": len(plan_vacaciones),
+        "ordenes_regla8_precio_mayor": len(edge_regla8),
+        # — Ventana programada —
+        "ventana_ordenes_programadas": n_programadas,
+        "ventana_remanente_sin_tecnico": n_remanente,
+        "ventana_capacidad_dia_h": round(cap_dia, 2),
+    }
+
+    return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
+            "semana_referencia": semana_referencia, "n_por_ciclo": _n_por_ciclo(),
+            "plan_vacaciones": plan_vacaciones,
+            "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
+            "ajustes": ajustes, "excepciones": excepciones, "edge_regla8": edge_regla8,
+            "manifiesto": manifiesto, "banco": True}
+
+
+# ══════════════════════════════════════════════════════════════════════════
 # 4. VALORES ESPERADOS (motor Python aplicado a los datos)
 #    Es lo que las fórmulas del libro DEBEN producir.
 # ══════════════════════════════════════════════════════════════════════════
@@ -862,7 +1299,6 @@ def calcular_esperado(datos):
     for e in datos["ejecucion"]:
         ejec_por_id.setdefault(e["id_operacion"], e)  # primera coincidencia, como XLOOKUP
     exc = datos["excepciones"]
-    monday_por_semana = dict(zip(datos["semanas"], datos["lunes_sem"]))
     # 6.2: franja horaria por turno (espejo de CAT_TURNOS). "" si no es un turno
     # del catálogo (VAC/X/vacío). La franja NO alimenta capacidad.
     franja_turno = {t[0]: (t[2], t[3]) for t in TURNOS_CAT}
@@ -870,7 +1306,9 @@ def calcular_esperado(datos):
     for a in datos["asignaciones"]:
         asig_por_clave.setdefault((a["semana"], a["dia"], a["tecnico"]), a)
         # Fecha real de la celda (semana + día) para consultar el calendario.
-        a["fecha"] = monday_por_semana[a["semana"]] + timedelta(days=DIAS.index(a["dia"]))
+        # El lunes se deriva de la etiqueta ISO (igual que la fórmula del libro),
+        # así ASIGNACIONES puede cubrir más semanas que las del plan (§7 banco).
+        a["fecha"] = lunes_de_semana(a["semana"]) + timedelta(days=DIAS.index(a["dia"]))
         a["habil"] = es_habil(a["fecha"], a["area"], "", exc)   # capacidad: nivel área
         a["horas_disponibles"] = regla_5_horas_disponibles(a["turno"], a["habil"])
         # 6.6: supervisor fijo del técnico (ya viene de generar_datos, por esp).
@@ -2917,6 +3355,27 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     for colw, w in (("A", 18), ("B", 64), ("C", 64), ("D", 22)):
         ws.column_dimensions[colw].width = w
 
+    # ------------------------------------------------------ _BANCO_PRUEBA
+    # §7: manifiesto de siembra del banco. Solo existe en el libro del banco
+    # (--anio-completo). Sirve para contrastar VALIDACION contra lo sembrado
+    # sin contar a ojo: cada fila "val_*" debe coincidir con su chequeo.
+    man = datos.get("manifiesto")
+    if man:
+        ws = wb.create_sheet("_BANCO_PRUEBA")
+        ws.sheet_properties.tabColor = "A6A6A6"
+        celda(ws, 1, 1, "§7 BANCO DE PRUEBA — manifiesto de siembra", font=F_TIT)
+        celda(ws, 2, 1, "Cantidades EXACTAS sembradas a propósito. Las filas 'val_*' se "
+                        "contrastan una a una contra la hoja VALIDACION (REGLA-10 reporta, "
+                        "nunca bloquea). Datos deterministas: misma semilla → mismos valores.",
+              font=F_NOTA)
+        encabezados(ws, 4, ["concepto", "valor sembrado"])
+        for i, (k, v) in enumerate(man.items()):
+            fr = 5 + i
+            celda(ws, fr, 1, k)
+            celda(ws, fr, 2, v, fmt=FMT_FECHA if isinstance(v, date) else None)
+        for colw, w in (("A", 38), ("B", 46)):
+            ws.column_dimensions[colw].width = w
+
     # Orden final de hojas: EXPORTAR y _COMPATIBILIDAD ya quedan al final tras los catálogos.
     wb.save(ruta)
     return ruta
@@ -2935,6 +3394,36 @@ def imprimir_resumen(datos, esperado):
     print(f"Serie de semanas con datos: {len(esperado['serie_semanas'])} "
           f"({esperado['serie_semanas'][0]} … {esperado['serie_semanas'][-1]}), "
           f"{len(esperado['semanas_con_datos'])} con órdenes")
+
+    man = datos.get("manifiesto")
+    if man:
+        print("\n§7 BANCO DE PRUEBA — manifiesto de siembra:")
+        for k, v in man.items():
+            print(f"  {k:38} {v}")
+        # Coherencia de la ventana programada (contraste independiente)
+        v_ini = datos["lunes_sem"][0]
+        v_fin = datos["lunes_sem"][-1] + timedelta(days=6)
+        asig = {(a["tecnico"], a["fecha"]): a for a in esperado["asignaciones"]}
+        prog = [o for o in esperado["ordenes"] if o["tecnico_asignado"]
+                and o["fecha_inicio"] and v_ini <= o["fecha_inicio"] <= v_fin]
+        mal_esp = [o for o in prog
+                   if CAT_PUESTOS.get(o["puesto_trabajo"])
+                   != next((t[TEC_ESP] for t in TECNICOS if t[1] == o["tecnico_asignado"]), None)]
+        mal_disp = [o for o in prog
+                    if (asig.get((o["tecnico_asignado"], o["fecha_inicio"])) or {}
+                        ).get("horas_disponibles", 0) <= 0]
+        carga = {}
+        for o in prog:
+            k = (o["tecnico_asignado"], o["fecha_inicio"])
+            carga[k] = carga.get(k, 0) + (o["horas_efectivas"] or 0)
+        cap = HORAS_JORNADA * FACTOR_PRODUCTIVIDAD
+        mal_cap = {k: h for k, h in carga.items() if h > cap + 1e-9}
+        print("  COHERENCIA DE LA VENTANA PROGRAMADA:")
+        print(f"    órdenes con técnico: {len(prog)} · remanente sin técnico: "
+              f"{man['ventana_remanente_sin_tecnico']}")
+        print(f"    especialidad equivocada: {len(mal_esp)} (esperado 0)")
+        print(f"    técnico en VAC/domingo/no hábil: {len(mal_disp)} (esperado 0)")
+        print(f"    técnico-día sobre capacidad ({cap:.2f} h): {len(mal_cap)} (esperado 0)")
 
     print("\nROTACIÓN DE TURNOS (6.3, anillo B(N-3)…B1 → T3 → T2 → T1; +1 pos/semana):")
     print(f"  Semana de referencia (lunes): {datos['semana_referencia'].isoformat()}")
@@ -3031,7 +3520,7 @@ def imprimir_resumen(datos, esperado):
               f"correctivo {pct:.1%} del total")
     print("\nCruce de fin de año (REGLA-2 v2):")
     for o in esperado["ordenes"]:
-        if o["fecha_inicio"] and o["fecha_inicio"].month in (12, 1) and o["_grupo"] == "futuro":
+        if o["fecha_inicio"] and o["fecha_inicio"].month in (12, 1) and o["_grupo"] in ("futuro", "cruce"):
             print(f"  {o['id_operacion']}: fecha {o['fecha_inicio']} → semana {o['semana']} "
                   f"(anio YEAR = {o['anio']})")
     print("\nAjustes manuales (tblAjustes → horas_efectivas por id_operacion):")
@@ -3073,11 +3562,12 @@ def imprimir_resumen(datos, esperado):
     print("\nCALENDARIO LABORAL (v2.4):")
     exc = datos["excepciones"]
     print(f"  Excepciones: {len(exc)} (12 feriados generales + demos). Patrón: L-V hábil, S-D no.")
-    for f, a, s, exp in [(date(hoy.year, 5, 1), "PRODUCCION", "", "no"),
+    casos_cal = [] if datos.get("banco") else [(date(hoy.year, 5, 1), "PRODUCCION", "", "no"),
                          (datos["lunes_sem"][2] + timedelta(days=6), "SERVICIOS", "", "sí"),
                          (datos["lunes_sem"][2] + timedelta(days=6), "PRODUCCION", "", "no"),
                          (datos["lunes_sem"][1] + timedelta(days=3), "SERVICIOS", "Vapor", "no"),
-                         (datos["lunes_sem"][1] + timedelta(days=3), "SERVICIOS", "Refrigeración", "sí")]:
+                         (datos["lunes_sem"][1] + timedelta(days=3), "SERVICIOS", "Refrigeración", "sí")]
+    for f, a, s, exp in casos_cal:
         r = es_habil(f, a, s, exc)
         print(f"  es_habil({f}, {a}, {s or '—'}) = {r}  (esperado {exp})  "
               f"{'OK' if r == exp else 'FALLO'}")
@@ -3144,13 +3634,30 @@ def main(argv=None):
     ap.add_argument("--refs", choices=["estructuradas", "compatibles"], default="estructuradas",
                     help="compatibles = INDEX/MATCH + rangos A1 (verificación / Excel 2016)")
     ap.add_argument("--resumen", action="store_true", help="imprime los números esperados")
+    # §7 — banco de prueba (OPCIÓN; sin estos flags sale el dataset de 4 semanas)
+    ap.add_argument("--anio-completo", action="store_true",
+                    help="§7: banco de prueba de un año (ancla fija 2026) con ventana programada")
+    ap.add_argument("--n-ordenes", type=int, default=1000,
+                    help="§7: nº de órdenes del banco (default 1000)")
+    ap.add_argument("--semanas-programadas", type=int, default=4,
+                    help="§7: semanas de la ventana realmente programada (default 4)")
+    ap.add_argument("--semilla", type=int, default=SEMILLA_BANCO,
+                    help=f"§7: semilla determinista del banco (default {SEMILLA_BANCO})")
     args = ap.parse_args(argv)
 
-    hoy = date.fromisoformat(args.fecha_ancla) if args.fecha_ancla else date.today()
-    datos = generar_datos(hoy)
+    t0 = time.perf_counter()
+    if args.anio_completo:
+        datos = generar_datos_banco(args.n_ordenes, args.semanas_programadas, args.semilla)
+        hoy = datos["hoy"]
+    else:
+        hoy = date.fromisoformat(args.fecha_ancla) if args.fecha_ancla else date.today()
+        datos = generar_datos(hoy)
     esperado = calcular_esperado(datos)
     construir_libro(datos, esperado, args.salida, refs=args.refs)
-    print(f"Generado {args.salida} (refs {args.refs}, ancla {hoy.isoformat()})")
+    seg = time.perf_counter() - t0
+    modo = "BANCO §7" if args.anio_completo else "default"
+    print(f"Generado {args.salida} (refs {args.refs}, ancla {hoy.isoformat()}, "
+          f"{modo}, {len(datos['ordenes'])} órdenes, {seg:.1f} s)")
     if args.resumen:
         print()
         imprimir_resumen(datos, esperado)

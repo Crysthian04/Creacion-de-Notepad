@@ -1,12 +1,143 @@
-# VERIFICACION.md — MantPlan v2.9.0
+# VERIFICACION.md — MantPlan v3.0.0 (cierre del entregable A)
 
-Reporte de verificación del entregable A. Esta versión añade dos cambios
-aditivos: **6.5 — medición de horas reales (56/48/0, capa de seguimiento)** y
-**6.6 — supervisor fijo por técnico**, sobre 6.4 (VAC), 6.3 (rotación), 6.2
-(CAT_TURNOS), 6.1 (jornada 8 h), v2.4 (calendario), v2.3 (sub_area), v2.2
-(EXPORTAR), v2.1 y v2.0. Fecha de la corrida: **2026-07-24** (ancla de los datos).
+Reporte de verificación del entregable A. Esta versión añade **§7 — banco de
+prueba**: volumen de un año en crudo + una ventana programada, como OPCIÓN del
+generador. Sobre 6.5/6.6 (seguimiento y supervisor), 6.4 (VAC), 6.3 (rotación),
+6.2 (CAT_TURNOS), 6.1 (jornada 8 h), v2.4 (calendario), v2.3 (sub_area), v2.2
+(EXPORTAR), v2.1 y v2.0. Corridas: dataset por defecto con ancla **2026-07-27**;
+banco con ancla FIJA **2026-11-02**.
 
-## 0. Cambio 6.5 + 6.6 — horas reales de seguimiento y supervisor fijo
+## 0. §7 — Banco de prueba: un año en crudo + ventana programada
+
+Cambio de **datos y de opciones del generador**: no toca las 10 reglas, ni la
+rotación, ni VAC, ni el seguimiento, ni la capacidad. Se activa con
+`--anio-completo`; **sin flags el generador produce exactamente el dataset de 4
+semanas de siempre** (verificado, punto 17). Ancla FIJA (2026): el banco nunca
+depende de `date.today()`.
+
+### Volumen y agilidad (puntos 3, 4 y 16 — medidos)
+
+| Métrica | Dataset por defecto | Banco §7 |
+|---|---:|---:|
+| Órdenes (`1_IMPORTAR_ORDENES`) | 200 | **1.000** |
+| Notificaciones (`2_IMPORTAR_EJECUCION`) | 162 | **851** |
+| Filas de ASIGNACIONES | 448 | **5.936** (53 semanas ISO × 16 técnicos × 7 días) |
+| Hojas | 27 | **28** (añade `_BANCO_PRUEBA`) |
+| Fórmulas recalculadas | 74.182 | **145.546** |
+| Errores de fórmula | **0** | **0** |
+| Tiempo de generación | 2,6 s | **29,6 s** |
+| Tiempo de recálculo (LibreOffice) | ~10 s | **26,5 s** |
+| Tamaño (variante compatible) | 0,99 MB | **2,19 MB** |
+
+**El recálculo NO se vuelve impracticable**: 26,5 s para 145.546 fórmulas, muy
+por debajo del límite de 595 s. No hizo falta recortar volumen. Los tipos de
+trabajo salen de los catálogos (`CAT_TIPOS_OT` × `CAT_ACTIVIDADES`, con
+`ACT-06 Overhaul mayor` añadido **al catálogo**), nunca hardcodeados.
+
+**Determinismo (punto 2)**: dos generaciones con la misma semilla dan la misma
+huella SHA-256 de las 1.000 órdenes (`7f7a0c1f9707f87f`); con `--semilla 777`
+cambia (`31a7ac4cc2f5c554`). Los flags `--n-ordenes` y `--semanas-programadas`
+responden (400 órdenes / ventana de 2 semanas, comprobado).
+
+### (12) CONTRASTE VALIDACION ↔ MANIFIESTO — caso por caso
+
+Leído del **libro recalculado** contra la hoja `_BANCO_PRUEBA`. REGLA-10
+**reporta, nunca bloquea**: las 1.000 órdenes se importan igual.
+
+| chequeo de VALIDACION | libro | manifiesto | |
+|---|---:|---:|---|
+| Órdenes duplicadas por `id_operacion` | 6 | 6 | OK |
+| Órdenes sin fecha de inicio | 4 | 4 | OK |
+| Órdenes sin horas estimadas | 4 | 4 | OK |
+| Centros de costo fuera de catálogo | 3 | 3 | OK |
+| Puestos de trabajo fuera de catálogo | 3 | 3 | OK |
+| Actividades fuera de catálogo | 3 | 3 | OK |
+| Tipos de OT fuera de catálogo | 3 | 3 | OK |
+| EJECUCION sin par en ORDENES | 5 | 5 | OK |
+| ORDENES sin par en EJECUCION | 151 | 151 | OK |
+| Órdenes con ajuste manual | 5 | 5 | OK |
+| Desviación total de horas | +4 | +4 | OK |
+| Ajustes huérfanos | 2 | 2 | OK |
+| `id_operacion` duplicados en tblAjustes | 4 | 4 | OK |
+| Órdenes en día NO laborable | 13 | 13 | OK |
+| Excepciones con área desconocida | 1 | 1 | OK |
+| Excepciones con sub-área desconocida | 1 | 1 | OK |
+
+Los 13 del día no laborable se descomponen en **6 domingos + 4 feriados + 3 del
+paro de la sub-área Vapor**, sembrados a propósito.
+
+### (13) Ventana programada coherente
+
+Ventana **2026-S45 … 2026-S48** (2026-11-02 → 2026-11-29), leída del libro
+recalculado:
+
+- **190 órdenes programadas** y **75 de remanente sin técnico** (remanente
+  deliberado: hay picos tipo parada que no caben en la jornada productiva).
+- **0** órdenes con especialidad equivocada.
+- **0** órdenes asignadas a técnico en VAC, en domingo o en día no hábil.
+- **0** técnico-día por encima de la capacidad productiva (**6,96 h**).
+
+Las 3 órdenes sembradas **mal asignadas a técnicos de vacaciones** están
+**fuera** de la ventana a propósito: la ventana debe quedar coherente (§13) y ese
+caso documenta el error humano que VALIDACION expone.
+
+### (14) Año ISO: 2026-S53 y 2027-S01 no se pliegan
+
+Del libro recalculado: `2026-12-29 → 2026-S53 (anio 2026)`, `2027-01-01 →
+2026-S53 (anio 2027)`, `2027-01-05 → 2027-S01 (anio 2027)`. Las dos etiquetas
+aparecen como semanas **distintas** en la serie de PERFIL_HH/ADHERENCIA.
+
+### (15) Rotación, superávit y adherencia a volumen de año
+
+- **Cobertura** 1 T1 / 1 T2 / 1 T3 / N−3 en Banco por posición derivada en las
+  **53 semanas ISO × 2 ciclos** (MEC y ELE en PRODUCCION), con **13 huecos por
+  VAC** (técnico-semana) que caen exactamente donde el técnico está de vacaciones.
+- **Superávit/déficit** coherente: `horas_reales − 48` en todas las filas de
+  `SEGUIMIENTO_HH`.
+- **Adherencia** excluye del denominador las 13 órdenes en día no hábil, y da un
+  número creíble: **88,2 % de media** en las semanas vencidas, con variación
+  semanal de **71 % a 100 %** (ni 0 % ni 100 % plano).
+- **Semanas sobrecargadas** sembradas: MEC 2026-S13 al **117 %** y ELE 2026-S34
+  al **119 %** de carga; más 2 semanas casi vacías.
+
+### (11) Comparación motor Python ↔ Excel recalculado (banco)
+
+**59.553 comparaciones, 0 desviaciones**: las columnas calculadas de las 1.000
+órdenes, las 5.936 filas de ASIGNACIONES (posición de ciclo, VAC, turno efectivo,
+REGLA-5, supervisor, domingo trabajado), PERFIL_HH y ADHERENCIA de las 54 semanas
+de la serie, `SEGUIMIENTO_HH`/`SEGUIMIENTO_MENSUAL`, los 16 chequeos de
+VALIDACION y el manifiesto `_BANCO_PRUEBA`.
+
+**Salvedad honesta (envejecimiento con `HOY()`)**: `backlog_dias`,
+`backlog_habiles`, `estado_backlog` y `en_plan` usan `HOY()` en el libro **por
+diseño** (REGLA-3/REGLA-4), así que en un banco de ancla FIJA no pueden coincidir
+con el ancla salvo que se abra el archivo ese mismo día. Se verificaron contra el
+**día real del recálculo**, inferido del propio libro (`fecha + backlog_dias`) y
+exigiendo que sea **el mismo para las 1.000 órdenes**: así se verifica la fórmula
+y queda documentado el desfase (el recálculo corrió con `HOY() = 2026-07-27`,
+−98 días respecto del ancla del banco). El resto de columnas es independiente del día.
+
+### (17) El dataset por defecto no cambió
+
+Sin flags, el generador sigue produciendo el dataset de 4 semanas: **74.182
+fórmulas, 0 errores** y **14.178 comparaciones, 0 desviaciones**, idéntico a
+6.5+6.6. El refactor que comparte el bucle de ASIGNACIONES entre ambos modos y la
+derivación del lunes desde la etiqueta ISO no alteraron ningún valor.
+
+**Qué NO verifiqué / supuestos.** (i) No recalculé los libros principales
+(`XLOOKUP`): LibreOffice no los evalúa; corrección heredada del modo compatible.
+(ii) Las **851 notificaciones** no llegan a 1.000 porque la regla realista del
+punto 8 manda: solo se emparejan con órdenes ya vencidas o de la ventana en curso
+(nunca de semanas futuras sin programar) y se deja una proporción de vencidas sin
+ejecución para que la adherencia sea creíble. Preferí respetar esa regla antes
+que rellenar hasta el número redondo. (iii) El banco se acota al **año natural**
+(no siembra en los días de dic-2025 que pertenecen a la semana ISO 1 de 2026)
+para no rozar la limitación conocida del grid del calendario, que arranca el
+1-ene del año del ancla. (iv) El recálculo independiente lo corre el usuario.
+
+---
+
+## 0-bis. Cambio 6.5 + 6.6 — horas reales de seguimiento y supervisor fijo
 
 **Ninguno toca la rotación, la capacidad de planificación (REGLA-5 / PERFIL_HH
 siguen en 48 h) ni el motor de VAC.** 6.5 añade una capa de **horas reales**
@@ -56,7 +187,7 @@ implementó. (vi) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-bis. Cambio 6.4 — vacaciones que arrastran (VAC automático, posición vacía)
+## 0-ter. Cambio 6.4 — vacaciones que arrastran (VAC automático, posición vacía)
 
 El plan de vacaciones marca **VAC automáticamente** en ASIGNACIONES y saca al
 técnico de la rotación esas semanas, dejando su **posición VACÍA** (hueco
@@ -112,7 +243,7 @@ de un hueco es manual (no hay reemplazo automático — sería otro bloque). (ii
 
 ---
 
-## 0-ter. Cambio 6.3 — rotación automática derivada por especialidad
+## 0-quater. Cambio 6.3 — rotación automática derivada por especialidad
 
 El turno pasa de ser un dato a **derivarse por aritmética modular** de la
 posición del técnico en el anillo del ciclo. Anillo (orden de avance semanal,
@@ -177,7 +308,7 @@ el usuario.
 
 ---
 
-## 0-quater. Cambio 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
+## 0-quinquies. Cambio 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
 
 Los turnos pasan de etiquetas sueltas a un catálogo con banda horaria. **La
 franja es metadato de horario; la capacidad NO se deriva de ella** (REGLA-5
@@ -221,7 +352,7 @@ independiente lo corre el usuario.
 
 ---
 
-## 0-quinquies. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
+## 0-sexies. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
 
 Cambio de parámetro + patrón, sin tocar el modelo de turnos ni la rotación
 (eso es 6.3) ni ninguna otra hoja/regla. Verificado sobre el libro

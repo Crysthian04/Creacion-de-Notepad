@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v2.9.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.0.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -19,22 +19,35 @@ están implementadas dos veces y verificadas una contra la otra:
 |---|---|---|
 | `MantPlan.xlsx` | Libro principal: `XLOOKUP` + referencias estructuradas | **Excel 2021 / Microsoft 365** |
 | `MantPlan_compatible.xlsx` | Mismo libro y mismos datos con `INDEX/MATCH` + rangos A1 acotados | **Excel 2016 o anterior, y LibreOffice** |
-| `generar_mantplan.py` | Motor de reglas en Python + generador determinista de ambos libros | — |
+| `MantPlan_banco.xlsx` | **§7 Banco de prueba**: 1.000 órdenes de un año + ventana programada | Inspección humana a volumen real |
+| `MantPlan_banco_compatible.xlsx` | El banco en variante `INDEX/MATCH` | Excel 2016 / LibreOffice |
+| `generar_mantplan.py` | Motor de reglas en Python + generador determinista de los cuatro libros | — |
 | `VERIFICACION.md` | Reporte de verificación (recálculo + comparación + casos) | — |
 | `README.md` | Este documento | — |
 
-Ambos libros llevan las mismas 200 órdenes sintéticas ancladas al
-**2026-07-24**, sobre tablas provisionadas para **1.200 filas**, y producen
-números idénticos (verificado, ver §1).
+Los dos libros del **dataset por defecto** llevan las mismas 200 órdenes
+sintéticas ancladas al **2026-07-27**, sobre tablas provisionadas para **1.200
+filas**, y producen números idénticos (verificado, ver §1). Los dos libros del
+**banco** llevan 1.000 órdenes con ancla FIJA **2026-11-02** (ver §7).
+
+> El ancla del dataset por defecto es `HOY()` salvo que se pase `--fecha-ancla`.
+> Los libros de este repo se generaron con **`--fecha-ancla 2026-07-27`** para
+> que las cifras de este README sean reproducibles; sin el flag, las columnas de
+> envejecimiento (REGLA-3/REGLA-4, que usan `HOY()`) se mueven con el día.
 
 ## Cómo regenerarlo
 
 ```bash
 pip install openpyxl
-python generar_mantplan.py                                        # MantPlan.xlsx (principal)
-python generar_mantplan.py --salida MantPlan_compatible.xlsx --refs compatibles
-python generar_mantplan.py --fecha-ancla 2026-07-24               # fija el "hoy" de los datos
-python generar_mantplan.py --resumen                              # imprime los números esperados (incl. rotación)
+# Dataset por defecto (4 semanas) — el que se usa a diario
+python generar_mantplan.py --fecha-ancla 2026-07-27
+python generar_mantplan.py --fecha-ancla 2026-07-27 --salida MantPlan_compatible.xlsx --refs compatibles
+python generar_mantplan.py --resumen                              # números esperados (rotación, VAC, seguimiento)
+
+# §7 Banco de prueba (un año + ventana programada). Ancla FIJA, determinista.
+python generar_mantplan.py --anio-completo --salida MantPlan_banco.xlsx
+python generar_mantplan.py --anio-completo --salida MantPlan_banco_compatible.xlsx --refs compatibles
+python generar_mantplan.py --anio-completo --n-ordenes 1000 --semanas-programadas 4 --semilla 20260101
 ```
 
 ## Decisiones técnicas
@@ -57,6 +70,10 @@ python generar_mantplan.py --resumen                              # imprime los 
 - Caso de bloque condicional (VERIFICACION.md §3.5): con una semana sin
   técnicos sobreasignados, la alerta de capacidad del correo desaparece sin
   encabezado ni líneas en blanco huérfanas.
+- **§7 Banco de prueba** (volumen de un año): la variante compatible se recalculó
+  con **145.546 fórmulas, 0 errores**, y se comparó contra el motor con **59.553
+  comparaciones, 0 desviaciones**, incluyendo el contraste de los 16 chequeos de
+  `VALIDACION` contra el manifiesto de siembra.
 
 ### 2. REGLA-2 v2: semana con año ISO, sin pliegue S53→S1
 
@@ -472,18 +489,83 @@ especialidad: **Supervisor Mecánico** (MEC), **Supervisor Eléctrico** (ELE),
   `TECNICOS.supervisor`. La dimensión `coordinador` de ÓRDENES/COSTOS (por CECO)
   es independiente y no cambia.
 
+### §7 — Banco de prueba: un año en crudo + ventana programada
+
+Es una **opción del generador**, no el default. Sin flags sale exactamente el
+dataset de 4 semanas de siempre; con `--anio-completo` sale un banco con el
+volumen de un año para inspección humana.
+
+| flag | default | qué hace |
+|---|---|---|
+| `--anio-completo` | — | activa el banco (año 2026 completo) |
+| `--n-ordenes` | 1000 | nº de órdenes del banco |
+| `--semanas-programadas` | 4 | tamaño de la ventana realmente programada |
+| `--semilla` | 20260101 | semilla determinista |
+
+**Determinismo y ancla fija.** Misma semilla → mismos valores (verificado). El
+banco usa **ancla FIJA 2026-11-02**, nunca `HOY()`: no puede cambiar según el día
+en que se genere.
+
+**Volumen (crudo).** 1.000 órdenes repartidas de forma **no uniforme** por las
+**53 semanas ISO de 2026** (ondulación determinista + zona rica alrededor de la
+ventana + 2 semanas casi vacías + 2 sobrecargadas), 851 notificaciones en
+`2_IMPORTAR_EJECUCION` y **5.936 filas de ASIGNACIONES** (el año completo para
+los 16 técnicos). Los tipos de trabajo salen de los **catálogos**
+(`CAT_TIPOS_OT` × `CAT_ACTIVIDADES`: inspección, lubricación, predictivo, legal,
+reparación y overhaul), nunca hardcodeados.
+
+**Ventana programada** (`2026-S45 … 2026-S48`, 2026-11-02 → 2026-11-29). Es lo
+que se inspecciona: ahí las órdenes tienen técnico asignado de verdad, siguiendo
+esta precedencia:
+
+1. **Especialidad** — el puesto de la orden debe coincidir con la especialidad
+   del técnico (`PU-MEC`→MEC, `PU-ELE`→ELE, `PU-AUT`→AUT). Nunca se cruza.
+2. **Disponibilidad** — el técnico no puede estar en `VAC`/`X` ni ser día sin
+   turno (domingo); se respeta el turno derivado de la rotación.
+3. **Capacidad** — no se superan las horas productivas del día
+   (`8 × 0,87 = 6,96 h`). Si no cabe, **no se fuerza**: la orden queda sin técnico.
+4. **Prioridad** — primero preventivo con fecha comprometida y correctivo de
+   equipo crítico; lo demás después.
+
+Resultado: **190 órdenes programadas y 75 de remanente sin técnico**. El
+remanente es deliberado (hay picos de carga tipo parada que no caben en la
+jornada) y es lo realista: ejercita el camino "orden sin técnico" y el backlog.
+**Fuera de la ventana** las órdenes quedan sin técnico (nadie programa 53 semanas
+por adelantado).
+
+**Notificaciones realistas.** Cada ejecución se empareja con una orden ya vencida
+o de la ventana en curso — nunca de semanas futuras sin programar — y se deja una
+proporción de vencidas **sin** ejecución. La adherencia queda en un rango creíble:
+**88,2 % de media**, con variación semanal de 71 % a 100 %.
+
+**Manifiesto de siembra (`_BANCO_PRUEBA`).** El libro del banco trae una hoja con
+el **conteo exacto** de cada caso sembrado y el rango de la ventana, para
+contrastar contra `VALIDACION` sin contar a ojo. Casos sembrados: semanas
+sobrecargadas (2: MEC 2026-S13 al 117 %, ELE 2026-S34 al 119 %) y casi vacías (2);
+órdenes asignadas a técnicos de vacaciones (3, **fuera** de la ventana a
+propósito, para que la ventana quede coherente); órdenes en domingo (6) y en
+feriado (4); paro por sub-área (3); CECO/puesto/actividad/tipo fuera de catálogo
+(3 de cada); `id_operacion` duplicados (6 filas); ajustes con huérfanos (2) y
+duplicados (4); cruce de fin de año (2026-S53 y 2027-S01); órdenes sin fecha (4) y
+sin horas (4); huérfanos en ambos sentidos. Las 16 filas `val_*` del manifiesto
+coinciden una a una con los 16 chequeos de `VALIDACION` (verificado).
+
+**Agilidad** (medida): generación 29,6 s · recálculo LibreOffice de la variante
+compatible **26,5 s / 145.546 fórmulas / 0 errores** · 2,19 MB. Es perfectamente
+practicable; no hizo falta recortar el volumen.
+
 ### 10. Higiene de fórmulas
 
 Auditado sobre los archivos finales: sin `OFFSET`, sin `INDIRECT`, sin
 columnas completas (`A:A`), sin enlaces externos, sin VBA, sin nombres
 definidos huérfanos.
 
-## Datos de ejemplo y verificación a mano (ancla 2026-07-24)
+## Datos de ejemplo y verificación a mano (ancla 2026-07-27)
 
 200 órdenes (tablas con capacidad 1.200) · 162 filas de ejecución (3
 huérfanas) · 4 ajustes (2 aplicados + 2 demos de error) · **16 técnicos**
 (7 MEC + 7 ELE rotativos en PRODUCCION + 2 AUT fijos) · **448 asignaciones**
-· semanas del plan **2026-S29 … 2026-S32** · semana de referencia de la
+· semanas del plan **2026-S30 … 2026-S33** · semana de referencia de la
 rotación (lunes) **2026-07-13** · **Técnico 05 de vacaciones** S30–S32 (demo
 6.4) · serie completa de reportes: 2026-S09 … 2027-S01.
 
@@ -503,16 +585,16 @@ PERFIL_HH/ADHERENCIA (las dos últimas filas visibles), sin mezcla.
 `tblAjustes` trae 4 filas demo: dos aplicadas, un duplicado (se ignora, gana
 la primera) y un huérfano (id `OT-0009990010`, inexistente).
 
-- **OT-000013** (MEC, preventiva, Técnico 01, 2026-S30): ajuste por clave
+- **OT-000013** (MEC, preventiva, Técnico 01, 2026-S31): ajuste por clave
   `OT-0000130010` con `horas_ajustadas` **12** (estimadas 8) →
   `horas_efectivas` 12.
-  - PERFIL_HH MEC 2026-S30: prev **82** (80 + 4 del ajuste − 2 del reparto),
+  - PERFIL_HH MEC 2026-S31: prev **82** (80 + 4 del ajuste − 2 del reparto),
     carga **41,4 %**.
-  - Gráfico de carga (selector 2026-S30): barra de Técnico 01 = **32**, dentro
+  - Gráfico de carga (selector 2026-S31): barra de Técnico 01 = **32**, dentro
     de la capacidad semanal **41,76 h** (sin rojo).
   - HHA del día del ajuste = **12**, HHD = 6,96 − 12 = **−5,04** (rojo por día,
     aunque la carga semanal no supere la capacidad).
-- **OT-000059** (ELE, preventiva, Técnico 08): 6 → **4** → ELE 2026-S30 prev
+- **OT-000059** (ELE, preventiva, Técnico 08): 6 → **4** → ELE 2026-S31 prev
   59, carga 28,4 %.
 - `VALIDACION`: **2** órdenes con ajuste, desviación total **+2 h**,
   **1** huérfano, **2** duplicados en tblAjustes.
@@ -522,53 +604,54 @@ la primera) y un huérfano (id `OT-0009990010`, inexistente).
 
 ### PERFIL_HH esperado (REGLA-6, semanas del plan)
 
-Cuenta rápida: **MEC 2026-S29 = 7 técnicos × 6 días × 8 h = 336; × 0,87 =
+Cuenta rápida: **MEC 2026-S30 = 7 técnicos × 6 días × 8 h = 336; × 0,87 =
 292,32; 82 prev + 20 corr = 102; carga 34,9 % → verde.**
 
 Con la dotación de 7 rotativos por especialidad (6.3) y la base de 48 h (L-S,
 6.1), la capacidad es amplia y el plan cabe con holgura: ninguna especialidad
-queda en amarillo ni rojo. La capacidad de **MEC** baja en S30–S32 porque un
-técnico (Técnico 05) está de **vacaciones** esas semanas (6.4): S30 de 336 a
-**288 h** (−48) y S32 igual; en **S31** se combinan el feriado general del
-miércoles (7 × 5 × 8 = 280) y la VAC (−40) → **240 h**. Las órdenes de fin de
-semana suman correctivas en 2026-S30.
+queda en amarillo ni rojo. La capacidad de **MEC** baja desde S31 porque el
+Técnico 05 está de **vacaciones** (6.4): S31 = 6 × 48 = **288 h**. En **S32** se
+suma el feriado de planta del miércoles (6 × 5 × 8 = **240 h**) y en **S33** el
+feriado de Asunción del sábado (**240 h**); ELE, sin nadie de VAC, baja solo por
+los feriados (7 × 40 = **280 h** en S32 y S33). Las órdenes de fin de semana
+suman correctivas en 2026-S31.
 
 | esp | semana | disp | prod | prev | corr | plan | holgura | % carga |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| MEC | 2026-S29 | 336 | 292,32 | 82 | 20 | 102 | 190,32 | 34,9 % 🟢 |
-| MEC | 2026-S30 | 288 | 250,56 | 82 | 39 | 121 | 129,56 | 48,3 % 🟢 |
-| MEC | 2026-S31 | 240 | 208,80 | 80 | 20 | 100 | 108,80 | 47,9 % 🟢 |
-| MEC | 2026-S32 | 288 | 250,56 | 72 | 14 | 86 | 164,56 | 34,3 % 🟢 |
-| ELE | 2026-S29 | 336 | 292,32 | 60 | 15 | 75 | 217,32 | 25,7 % 🟢 |
-| ELE | 2026-S30 | 336 | 292,32 | 59 | 24 | 83 | 209,32 | 28,4 % 🟢 |
-| ELE | 2026-S31 | 280 | 243,60 | 60 | 10 | 70 | 173,60 | 28,7 % 🟢 |
-| ELE | 2026-S32 | 336 | 292,32 | 52 | 10 | 62 | 230,32 | 21,2 % 🟢 |
-| AUT | 2026-S29 | 96 | 83,52 | 40 | 10 | 50 | 33,52 | 59,9 % 🟢 |
-| AUT | 2026-S30 | 96 | 83,52 | 45 | 10 | 55 | 28,52 | 65,9 % 🟢 |
-| AUT | 2026-S31 | 80 | 69,60 | 35 | 7 | 42 | 27,60 | 60,3 % 🟢 |
-| AUT | 2026-S32 | 96 | 83,52 | 30 | 6 | 36 | 47,52 | 43,1 % 🟢 |
-| TERCERO | 2026-S30 | 0 | 0 | 16 | 0 | 16 | −16,00 | — |
-| TERCERO | 2026-S31 | 0 | 0 | 12 | 0 | 12 | −12,00 | — |
+| MEC | 2026-S30 | 336 | 292,32 | 82 | 20 | 102 | 190,32 | 34,9 % 🟢 |
+| MEC | 2026-S31 | 288 | 250,56 | 82 | 39 | 121 | 129,56 | 48,3 % 🟢 |
+| MEC | 2026-S32 | 240 | 208,80 | 80 | 20 | 100 | 108,80 | 47,9 % 🟢 |
+| MEC | 2026-S33 | 240 | 208,80 | 72 | 14 | 86 | 122,80 | 41,2 % 🟢 |
+| ELE | 2026-S30 | 336 | 292,32 | 60 | 15 | 75 | 217,32 | 25,7 % 🟢 |
+| ELE | 2026-S31 | 336 | 292,32 | 59 | 24 | 83 | 209,32 | 28,4 % 🟢 |
+| ELE | 2026-S32 | 280 | 243,60 | 60 | 10 | 70 | 173,60 | 28,7 % 🟢 |
+| ELE | 2026-S33 | 280 | 243,60 | 52 | 10 | 62 | 181,60 | 25,5 % 🟢 |
+| AUT | 2026-S30 | 96 | 83,52 | 40 | 10 | 50 | 33,52 | 59,9 % 🟢 |
+| AUT | 2026-S31 | 96 | 83,52 | 45 | 10 | 55 | 28,52 | 65,9 % 🟢 |
+| AUT | 2026-S32 | 80 | 69,60 | 35 | 7 | 42 | 27,60 | 60,3 % 🟢 |
+| AUT | 2026-S33 | 80 | 69,60 | 30 | 6 | 36 | 33,60 | 51,7 % 🟢 |
+| TERCERO | 2026-S31 | 0 | 0 | 16 | 0 | 16 | −16,00 | — |
+| TERCERO | 2026-S32 | 0 | 0 | 12 | 0 | 12 | −12,00 | — |
 
 `AUT` (2 técnicos de Banco fijo) sigue con la carga más alta relativa (una
 dotación pequeña), pero dentro de capacidad. `TERCERO` es trabajo contratado
 sin capacidad interna (% carga vacío). Casos preparados: feriado general el
-miércoles de 2026-S31 (todas las especialidades caen) · rotación con cobertura
+miércoles de 2026-S32 (todas las especialidades caen) · rotación con cobertura
 completa cada semana (ver §Rotación arriba y la sección ROTACIÓN de `--resumen`).
 
 ### ADHERENCIA esperada (REGLA-7, solo días hábiles)
 
-2026-S29: 26/29 = 89,7 % (HH 197/227 = 86,8 %) · 2026-S30: 16/32 = 50,0 %
-(HH 134/259 = 51,7 %) · 2026-S31 y S32: 0 %. Los conteos excluyen las órdenes
+2026-S30: 26/29 = 89,7 % (HH 197/227 = 86,8 %) · 2026-S31: 16/32 = 50,0 %
+(HH 134/259 = 51,7 %) · 2026-S32 y S32: 0 %. Los conteos excluyen las órdenes
 en día no laborable (se reportan en VALIDACION); el sábado es hábil (6.1).
 
 ### REGLA-9 esperada (meta: correctivo ≤ 20 %)
 
-2026-S29: 0,25 (19,8 % → SI) · 2026-S30: 0,36 (26,5 % → NO, subió por las
-correctivas de fin de semana) · 2026-S31: 0,20 (16,5 % → SI) · 2026-S32: 0,19
+2026-S30: 0,25 (19,8 % → SI) · 2026-S31: 0,36 (26,5 % → NO, subió por las
+correctivas de fin de semana) · 2026-S32: 0,20 (16,5 % → SI) · 2026-S33: 0,19
 (16,3 % → SI).
 
-### BACKLOG esperado (pendientes por tramo, al 2026-07-24)
+### BACKLOG esperado (pendientes por tramo, al 2026-07-27)
 
 Envejecimiento en días **calendario** (`backlog_dias`, contractual): el tramo
 0–30 depende del día de apertura (`HOY()`). REGLA-3/REGLA-4 usan en cambio los
@@ -592,7 +675,7 @@ días **hábiles** (`backlog_habiles`).
 | **Ajustes huérfanos (id no existe en ORDENES)** | **1** |
 | **id_operacion duplicados dentro de tblAjustes** | **2** |
 
-### Carga por técnico (gráfico, selector 2026-S30)
+### Carga por técnico (gráfico, selector 2026-S31)
 
 Capacidad semanal de cada técnico = 6,96 h/día × 6 días = **41,76 h** (48 h ×
 0,87). HHA de la semana: Técnico 01 **32** (incluye el ajuste +4 h y la orden
@@ -603,13 +686,13 @@ que ninguna barra tiene tramo rojo. El detalle diario de HHD sí puede quedar en
 rojo (p. ej. Técnico 01 el día del ajuste: HHA 12, HHD 6,96 − 12 = **−5,04**):
 la capacidad es semanal, el HHD es por día.
 
-### Correo generado por EXPORTAR (filtro por defecto: semana 2026-S30)
+### Correo generado por EXPORTAR (filtro por defecto: semana 2026-S31)
 
 Texto real producido en `EXPORTAR!A6` con los datos de muestra (recalculado):
 
 ```
 Buenos días.
-A continuación el programa de mantenimiento de Planta Ejemplo — Empresa Ejemplo S.A. para la semana 2026-S30, del 20/07/2026 al 26/07/2026.
+A continuación el programa de mantenimiento de Planta Ejemplo — Empresa Ejemplo S.A. para la semana 2026-S31, del 20/07/2026 al 26/07/2026.
 
 Resumen de carga:
 • Órdenes programadas: 34
@@ -646,24 +729,24 @@ Números verificables a mano: **34** órdenes programadas (incluye 3 de fin de
 semana → el programa recorre los 7 días), **275 h** = 202 preventiva (73 %) +
 73 correctiva (27 %). **15** técnicos involucrados (Técnico 05 está de VAC → sus
 órdenes quedan sin técnico). Con la capacidad semanal en **41,76 h** ningún
-técnico queda sobreasignado en 2026-S30, así que el **bloque de alerta
+técnico queda sobreasignado en 2026-S31, así que el **bloque de alerta
 condicional no aparece** en el correo; se sigue verificando que desaparece
 limpio, sin encabezado ni línea en blanco huérfana (VERIFICACION.md §3.5).
 
 ### Calendario laboral: casos verificables a mano (v2.4)
 
 Excepciones de muestra (además de 12 feriados generales del año): feriado de
-planta el miércoles de 2026-S31 (2026-07-29), domingo laborable solo para
-SERVICIOS (2026-08-02), paro de la sub-área Vapor el jueves de 2026-S30
-(2026-07-23), y dos excepciones con área/sub-área fuera de catálogo.
+planta el miércoles de 2026-S32 (2026-08-05), domingo laborable solo para
+SERVICIOS (2026-08-09), paro de la sub-área Vapor el jueves de 2026-S31
+(2026-07-30), y dos excepciones con área/sub-área fuera de catálogo.
 
 | Caso | Resultado |
 |---|---|
-| **Feriado general** (mié 2026-07-29) | `horas_disponibles = 0` el miércoles para todos los técnicos activos. El feriado reduce **MEC 2026-S31 de 336 a 280 h** (7 × 5 × 8); con la VAC de Técnico 05 (6.4) el disponible final de MEC esa semana es **240 h**. La rotación no altera este efecto (solo cambia qué turno). |
-| **Excepción por área** (dom 2026-08-02) | `es_habil(SERVICIOS)` = **sí**, `es_habil(PRODUCCION)` = **no**. La excepción por área da capacidad solo a SERVICIOS. |
-| **Paro sub-área Vapor** (jue 2026-07-23) | `es_habil` = **no** para órdenes de Vapor; **sí** para PRODUCCION, EMPAQUE y Refrigeración. La excepción por sub-área no afecta a las demás sub-áreas. |
-| **Orden que cruza fines de semana** (2026-06-09) | `backlog_dias` = **45**, `backlog_habiles` = **38**, diferencia **7** domingos no hábiles en medio (el sábado es hábil, 6.1). |
-| **VALIDACION** | 34 órdenes en día no laborable · 1 excepción con área desconocida · 1 con sub-área desconocida. |
+| **Feriado general** (mié 2026-08-05) | `horas_disponibles = 0` el miércoles para todos los técnicos activos. El feriado reduce **MEC 2026-S32 de 336 a 280 h** (7 × 5 × 8); con la VAC de Técnico 05 (6.4) el disponible final de MEC esa semana es **240 h**. La rotación no altera este efecto (solo cambia qué turno). |
+| **Excepción por área** (dom 2026-08-09) | `es_habil(SERVICIOS)` = **sí**, `es_habil(PRODUCCION)` = **no**. La excepción por área da capacidad solo a SERVICIOS. |
+| **Paro sub-área Vapor** (jue 2026-07-30) | `es_habil` = **no** para órdenes de Vapor; **sí** para PRODUCCION, EMPAQUE y Refrigeración. La excepción por sub-área no afecta a las demás sub-áreas. |
+| **Orden que cruza fines de semana** (2026-06-12) | `backlog_dias` = **45**, `backlog_habiles` = **38**, diferencia **7** domingos no hábiles en medio (el sábado es hábil, 6.1). |
+| **VALIDACION** | 16 órdenes en día no laborable · 1 excepción con área desconocida · 1 con sub-área desconocida. |
 
 Los totales por área siguen cuadrando: la reconciliación COSTOS área = Σ
 sub-áreas se mantiene (verificada dentro de las 14.178 comparaciones).
@@ -694,7 +777,7 @@ costo plan es del ERP y no se recalcula con el ajuste manual; `precio` = 40 %
 del plan (REGLA-8 → materiales 60 %); dos órdenes históricas con `precio >
 plan` (materiales 0). Equipo de mayor gasto: EQ-110 (4.430 USD).
 
-## Estructura del libro (27 hojas)
+## Estructura del libro (27 hojas; 28 en el banco §7, con `_BANCO_PRUEBA`)
 
 `INICIO` · `PARAMETROS` · `1_IMPORTAR_ORDENES` (paso único de pegado) ·
 `2_IMPORTAR_EJECUCION` (`tblEjecucion`, 1.200 filas) · `ORDENES`
@@ -728,6 +811,10 @@ horaria) · `EXPORTAR` (correo semanal en una celda, 4 selectores) ·
 - Área de impresión de PLAN_SEMANAL estática (§5).
 - Un ajuste en AJUSTES con `id_operacion` informado pero `horas_ajustadas`
   vacía produce horas efectivas 0 en esa orden (visible en `desviacion_h`).
+- **§7**: el banco tiene ancla FIJA, pero `backlog_dias`/`backlog_habiles`/
+  `estado_backlog`/`en_plan` usan `HOY()` por diseño (REGLA-3/REGLA-4): al abrir
+  el banco otro día, esas cuatro columnas se miden contra ese día, no contra el
+  ancla. El resto del libro es independiente de la fecha de apertura.
 - `backlog_habiles` usa el calendario a nivel planta (no las excepciones por
   área/sub-área); el grid del calendario cubre 760 días desde el 1 de enero
   del año del ancla (una orden fuera de ese rango contaría de menos).
