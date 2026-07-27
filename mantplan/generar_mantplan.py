@@ -47,7 +47,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.0.1"
+VERSION = "3.1.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -88,6 +88,12 @@ PARAMETROS = [
     # 6.5: tolerancia del cumplimiento mensual de horas reales (base del bono).
     ("tolerancia_horas_bono", 0,
      "Horas de tolerancia para 'cumple' del seguimiento mensual (6.5). No toca capacidad."),
+    # PRESUPUESTO OPEX: año presupuestado (se inyecta = año del ancla) y
+    # tolerancia del semáforo de desviación. Ninguno toca el motor.
+    ("anio_presupuesto", None,
+     "Año del presupuesto OPEX de la hoja PRESUPUESTO (por defecto, el año del ancla)."),
+    ("tolerancia_desviacion_presupuesto", 0.10,
+     "Desviación relativa tolerada antes de marcar sobre/bajo presupuesto (semáforo)."),
 ]
 # Fila de cada parámetro dentro de la hoja PARAMETROS (encabezado en fila 3).
 FILA_PARAM = {p[0]: 4 + i for i, p in enumerate(PARAMETROS)}
@@ -208,17 +214,40 @@ PUESTOS = [
     ("PU-TER", "TERCERO", "Contratista externo"),
 ]
 
+# PRESUPUESTO OPEX: la categoría de presupuesto y su clasificación (fijo/variable)
+# son ATRIBUTOS DE CATÁLOGO de la actividad — se eligió ACTIVIDADES y no TIPOS_OT
+# porque la actividad describe QUÉ se gasta (repuesto, servicio, overhaul) mientras
+# que el tipo de OT solo separa preventiva/correctiva, demasiado grueso para las 6
+# categorías. Onboardear otra empresa = editar este catálogo, cero código.
 ACTIVIDADES = [
-    ("ACT-01", "Inspección de rutina", "preventivo"),
-    ("ACT-02", "Lubricación programada", "preventivo"),
-    ("ACT-03", "Reparación de falla", "correctivo"),
-    ("ACT-04", "Análisis predictivo", "predictivo"),
-    ("ACT-05", "Certificación legal", "legal"),
+    # codigo, descripcion, tipo, categoria_presupuesto, clasificacion
+    ("ACT-01", "Inspección de rutina", "preventivo", "Repuestos mandatorios", "fijo"),
+    ("ACT-02", "Lubricación programada", "preventivo", "Repuestos mandatorios", "fijo"),
+    ("ACT-03", "Reparación de falla", "correctivo", "Correctivos - materiales", "variable"),
+    ("ACT-04", "Análisis predictivo", "predictivo", "Servicios contratados", "fijo"),
+    ("ACT-05", "Certificación legal", "legal", "Servicios contratados", "fijo"),
     # §7: el banco de prueba necesita variedad de tipos de trabajo; el overhaul
     # se añade al CATÁLOGO (no se hardcodea en la lógica). El dataset por
     # defecto no lo usa: sus órdenes siguen saliendo de ACT-01…ACT-04.
-    ("ACT-06", "Overhaul mayor", "correctivo"),
+    ("ACT-06", "Overhaul mayor", "correctivo", "Overhauls programados", "fijo"),
+    ("ACT-07", "Servicio externo no contratado", "correctivo", "Servicios requeridos", "variable"),
+    ("ACT-08", "Refacción / mejora menor", "correctivo", "Refacciones nuevas", "variable"),
 ]
+# Categorías OPEX en orden de presentación: primero las FIJAS, luego las VARIABLES,
+# dentro de cada grupo en el orden del catálogo. Se DERIVAN del catálogo (si el
+# usuario añade una categoría a una actividad, aparece sola en PRESUPUESTO).
+def _categorias_presupuesto():
+    vistas = []
+    for clas in ("fijo", "variable"):
+        for a in ACTIVIDADES:
+            cat, cl = a[3], a[4]
+            if cat and cl == clas and (cat, cl) not in vistas:
+                vistas.append((cat, cl))
+    return vistas
+
+
+CATEGORIAS_PRESUPUESTO = _categorias_presupuesto()
+SIN_CLASIFICAR_PPTO = "SIN CLASIFICAR"
 
 TIPOS_OT = [
     ("TIPO-P1", "Orden preventiva programada", "preventiva"),
@@ -279,7 +308,9 @@ CAT_TIPOS = {c: cl for c, _, cl in TIPOS_OT}
 CAT_ESTADOS = dict(ESTADOS_ERP)
 CAT_CECO = {c[0]: c for c in CENTROS_COSTO}
 CAT_PUESTOS = {c: e for c, e, _ in PUESTOS}
-CAT_ACTIVIDADES = {c: d for c, d, _ in ACTIVIDADES}
+CAT_ACTIVIDADES = {c: d for c, d, *_ in ACTIVIDADES}
+# actividad → (categoria_presupuesto, clasificacion); "" si el catálogo no la asigna
+CAT_CATEGORIA_PPTO = {a[0]: (a[3], a[4]) for a in ACTIVIDADES}
 
 # ══════════════════════════════════════════════════════════════════════════
 # 2. LAS 10 REGLAS DE NEGOCIO COMO FUNCIONES PURAS
@@ -882,7 +913,7 @@ def generar_datos(hoy):
 
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
             "semana_referencia": semana_referencia, "n_por_ciclo": n_por_ciclo,
-            "plan_vacaciones": plan_vacaciones,
+            "plan_vacaciones": plan_vacaciones, "anio_presupuesto": hoy.year,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
             "ajustes": ajustes, "excepciones": excepciones, "edge_regla8": edge_regla8}
 
@@ -1281,10 +1312,106 @@ def generar_datos_banco(n_ordenes=1000, semanas_programadas=4, semilla=SEMILLA_B
 
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
             "semana_referencia": semana_referencia, "n_por_ciclo": _n_por_ciclo(),
-            "plan_vacaciones": plan_vacaciones,
+            "plan_vacaciones": plan_vacaciones, "anio_presupuesto": hoy.year,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
             "ajustes": ajustes, "excepciones": excepciones, "edge_regla8": edge_regla8,
             "manifiesto": manifiesto, "banco": True}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 3-ter. PRESUPUESTO OPEX (plan manual por mes vs gasto real)
+#    Hoja DERIVADA, no una regla del motor: no renumera ni amplía las 10 reglas.
+#    Alcance OPEX: materiales, servicios y terceros. La mano de obra propia NO es
+#    costo (decisión cerrada) y no entra ni en el plan ni en el real. Nada de CAPEX.
+#    El REAL sale del MISMO campo que usa COSTOS (`costo_total`, REGLA-8) y con la
+#    MISMA convención de mes (anio/mes de la orden): no hay una segunda forma de
+#    sumar costos.
+# ══════════════════════════════════════════════════════════════════════════
+
+# Factores usados para sembrar el plan a partir del gasto real, elegidos para que
+# el semáforo quede EJERCITADO: ~1,00 → dentro; <1 → sobre; >1,15 → bajo.
+TOLERANCIA_PPTO = 0.10         # espejo de p_tolerancia_desviacion_presupuesto
+FACTORES_PPTO = [1.00, 1.05, 0.85, 1.30, 0.95, 1.00, 1.15, 0.90, 1.02, 1.25, 0.80, 1.00]
+PPTO_BASE_SIN_GASTO = 400      # categoría presupuestada que todavía no gastó
+
+
+def presupuesto_sintetico(real_cat_mes):
+    """Plan mensual sintético por categoría, calibrado sobre el gasto real para
+    que haya meses dentro de tolerancia, alguno por encima y alguno por debajo.
+    El anual solicitado se siembra cuadrando con la distribución mensual."""
+    mensual, anual = {}, {}
+    for cat, _clas in CATEGORIAS_PRESUPUESTO:
+        total = sum(real_cat_mes.get((cat, m), 0) for m in range(1, 13))
+        base = 0 if total else PPTO_BASE_SIN_GASTO
+        vals = [round((real_cat_mes.get((cat, m), 0) * FACTORES_PPTO[m - 1] + base) / 10) * 10
+                for m in range(1, 13)]
+        mensual[cat], anual[cat] = vals, sum(vals)
+    return mensual, anual
+
+
+def mes_corte_ytd(hoy, anio_ppto):
+    """Mes hasta el que acumula el YTD: el de la fecha de datos si el año en curso
+    es el presupuestado; 12 si ya pasó; 0 si aún no empieza. Espejo de la fórmula."""
+    if hoy.year > anio_ppto:
+        return 12
+    if hoy.year < anio_ppto:
+        return 0
+    return hoy.month
+
+
+def calcular_presupuesto(ordenes, mensual, anual, anio, tolerancia, mes_ytd):
+    """Bloque de comparación: presupuesto/real/desviación/%/estado por categoría ×
+    mes, con SIN CLASIFICAR, subtotales fijo/variable, total y YTD."""
+    cats = [c for c, _ in CATEGORIAS_PRESUPUESTO]
+    filas = cats + [SIN_CLASIFICAR_PPTO]
+    real = {(f, m): 0.0 for f in filas for m in range(1, 13)}
+    total_mes = {m: 0.0 for m in range(1, 13)}          # control: total de COSTOS
+    for o in ordenes:
+        if o["anio"] != anio or o["mes"] == "":
+            continue
+        cat = o["categoria_presupuesto"]
+        if cat not in filas:                             # defensivo: categoría desconocida
+            cat = SIN_CLASIFICAR_PPTO
+        real[(cat, o["mes"])] += o["costo_total"]
+        total_mes[o["mes"]] += o["costo_total"]
+
+    ppto = {(c, m): mensual[c][m - 1] for c in cats for m in range(1, 13)}
+    for m in range(1, 13):
+        ppto[(SIN_CLASIFICAR_PPTO, m)] = 0              # lo no clasificado no se presupuesta
+
+    def estado(p, r):
+        if p == 0 and abs(r) < 1e-9:
+            return ""
+        if p == 0:
+            return "sobre"
+        d = (r - p) / p
+        return "dentro" if abs(d) <= tolerancia + 1e-12 else ("sobre" if d > 0 else "bajo")
+
+    out = {}
+    for f in filas:
+        for m in range(1, 13):
+            p, r = ppto[(f, m)], real[(f, m)]
+            out[(f, m)] = {"presupuesto": p, "real": r, "desviacion": r - p,
+                           "desviacion_pct": ((r - p) / p) if p else "",
+                           "estado": estado(p, r)}
+    # Subtotales por clasificación, total general y control del mes
+    clas_de = dict(CATEGORIAS_PRESUPUESTO)
+    for etiqueta, miembros in (("Subtotal FIJO", [c for c in cats if clas_de[c] == "fijo"]),
+                               ("Subtotal VARIABLE", [c for c in cats if clas_de[c] == "variable"]),
+                               ("TOTAL GENERAL", filas)):
+        for m in range(1, 13):
+            p = sum(out[(c, m)]["presupuesto"] for c in miembros)
+            r = sum(out[(c, m)]["real"] for c in miembros)
+            out[(etiqueta, m)] = {"presupuesto": p, "real": r, "desviacion": r - p,
+                                  "desviacion_pct": ((r - p) / p) if p else "",
+                                  "estado": estado(p, r)}
+    ytd = {}
+    for f in filas + ["Subtotal FIJO", "Subtotal VARIABLE", "TOTAL GENERAL"]:
+        ytd[f] = {k: sum(out[(f, m)][k] for m in range(1, mes_ytd + 1))
+                  for k in ("presupuesto", "real", "desviacion")}
+    return {"filas": filas, "celdas": out, "ytd": ytd, "total_mes": total_mes,
+            "mensual": mensual, "anual": anual, "anio": anio,
+            "tolerancia": tolerancia, "mes_ytd": mes_ytd}
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -1347,6 +1474,10 @@ def calcular_esperado(datos):
             "coordinador": ceco[CECO_COORD] if ceco else SIN_CATALOGO,
             "especialidad": CAT_PUESTOS.get(o["puesto_trabajo"], SIN_CATALOGO),
             "actividad": CAT_ACTIVIDADES.get(o["cod_actividad"], SIN_CATALOGO),
+            # PRESUPUESTO OPEX: "" si la actividad no está en catálogo o no tiene
+            # categoría asignada → su costo cae en SIN CLASIFICAR.
+            "categoria_presupuesto": (CAT_CATEGORIA_PPTO.get(o["cod_actividad"], ("", ""))[0]
+                                      or SIN_CLASIFICAR_PPTO),
             "es_habil": habil_o,
             "backlog_dias": backlog if backlog is not None else "",
             "backlog_habiles": bh,
@@ -1581,7 +1712,21 @@ def calcular_esperado(datos):
 
     exportar = exportar_esperado(datos["semanas"][1])
 
+    # --- PRESUPUESTO OPEX: real por categoría × mes desde el MISMO campo que
+    #     COSTOS (costo_total) y la MISMA convención de mes (anio/mes).
+    anio_ppto = datos["anio_presupuesto"]
+    real_cat_mes = {}
+    for o in enriquecidas:
+        if o["anio"] == anio_ppto and o["mes"] != "":
+            k = (o["categoria_presupuesto"], o["mes"])
+            real_cat_mes[k] = real_cat_mes.get(k, 0) + o["costo_total"]
+    ppto_mensual, ppto_anual = presupuesto_sintetico(real_cat_mes)
+    presupuesto = calcular_presupuesto(enriquecidas, ppto_mensual, ppto_anual, anio_ppto,
+                                       TOLERANCIA_PPTO,
+                                       mes_corte_ytd(datos["hoy"], anio_ppto))
+
     return {"ordenes": enriquecidas, "perfil": perfil, "adherencia": adherencia,
+            "presupuesto": presupuesto,
             "ratio9": ratio9, "backlog_aging": backlog_aging, "meses": meses,
             "costos": costos, "equipos_orden": equipos_orden, "equipos_tot": equipos_tot,
             "carga_tecnicos": carga_tecnicos, "capacidad_tecnicos": capacidad_tecnicos,
@@ -1671,7 +1816,7 @@ CAMPOS_ORDENES = [
     "linea", "area", "sub_area", "coordinador", "especialidad", "actividad",
     "backlog_dias", "backlog_habiles", "estado_backlog", "en_plan",
     "tecnico_asignado", "turno_asignado", "HHA", "HHD",
-    "costo_servicio", "costo_materiales", "costo_total",
+    "costo_servicio", "costo_materiales", "costo_total", "categoria_presupuesto",
     "permiso_requerido", "bloqueo_energia", "link_checklist", "abrir_checklist",
     "observaciones", "id_operacion",
 ]
@@ -1794,6 +1939,14 @@ def formulas_ordenes(R):
                 return f'=IF({f("cod_actividad", fila)}="","",' + \
                     R.busca(f("cod_actividad", fila), "tblActividades", "codigo",
                             "descripcion", f'"{SIN_CATALOGO}"') + ")"
+            if campo == "categoria_presupuesto":
+                # PRESUPUESTO OPEX: categoría heredada del CATÁLOGO de actividades.
+                # Si la actividad no está en catálogo, o está pero sin categoría,
+                # queda "" y su gasto cae en la fila SIN CLASIFICAR (nunca se pierde).
+                cat = R.busca(f("cod_actividad", fila), "tblActividades", "codigo",
+                              "categoria_presupuesto", '""')
+                return (f'=IF({vacia},"",IF(OR(({cat})=0,({cat})=""),'
+                        f'"{SIN_CLASIFICAR_PPTO}",{cat}))')
             if campo == "backlog_dias":
                 return f'=IF({fe}="","",TODAY()-{fe})'
             if campo == "backlog_habiles":
@@ -1956,7 +2109,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "tblPuestos": Tabla("tblPuestos", "CAT_PUESTOS", 3,
                             ["codigo", "especialidad", "descripcion"], len(PUESTOS)),
         "tblActividades": Tabla("tblActividades", "CAT_ACTIVIDADES", 3,
-                                ["codigo", "descripcion", "tipo"], len(ACTIVIDADES)),
+                                ["codigo", "descripcion", "tipo",
+                                 "categoria_presupuesto", "clasificacion"], len(ACTIVIDADES)),
         "tblTiposOT": Tabla("tblTiposOT", "CAT_TIPOS_OT", 3,
                             ["codigo", "descripcion", "clasificacion"], len(TIPOS_OT)),
         "tblEstados": Tabla("tblEstados", "CAT_ESTADOS_ERP", 3,
@@ -2018,6 +2172,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         # inyecta aquí (input azul con formato fecha).
         if p == "semana_referencia":
             v = datos["semana_referencia"]
+        if p == "anio_presupuesto":
+            v = datos["anio_presupuesto"]
         # Un valor que empieza por "=" es una celda DERIVADA (fórmula): se
         # muestra con estilo de celda calculada (negro), no de input (azul),
         # y no lleva validación de entrada.
@@ -2069,6 +2225,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "p_base_semanal_horas": FILA_PARAM["base_semanal_horas"],
         "p_semana_referencia": FILA_PARAM["semana_referencia"],
         "p_tolerancia_horas_bono": FILA_PARAM["tolerancia_horas_bono"],
+        "p_anio_presupuesto": FILA_PARAM["anio_presupuesto"],
+        "p_tolerancia_desviacion_presupuesto": FILA_PARAM["tolerancia_desviacion_presupuesto"],
     }
     for nom, fila in nombres.items():
         wb.defined_names.add(DefinedName(nom, attr_text=f"PARAMETROS!$B${fila}"))
@@ -2344,6 +2502,181 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws.add_data_validation(dv)
     dv.add(f"A{V.fila_ini}:A{V.fila_fin}")
     for colw, w in (("A", 14), ("B", 13), ("C", 13), ("D", 26)):
+        ws.column_dimensions[colw].width = w
+
+    # ------------------------------------------------------- PRESUPUESTO
+    # Presupuesto OPEX: plan manual por mes (entrada) vs gasto real (derivado del
+    # MISMO campo que COSTOS, REGLA-8, y la MISMA convención de mes). No es una
+    # regla del motor: es una hoja derivada.
+    P = esperado["presupuesto"]
+    ws = wb.create_sheet("PRESUPUESTO")
+    ws.sheet_properties.tabColor = "7030A0"
+    MESES_AB = ["ene", "feb", "mar", "abr", "may", "jun",
+                "jul", "ago", "sep", "oct", "nov", "dic"]
+    C0 = 3                                     # primera columna de mes (C)
+    cm = lambda m: get_column_letter(C0 + m - 1)          # letra de la columna del mes
+    RANGO_MESES = f"$C:$N"                                # solo documental
+    ARR12 = "{1,2,3,4,5,6,7,8,9,10,11,12}"
+    celda(ws, 1, 1, '="PRESUPUESTO OPEX "&p_anio_presupuesto&" — plan mensual vs gasto real ("&p_moneda&")"',
+          font=F_TIT)
+    for i, t in enumerate([
+            "Alcance OPEX: materiales, servicios y terceros. La mano de obra propia NO es costo "
+            "y no entra ni en el plan ni en el real. Nada de CAPEX ni de costo de ciclo de vida.",
+            "La categoría de cada orden se hereda del CATÁLOGO de actividades (CAT_ACTIVIDADES: "
+            "categoria_presupuesto + clasificacion). Onboardear otra empresa = editar el catálogo.",
+            "El gasto real sale del mismo campo que COSTOS (costo_total, REGLA-8). Lo que no tenga "
+            "categoría en catálogo cae en la fila SIN CLASIFICAR: el gasto nunca desaparece."], start=2):
+        celda(ws, i, 1, t, font=F_NOTA)
+
+    # ---- BLOQUE DE ENTRADA (manual) ----
+    fe0 = 6
+    celda(ws, fe0, 1, "BLOQUE DE ENTRADA — plan manual del año (azul = editable)", font=F_SEC)
+    encabezados(ws, fe0 + 1, ["categoria", "clasificacion"] + MESES_AB
+                + ["presupuesto_anual", "suma_12_meses", "cuadre"])
+    fila_cat = {}
+    for i, (cat, clas) in enumerate(CATEGORIAS_PRESUPUESTO):
+        fr = fe0 + 2 + i
+        fila_cat[cat] = fr
+        celda(ws, fr, 1, cat)
+        celda(ws, fr, 2, clas)
+        for m in range(1, 13):
+            celda(ws, fr, C0 + m - 1, P["mensual"][cat][m - 1], font=F_EDIT, fmt=FMT_DINERO)
+        celda(ws, fr, 15, P["anual"][cat], font=F_EDIT, fmt=FMT_DINERO)
+        celda(ws, fr, 16, f"=SUM($C{fr}:$N{fr})", fmt=FMT_DINERO)
+        celda(ws, fr, 17, f'=IF(ROUND($P{fr}-$O{fr},2)=0,"cuadra",'
+                          f'"DESCUADRE: "&TEXT($P{fr}-$O{fr},"+#,##0;-#,##0")&" vs anual")')
+    fe1 = fe0 + 1 + len(CATEGORIAS_PRESUPUESTO)
+    celda(ws, fe1 + 1, 1, "TOTAL", font=F_SEC)
+    for col in list(range(C0, C0 + 12)) + [15, 16]:
+        L_ = get_column_letter(col)
+        celda(ws, fe1 + 1, col, f"=SUM({L_}{fe0 + 2}:{L_}{fe1})", fmt=FMT_DINERO)
+    dvp = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0",
+                         allow_blank=True)
+    ws.add_data_validation(dvp)
+    dvp.add(f"C{fe0 + 2}:O{fe1}")
+    ws.conditional_formatting.add(
+        f"Q{fe0 + 2}:Q{fe1}",
+        FormulaRule(formula=[f'LEFT($Q{fe0 + 2},9)="DESCUADRE"'], fill=FILL_ROJO))
+
+    # ---- BLOQUE DE COMPARACIÓN (derivado) ----
+    fc0 = fe1 + 3
+    celda(ws, fc0, 1, "BLOQUE DE COMPARACIÓN — presupuesto vs real por categoría y mes", font=F_SEC)
+    celda(ws, fc0 + 1, 1, "mes de corte del YTD:", font=F_NOTA)
+    # YTD acumula hasta el mes de la fecha de datos; 12 si el año ya pasó, 0 si no empezó.
+    celda(ws, fc0 + 1, 2, "=IF(YEAR(TODAY())>p_anio_presupuesto,12,"
+                          "IF(YEAR(TODAY())<p_anio_presupuesto,0,MONTH(TODAY())))")
+    cel_ytd = f"$B${fc0 + 1}"
+    filas_comp = ([c for c, _ in CATEGORIAS_PRESUPUESTO] + [SIN_CLASIFICAR_PPTO]
+                  + ["Subtotal FIJO", "Subtotal VARIABLE", "TOTAL GENERAL"])
+    clas_de = dict(CATEGORIAS_PRESUPUESTO)
+    miembros = {"Subtotal FIJO": [c for c, k in CATEGORIAS_PRESUPUESTO if k == "fijo"],
+                "Subtotal VARIABLE": [c for c, k in CATEGORIAS_PRESUPUESTO if k == "variable"],
+                "TOTAL GENERAL": [c for c, _ in CATEGORIAS_PRESUPUESTO] + [SIN_CLASIFICAR_PPTO]}
+    o_col = R.col("tblOrdenes", "costo_total")
+    o_anio = R.col("tblOrdenes", "anio")
+    o_mes = R.col("tblOrdenes", "mes")
+    o_cat = R.col("tblOrdenes", "categoria_presupuesto")
+    bloques, fb = {}, fc0 + 3
+
+    def matriz(fila0, titulo, fmt, celda_fn, extra=(), ytd_fn=None):
+        """Emite una matriz categorías × 12 meses + YTD. Las filas se conocen ANTES
+        de escribir (son deterministas), así los subtotales pueden referenciar a
+        sus propias filas dentro del mismo bloque."""
+        celda(ws, fila0, 1, titulo, font=F_SEC)
+        encabezados(ws, fila0 + 1, ["categoria", "clasificacion"] + MESES_AB + ["YTD"])
+        filas = {f: fila0 + 2 + i for i, f in enumerate(filas_comp)}
+        for i, (etiqueta, _fn) in enumerate(extra):
+            filas[etiqueta] = fila0 + 2 + len(filas_comp) + i
+        for f in filas_comp:
+            fr = filas[f]
+            celda(ws, fr, 1, f, font=F_SEC if f.startswith(("Subtotal", "TOTAL")) else F_TXT)
+            celda(ws, fr, 2, clas_de.get(f, ""))
+            for m in range(1, 13):
+                celda(ws, fr, C0 + m - 1, celda_fn(f, m, filas), fmt=fmt)
+            # El YTD de las matrices numéricas acumula los meses hasta el corte;
+            # las de % y estado no se pueden sumar: llevan su propia fórmula sobre
+            # los YTD ya acumulados (SUMPRODUCT sobre texto daría #VALUE!).
+            celda(ws, fr, 15,
+                  ytd_fn(f) if ytd_fn else f"=SUMPRODUCT(({ARR12}<={cel_ytd})*($C{fr}:$N{fr}))",
+                  fmt=fmt)
+        for etiqueta, fn in extra:
+            fr = filas[etiqueta]
+            celda(ws, fr, 1, etiqueta, font=F_NOTA)
+            for m in range(1, 13):
+                celda(ws, fr, C0 + m - 1, fn(m, filas), fmt=fmt)
+            celda(ws, fr, 15, f"=SUMPRODUCT(({ARR12}<={cel_ytd})*($C{fr}:$N{fr}))", fmt=fmt)
+        return filas, fila0 + 3 + len(filas_comp) + len(extra)
+
+    def suma_de(fs, m, miembros_f):
+        return "=" + "+".join(f"{cm(m)}{fs[c]}" for c in miembros_f)
+
+    def f_ppto(f, m, fs):
+        if f in miembros:
+            return suma_de(fs, m, miembros[f])
+        if f == SIN_CLASIFICAR_PPTO:
+            return 0                     # lo no clasificado no se presupuesta
+        return f"={cm(m)}{fila_cat[f]}"   # referencia al bloque de entrada
+
+    bloques["ppto"], fb = matriz(fb, "PRESUPUESTO (del bloque de entrada)",
+                                 FMT_DINERO, f_ppto)
+
+    def f_real(f, m, fs):
+        if f in miembros:
+            return suma_de(fs, m, miembros[f])
+        return (f'=SUMIFS({o_col},{o_anio},p_anio_presupuesto,{o_mes},{m},'
+                f'{o_cat},$A{fs[f]})')
+
+    bloques["real"], fb = matriz(
+        fb, "REAL (gasto del mes; mismo campo y misma convención de mes que COSTOS)",
+        FMT_DINERO, f_real,
+        extra=[("CONTROL — total de COSTOS del mes",
+                lambda m, fs: f'=SUMIFS({o_col},{o_anio},p_anio_presupuesto,{o_mes},{m})'),
+               ("DIFERENCIA (debe ser 0)",
+                lambda m, fs: f'=ROUND({cm(m)}{fs["TOTAL GENERAL"]}-'
+                              f'{cm(m)}{fs["CONTROL — total de COSTOS del mes"]},2)')])
+
+    bloques["desv"], fb = matriz(
+        fb, "DESVIACIÓN (real − presupuesto)", FMT_DINERO,
+        lambda f, m, fs: f"={cm(m)}{bloques['real'][f]}-{cm(m)}{bloques['ppto'][f]}")
+
+    bloques["pct"], fb = matriz(
+        fb, "DESVIACIÓN %", "0.0%",
+        lambda f, m, fs: (f'=IF({cm(m)}{bloques["ppto"][f]}=0,"",'
+                          f'{cm(m)}{bloques["desv"][f]}/{cm(m)}{bloques["ppto"][f]})'),
+        ytd_fn=lambda f: (f'=IF($O${bloques["ppto"][f]}=0,"",'
+                          f'$O${bloques["desv"][f]}/$O${bloques["ppto"][f]})'))
+
+    bloques["estado"], fb = matriz(
+        fb, "ESTADO (semáforo · tolerancia = p_tolerancia_desviacion_presupuesto)", None,
+        lambda f, m, fs: (
+            f'=IF(AND({cm(m)}{bloques["ppto"][f]}=0,{cm(m)}{bloques["real"][f]}=0),"",'
+            f'IF({cm(m)}{bloques["ppto"][f]}=0,"sobre",'
+            f'IF(ABS({cm(m)}{bloques["desv"][f]}/{cm(m)}{bloques["ppto"][f]})'
+            f'<=p_tolerancia_desviacion_presupuesto,"dentro",'
+            f'IF({cm(m)}{bloques["desv"][f]}>0,"sobre","bajo"))))'),
+        ytd_fn=lambda f: (
+            f'=IF(AND($O${bloques["ppto"][f]}=0,$O${bloques["real"][f]}=0),"",'
+            f'IF($O${bloques["ppto"][f]}=0,"sobre",'
+            f'IF(ABS($O${bloques["desv"][f]}/$O${bloques["ppto"][f]})'
+            f'<=p_tolerancia_desviacion_presupuesto,"dentro",'
+            f'IF($O${bloques["desv"][f]}>0,"sobre","bajo"))))'))
+
+    # Reconciliación visible: la fila DIFERENCIA debe quedar en 0 los 12 meses.
+    fr_dif = bloques["real"]["DIFERENCIA (debe ser 0)"]
+    ws.conditional_formatting.add(
+        f"C{fr_dif}:O{fr_dif}",
+        CellIsRule(operator="notEqual", formula=["0"], fill=FILL_ROJO))
+
+    # Semáforo del bloque ESTADO
+    fe_ini, fe_fin = min(bloques["estado"].values()), max(bloques["estado"].values())
+    for texto, relleno in (("dentro", FILL_VERDE), ("sobre", FILL_ROJO), ("bajo", FILL_AMAR)):
+        ws.conditional_formatting.add(
+            f"C{fe_ini}:O{fe_fin}",
+            CellIsRule(operator="equal", formula=[f'"{texto}"'], fill=relleno))
+
+    ws.freeze_panes = "C7"
+    for colw, w in ([("A", 26), ("B", 13)] + [(cm(m), 11) for m in range(1, 13)]
+                    + [("O", 13), ("P", 14), ("Q", 30)]):
         ws.column_dimensions[colw].width = w
 
     # --------------------------------------------------- SEGUIMIENTO_HH
@@ -3430,7 +3763,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # Reordenar no cambia fórmulas (referencian por nombre), pero se verifica.
     ORDEN_HOJAS = [
         # A. PRESENTACIÓN  (#1 reservado: DASHBOARD)
-        "PLAN_SEMANAL", "ADHERENCIA", "PERFIL_HH", "BACKLOG", "COSTOS",
+        "PLAN_SEMANAL", "ADHERENCIA", "PERFIL_HH", "BACKLOG", "COSTOS", "PRESUPUESTO",
         "EQUIPOS_CRITICOS", "SEGUIMIENTO_HH", "SEGUIMIENTO_MENSUAL", "EXPORTAR",
         # B. TRABAJO DIARIO
         "ORDENES", "ASIGNACIONES", "AJUSTES", "PLAN_VACACIONES",

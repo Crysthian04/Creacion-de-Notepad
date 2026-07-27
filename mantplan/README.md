@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.0.1)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.1.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -57,9 +57,9 @@ python generar_mantplan.py --anio-completo --n-ordenes 1000 --semanas-programada
 - El generador emite el libro en dos modos desde **las mismas plantillas de
   fórmula** (`class Refs`): `estructuradas` (XLOOKUP, entregable principal) y
   `compatibles` (INDEX/MATCH + rangos A1 acotados).
-- La variante compatible se recalculó con LibreOffice: **74.182 fórmulas, 0
+- La variante compatible se recalculó con LibreOffice: **76.074 fórmulas, 0
   errores**.
-- Cada valor recalculado se comparó contra el motor Python: **14.178
+- Cada valor recalculado se comparó contra el motor Python: **14.994
   comparaciones automáticas, 0 desviaciones**, incluidas la rotación derivada de
   turnos y las **vacaciones que arrastran** (cobertura, avance, huecos VAC y
   turno efectivo de las 448 filas de ASIGNACIONES), el calendario laboral
@@ -88,7 +88,7 @@ python generar_mantplan.py --anio-completo --n-ordenes 1000 --semanas-programada
   mantiene el combinado: barras apiladas dentro-de-capacidad + sobreasignación,
   con la capacidad como línea de referencia.
 - **§7 Banco de prueba** (volumen de un año): la variante compatible se recalculó
-  con **145.546 fórmulas, 0 errores**, y se comparó contra el motor con **59.553
+  con **147.438 fórmulas, 0 errores**, y se comparó contra el motor con **60.177
   comparaciones, 0 desviaciones**, incluyendo el contraste de los 16 chequeos de
   `VALIDACION` contra el manifiesto de siembra.
 
@@ -576,6 +576,64 @@ coinciden una a una con los 16 chequeos de `VALIDACION` (verificado).
 compatible **26,5 s / 145.546 fórmulas / 0 errores** · 2,19 MB. Es perfectamente
 practicable; no hizo falta recortar el volumen.
 
+### Presupuesto OPEX (plan mensual manual vs gasto real)
+
+Hoja **`PRESUPUESTO`** (grupo de presentación, justo después de `COSTOS`). Es una
+hoja **derivada**, no una regla del motor: no renumera ni amplía las 10 reglas.
+
+**Alcance: solo OPEX.** Presupuesto operativo recurrente de mantenimiento —
+materiales, servicios y terceros. **Nada de CAPEX** ni de costo de ciclo de vida.
+La **mano de obra propia no es costo** (decisión cerrada del proyecto) y por eso
+no entra ni en el plan ni en el real.
+
+**Clasificación por catálogo, sin hardcode.** `CAT_ACTIVIDADES` gana dos
+atributos: `categoria_presupuesto` y `clasificacion` (`fijo`/`variable`). Se
+eligió el catálogo de **actividades** y no el de tipos de OT porque la actividad
+describe *qué* se gasta (repuesto, servicio, overhaul), mientras que el tipo de OT
+solo separa preventiva/correctiva — demasiado grueso para seis categorías.
+Onboardear otra empresa = editar el catálogo, cero código.
+
+| clasificación | categorías |
+|---|---|
+| **fijo** | Repuestos mandatorios · Servicios contratados (contratos, inspecciones legales, calibraciones) · Overhauls programados |
+| **variable** | Correctivos - materiales · Servicios requeridos (terceros no contratados) · Refacciones nuevas |
+
+Cada orden hereda su categoría del catálogo por su `cod_actividad`, en la columna
+calculada `categoria_presupuesto` de `tblOrdenes`.
+
+**Dos bloques en la hoja.**
+
+1. **Entrada (manual, azul):** filas = categorías del catálogo, columnas = los 12
+   meses, más `presupuesto_anual` (lo solicitado para el año), la derivada
+   `suma_12_meses` y un indicador de **cuadre** que avisa en rojo si la
+   distribución mensual no suma el anual. Validación: numérico ≥ 0.
+2. **Comparación (derivado):** cinco matrices —`presupuesto`, `real`,
+   `desviacion` (real − presupuesto), `desviacion_pct` y `estado` (semáforo por
+   formato condicional)— por categoría × mes, con **subtotales fijo/variable**,
+   **total general** y una columna **YTD** que acumula hasta el mes de la fecha de
+   datos (y no más).
+
+**El real sale de COSTOS.** Se calcula con el **mismo campo** que ya usa `COSTOS`
+(`costo_total`, REGLA-8) y la **misma convención de mes** (`anio`/`mes` de la
+orden): no hay una segunda forma de sumar costos ni se tocó REGLA-8.
+
+**Gasto sin clasificar.** Si la actividad de una orden no está en el catálogo, o
+está pero sin `categoria_presupuesto`, su costo **no desaparece**: cae en la fila
+visible **`SIN CLASIFICAR`**. La hoja lleva además dos filas de control —
+«CONTROL — total de COSTOS del mes» y «DIFERENCIA (debe ser 0)», en rojo si no es
+cero— que hacen visible la reconciliación obligatoria:
+
+> suma de reales de todas las categorías + SIN CLASIFICAR = total de COSTOS del mes
+
+**Parámetros nuevos** (nada hardcodeado): `anio_presupuesto` (por defecto, el año
+del ancla) y `tolerancia_desviacion_presupuesto` (por defecto 0,10) para el
+semáforo. Los rótulos usan la moneda de `p_moneda`.
+
+**Datos sintéticos.** El plan se siembra calibrado sobre el gasto real con
+factores por mes, de modo que el semáforo quede ejercitado: meses dentro de
+tolerancia, alguno por encima y alguno por debajo, más categorías presupuestadas
+que aún no gastaron.
+
 ### 10. Higiene de fórmulas
 
 Auditado sobre los archivos finales: sin `OFFSET`, sin `INDIRECT`, sin
@@ -799,7 +857,7 @@ costo plan es del ERP y no se recalcula con el ajuste manual; `precio` = 40 %
 del plan (REGLA-8 → materiales 60 %); dos órdenes históricas con `precio >
 plan` (materiales 0). Equipo de mayor gasto: EQ-110 (4.430 USD).
 
-## Estructura del libro (27 hojas; 28 en el banco §7, con `_BANCO_PRUEBA`)
+## Estructura del libro (28 hojas; 29 en el banco §7, con `_BANCO_PRUEBA`)
 
 Las hojas están ordenadas **por uso, no por historia**: primero lo que se
 muestra, después el trabajo diario, y al final la configuración, los catálogos y
@@ -810,7 +868,8 @@ reservado para el `DASHBOARD` de la próxima tirada.)*
 1.200) · `ADHERENCIA` (bloque semanal dinámico + 6 desgloses, solo días hábiles) ·
 `PERFIL_HH` (serie dinámica de 60 semanas + matriz semáforo + REGLA-9) ·
 `BACKLOG` (tramos por especialidad, área y sub-área) · `COSTOS` (por área,
-sub-área y línea) · `EQUIPOS_CRITICOS` · `SEGUIMIENTO_HH` (horas reales técnico ×
+sub-área y línea) · `PRESUPUESTO` (OPEX: plan mensual manual vs gasto real por
+categoría) · `EQUIPOS_CRITICOS` · `SEGUIMIENTO_HH` (horas reales técnico ×
 semana + déficit por VAC) · `SEGUIMIENTO_MENSUAL` (acumulado técnico × mes, base
 del bono) · `EXPORTAR` (correo semanal en una celda, 4 selectores).
 

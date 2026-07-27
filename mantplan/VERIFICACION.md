@@ -1,6 +1,111 @@
-# VERIFICACION.md — MantPlan v3.0.1 (cierre del entregable A)
+# VERIFICACION.md — MantPlan v3.1.0 (cierre del entregable A)
 
-## 0. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+## 0. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
+
+Hoja **derivada** nueva (`PRESUPUESTO`), colocada en el grupo de presentación
+justo después de `COSTOS`. **No toca las 10 reglas, la rotación, VAC, el
+seguimiento, la capacidad ni la generación del banco** (comprobado en el punto g).
+Alcance **solo OPEX**: materiales, servicios y terceros; la mano de obra propia no
+es costo y no entra ni en el plan ni en el real. Nada de CAPEX.
+
+Clasificación por **catálogo**: `CAT_ACTIVIDADES` gana `categoria_presupuesto` y
+`clasificacion` (fijo/variable). Se eligió actividades y no tipos de OT porque la
+actividad describe *qué* se gasta; el tipo de OT solo separa
+preventiva/correctiva. Seis categorías: 3 fijas (Repuestos mandatorios, Servicios
+contratados, Overhauls programados) y 3 variables (Correctivos - materiales,
+Servicios requeridos, Refacciones nuevas).
+
+### (a) RECONCILIACIÓN — obligatoria, verificada en los 12 meses
+
+Por cada mes: **suma de reales por categoría + SIN CLASIFICAR = total de COSTOS
+del mes**. La hoja lleva dos filas de control («CONTROL — total de COSTOS del
+mes» y «DIFERENCIA (debe ser 0)», roja si no cuadra) y el verificador exige
+ambas cosas leyendo el **libro recalculado**:
+
+| | meses reconciliados | diferencia |
+|---|---:|---:|
+| Default | **12 / 12** | 0 en todos |
+| Banco | **12 / 12** | 0 en todos |
+
+Sin fugas ni doble conteo. El real usa el **mismo campo** que COSTOS
+(`costo_total`, REGLA-8) y la **misma convención de mes** (`anio`/`mes` de la
+orden): no se creó una segunda forma de sumar costos.
+
+### (b) Gasto sin categoría → fila SIN CLASIFICAR (probado a propósito)
+
+Dos caminos llevan a SIN CLASIFICAR y ambos se comprobaron:
+
+1. **Actividad fuera de catálogo** (`ACT-99` ya sembrada): su costo aparece en
+   SIN CLASIFICAR en el libro tal cual se entrega — **160** en el default y
+   **480** en el banco.
+2. **Actividad en catálogo pero sin categoría**: se borró a propósito la
+   `categoria_presupuesto` de `ACT-01` en `CAT_ACTIVIDADES` y se recalculó. Su
+   gasto **se movió íntegro**: «Repuestos mandatorios» 10.275 → 5.550 y
+   «SIN CLASIFICAR» 160 → 4.885 (**4.725** movidos, exactamente lo que perdió la
+   categoría), y la **reconciliación siguió en 0 los 12 meses**. El gasto no
+   desaparece nunca.
+
+### (c) Desviación, % y semáforo
+
+`desviacion = real − presupuesto` y `desviacion_pct = desviacion / presupuesto`
+(vacío si el presupuesto es 0) coinciden celda a celda con el motor en las 5
+matrices × 10 filas × 12 meses. El semáforo responde al parámetro: al subir
+`tolerancia_desviacion_presupuesto` de **0,10 a 0,50** y recalcular, **12 celdas
+de estado cambian** y las marcadas «dentro» pasan de **7 a 19**. No hay ningún
+umbral hardcodeado.
+
+### (d) Cuadre de la distribución mensual
+
+`suma_12_meses` vs `presupuesto_anual` con indicador propio. Probado: restando
+500 a un mes de «Repuestos mandatorios» y recalculando, el indicador pasa de
+**«cuadra»** a **«DESCUADRE: -500 vs anual»** (y se resalta en rojo).
+
+### (e) YTD acumula hasta el mes de la fecha de datos y no más
+
+Mes de corte = mes de la fecha de datos si el año en curso es el presupuestado;
+12 si ya pasó, 0 si no ha empezado. Comprobado en el libro recalculado del
+default: corte **mes 7**, YTD del total = **25.760**, que es exactamente la suma
+de los meses 1..7 — y **no** los **31.590** del año completo. En el banco el
+corte es el **mes 11**.
+
+### (f) Subtotales y total general
+
+Para los 12 meses y en las matrices de presupuesto y real se verificó que
+**Subtotal FIJO**, **Subtotal VARIABLE** y **TOTAL GENERAL** son exactamente la
+suma de sus filas miembro (el total incluye SIN CLASIFICAR, que es lo que cierra
+la reconciliación).
+
+### (g) Recálculo y comparación motor ↔ Excel
+
+| | fórmulas | errores | comparaciones | desviaciones |
+|---|---:|---:|---:|---:|
+| Default (`MantPlan_compatible.xlsx`) | 76.074 | **0** | 14.994 | **0** |
+| Banco (`MantPlan_banco_compatible.xlsx`) | 147.438 | **0** | 60.177 | **0** |
+
+Nada del motor previo cambió: rotación, VAC, seguimiento, capacidad, adherencia y
+el manifiesto del banco dan los mismos valores que en v3.0.1 (las comparaciones
+crecieron solo por las celdas nuevas del presupuesto: +816 en el default y +624 en
+el banco).
+
+**Datos sintéticos**: el plan se siembra calibrado sobre el gasto real con
+factores por mes, y el semáforo queda ejercitado en ambos datasets —default:
+7 «dentro», 6 «sobre», 42 «bajo»; banco: 20 «dentro», 12 «sobre», 36 «bajo».
+
+**Qué NO verifiqué / supuestos.** (i) No recalculé los libros principales
+(`XLOOKUP`): LibreOffice no los evalúa. (ii) En el banco hay gasto real en
+**11 de 12 meses**: diciembre tiene órdenes pero ninguna notificación, porque la
+regla realista de §7 solo empareja ejecuciones con órdenes vencidas o de la
+ventana en curso — no toqué la generación del banco para forzarlo. El bloque de
+comparación sí está poblado en los 12 meses (plan, desviación y estado se
+calculan igual). (iii) El indicador de cuadre se entrega **cuadrando** en las 6
+categorías; el descuadre se probó editando el libro, no dejándolo sembrado.
+(iv) El YTD usa `HOY()` como fecha de datos, así que en el banco (ancla fija) se
+mide contra el día de apertura, igual que las columnas de envejecimiento.
+(v) No se implementó el DASHBOARD. (vi) El recálculo independiente lo corre el usuario.
+
+---
+
+## 0-bis. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
 
 Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
 rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los
@@ -252,7 +357,7 @@ para no rozar la limitación conocida del grid del calendario, que arranca el
 
 ---
 
-## 0-bis. Cambio 6.5 + 6.6 — horas reales de seguimiento y supervisor fijo
+## 6.5 + 6.6 — horas reales de seguimiento y supervisor fijo
 
 **Ninguno toca la rotación, la capacidad de planificación (REGLA-5 / PERFIL_HH
 siguen en 48 h) ni el motor de VAC.** 6.5 añade una capa de **horas reales**
@@ -302,7 +407,7 @@ implementó. (vi) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-ter. Cambio 6.4 — vacaciones que arrastran (VAC automático, posición vacía)
+## 6.4 — vacaciones que arrastran (VAC automático, posición vacía)
 
 El plan de vacaciones marca **VAC automáticamente** en ASIGNACIONES y saca al
 técnico de la rotación esas semanas, dejando su **posición VACÍA** (hueco
@@ -358,7 +463,7 @@ de un hueco es manual (no hay reemplazo automático — sería otro bloque). (ii
 
 ---
 
-## 0-quater. Cambio 6.3 — rotación automática derivada por especialidad
+## 6.3 — rotación automática derivada por especialidad
 
 El turno pasa de ser un dato a **derivarse por aritmética modular** de la
 posición del técnico en el anillo del ciclo. Anillo (orden de avance semanal,
@@ -423,7 +528,7 @@ el usuario.
 
 ---
 
-## 0-quinquies. Cambio 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
+## 6.2 — catálogo de turnos con franja horaria (CAT_TURNOS)
 
 Los turnos pasan de etiquetas sueltas a un catálogo con banda horaria. **La
 franja es metadato de horario; la capacidad NO se deriva de ella** (REGLA-5
@@ -467,7 +572,7 @@ independiente lo corre el usuario.
 
 ---
 
-## 0-sexies. Cambio 6.1 — jornada 8 h y base semanal 48 h (L-S)
+## 6.1 — jornada 8 h y base semanal 48 h (L-S)
 
 Cambio de parámetro + patrón, sin tocar el modelo de turnos ni la rotación
 (eso es 6.3) ni ninguna otra hoja/regla. Verificado sobre el libro
