@@ -1,4 +1,119 @@
-# VERIFICACION.md — MantPlan v3.0.0 (cierre del entregable A)
+# VERIFICACION.md — MantPlan v3.0.1 (cierre del entregable A)
+
+## 0. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+
+Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
+rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los
+números de §7 y de 6.x quedan idénticos (verificado abajo, punto e).
+
+### (a) Selector de semanas dinámico — bug corregido
+
+El desplegable de `PLAN_SEMANAL!B3` era una lista **literal** con solo las
+semanas de la ventana del plan (`"(todos),2026-S30,…,2026-S33"`), mientras que la
+grilla mostraba filas de todo el año: no se podía filtrar por semanas que sí
+tenían datos.
+
+- Ahora la lista se construye desde **todas las semanas presentes en los datos**
+  = unión de la serie de ORDENES y de las semanas de ASIGNACIONES.
+- Como supera el límite de ~255 caracteres de una validación literal, va a un
+  **rango auxiliar oculto** (`PLAN_SEMANAL!$X$3:$X$n`) y la validación apunta al
+  nombre definido **`lista_semanas_plan`**. Comprobado en el libro generado:
+  `DV(B3).formula1 = "lista_semanas_plan"`.
+- **Default**: 47 entradas — `(todos)` + 2026-S09 … 2027-S01.
+  **Banco**: 55 entradas — `(todos)` + 2026-S01 … 2027-S01.
+- **Prueba funcional** (la que importa): con `B3 = 2026-S09` —una semana **fuera**
+  de la ventana programada— el libro recalculado devuelve **4 órdenes · 22 HH**
+  en los contadores B5/D5. Antes esa semana ni siquiera era seleccionable.
+- Los demás selectores de esa fila salen de **catálogo** (turno de `CAT_TURNOS`;
+  área, sub-área y coordinador de `CAT_CENTROS_COSTO`; especialidad de
+  `CAT_PUESTOS`) o de un **dominio fijo** (día): se revisaron y se dejan como
+  lista literal, que es correcto para ellos.
+
+### (b) Gráfico de PLAN_SEMANAL — bug corregido
+
+Diagnóstico confirmado sobre el XML del archivo anterior
+(`xl/charts/chart1.xml`): `<max val="46.76"/>` fijo, sin elemento `<delete>` en
+ninguno de los dos ejes, `axPos="l"` **también** en el eje de categorías, y
+`showVal` en las **dos** series (16 técnicos × 2 = 32 etiquetas encimadas).
+
+Estado tras la corrección, leído del XML regenerado:
+
+| aspecto | antes | ahora |
+|---|---|---|
+| máximo del eje Y | `<max val="46.76"/>` | **ninguno** (autoescala) |
+| `<delete>` de los ejes | ausente | `0` y `0` (**ambos visibles**) |
+| `axPos` | `l`, `l` | **`b`** (categorías) y `l` (valores) |
+| etiquetas de datos (`showVal`) | 2 series | **1** (solo sobreasignación) |
+| combinado | barras + línea | **se mantiene**: 3 series, `<barChart>` + `<lineChart>` |
+
+Títulos de eje: **HH** (valores) y **Técnico** (categorías); marcas de escala
+hacia fuera. La línea de **capacidad** sigue sobre el mismo eje de valores. Como
+los rangos T/U/V ya dependen de los selectores, al cambiar semana/día/técnico el
+gráfico se recalcula y, sin máximo fijo, **se reescala solo**.
+
+### (c) Hoja de importar órdenes — ya no invita a pegar
+
+Se mantiene el diseño: las órdenes se pegan en `ORDENES!A4`; **no** se creó tabla
+de staging ni se duplicó el pegado.
+
+- **Antes de renombrar se comprobó** (no se asumió) que la hoja no estaba
+  referenciada: barrido de todo el `.xlsx` (todos los `.xml` y `.rels`) →
+  `1_IMPORTAR_ORDENES` aparecía **solo** en `<sheets>` de `xl/workbook.xml`, la
+  entrada del propio libro. **Cero** menciones en fórmulas, `definedNames`,
+  tablas o validaciones. El renombrado es seguro.
+- `1_IMPORTAR_ORDENES` → **`GUIA_IMPORTAR_ORDENES`**, con pestaña **gris de
+  guía** (antes naranja de zona de pegado).
+- Encabezado inequívoco: «**⚠ ESTA HOJA NO RECIBE DATOS** — es solo una guía de
+  formato» y debajo «Las órdenes se pegan en **ORDENES!A4** (columnas A:L, en un
+  solo bloque)».
+- Se **quitó la fila de cabeceras horizontal** que invitaba a pegar: el layout se
+  muestra ahora **en vertical** (una fila por columna esperada: letra, nombre y
+  dos ejemplos), con las columnas de ejemplo rotuladas «EJEMPLO (no pegar)».
+- `2_IMPORTAR_EJECUCION` **no se tocó** en estructura; solo su encabezado dice
+  ahora «**✔ ZONA DE PEGADO REAL** — aquí SÍ se pegan datos», más una línea que
+  aclara que las órdenes no van ahí. El contraste entre ambas es obvio.
+
+### (d) Orden de las hojas
+
+Ordenadas por uso. Verificado que el orden es **exactamente** el pedido y el
+**mismo en los cuatro libros** (comparación programática de `wb.sheetnames`):
+
+- **A. Presentación**: PLAN_SEMANAL · ADHERENCIA · PERFIL_HH · BACKLOG · COSTOS ·
+  EQUIPOS_CRITICOS · SEGUIMIENTO_HH · SEGUIMIENTO_MENSUAL · EXPORTAR
+- **B. Trabajo diario**: ORDENES · ASIGNACIONES · AJUSTES · PLAN_VACACIONES ·
+  2_IMPORTAR_EJECUCION · TECNICOS · CALENDARIO · VALIDACION
+- **C. Configuración, catálogos y guías**: PARAMETROS · CAT_CENTROS_COSTO ·
+  CAT_PUESTOS · CAT_ACTIVIDADES · CAT_TIPOS_OT · CAT_ESTADOS_ERP · CAT_TURNOS ·
+  INICIO · GUIA_IMPORTAR_ORDENES · _COMPATIBILIDAD · _BANCO_PRUEBA (solo banco)
+
+El **puesto #1 queda libre** para el DASHBOARD de la próxima tirada. La hoja
+activa al abrir es `PLAN_SEMANAL`. Cualquier hoja no listada caería al final sin
+perderse (salvaguarda del reordenador). 27 hojas en el default, 28 en el banco.
+
+### (e) Recálculo y comparación: sin regresión
+
+Reordenar hojas no cambia fórmulas (referencian por nombre), pero **se verificó**:
+
+| | fórmulas | errores | comparaciones | desviaciones |
+|---|---:|---:|---:|---:|
+| Default (`MantPlan_compatible.xlsx`) | 74.182 | **0** | 14.178 | **0** |
+| Banco (`MantPlan_banco_compatible.xlsx`) | 145.546 | **0** | 59.553 | **0** |
+
+Cifras **idénticas** a las de v3.0.0: ninguna de las cuatro correcciones movió un
+solo valor calculado.
+
+**Qué NO verifiqué / supuestos.** (i) No recalculé los libros principales
+(`XLOOKUP`): LibreOffice no los evalúa. (ii) El aspecto visual del gráfico
+(reescalado y legibilidad al cambiar selectores) se verificó **estructuralmente**
+sobre el XML —sin máximo fijo, ejes con `delete=0`, una sola serie con
+etiquetas— y funcionalmente por el recálculo de los rangos que lo alimentan; el
+juicio final de legibilidad es visual y lo hace el usuario al abrirlo. (iii) No
+se implementó el DASHBOARD (queda para la próxima tirada). (iv) El recálculo
+independiente lo corre el usuario.
+
+---
+
+# (histórico) VERIFICACION — MantPlan v3.0.0
 
 Reporte de verificación del entregable A. Esta versión añade **§7 — banco de
 prueba**: volumen de un año en crudo + una ventana programada, como OPCIÓN del
@@ -7,7 +122,7 @@ generador. Sobre 6.5/6.6 (seguimiento y supervisor), 6.4 (VAC), 6.3 (rotación),
 (EXPORTAR), v2.1 y v2.0. Corridas: dataset por defecto con ancla **2026-07-27**;
 banco con ancla FIJA **2026-11-02**.
 
-## 0. §7 — Banco de prueba: un año en crudo + ventana programada
+## §7 — Banco de prueba: un año en crudo + ventana programada
 
 Cambio de **datos y de opciones del generador**: no toca las 10 reglas, ni la
 rotación, ni VAC, ni el seguimiento, ni la capacidad. Se activa con
@@ -19,7 +134,7 @@ depende de `date.today()`.
 
 | Métrica | Dataset por defecto | Banco §7 |
 |---|---:|---:|
-| Órdenes (`1_IMPORTAR_ORDENES`) | 200 | **1.000** |
+| Órdenes (`ORDENES`) | 200 | **1.000** |
 | Notificaciones (`2_IMPORTAR_EJECUCION`) | 162 | **851** |
 | Filas de ASIGNACIONES | 448 | **5.936** (53 semanas ISO × 16 técnicos × 7 días) |
 | Hojas | 27 | **28** (añade `_BANCO_PRUEBA`) |

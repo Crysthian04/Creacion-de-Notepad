@@ -47,7 +47,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.0.0"
+VERSION = "3.0.1"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -2079,37 +2079,50 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     wb.defined_names.add(DefinedName(
         "lista_tecnicos", attr_text=f"TECNICOS!$B${_T.fila_ini}:$B${_T.fila_fin}"))
 
-    # ------------------------------------------------- 1_IMPORTAR_ORDENES
-    ws = wb.create_sheet("1_IMPORTAR_ORDENES")
-    ws.sheet_properties.tabColor = "ED7D31"
-    celda(ws, 1, 1, "ZONA DE PEGADO — exportación de órdenes del ERP", font=F_TIT)
+    # --------------------------------------------- GUIA_IMPORTAR_ORDENES
+    # 7.1: era `1_IMPORTAR_ORDENES` y PARECÍA zona de pegado (nombre numerado +
+    # fila de cabeceras + filas de ejemplo), lo que confundía: las órdenes se
+    # pegan en ORDENES!A4. Ahora es una GUÍA sin rejilla horizontal: el layout se
+    # muestra en VERTICAL (una fila por columna esperada), así no invita a pegar.
+    ws = wb.create_sheet("GUIA_IMPORTAR_ORDENES")
+    ws.sheet_properties.tabColor = "A6A6A6"          # gris de guía, no naranja de pegado
+    celda(ws, 1, 1, "⚠ ESTA HOJA NO RECIBE DATOS — es solo una guía de formato.", font=F_TIT)
+    celda(ws, 2, 1, "Las órdenes se pegan en  ORDENES!A4  (columnas A:L, en un solo bloque).",
+          font=F_SEC)
     notas = [
-        "Ordene la exportación de su ERP con estas 12 cabeceras exactas (misma disposición que ORDENES!A:L)",
-        "y péguela EN UN SOLO PASO en ORDENES!A4 (o desde la primera fila libre). Nada más que hacer:",
-        "las columnas calculadas ya están escritas en las 1.200 filas provisionadas de la tabla.",
-        "operacion es opcional: si su ERP no maneja operaciones, déjela vacía y el sistema asume \"0010\".",
-        "Los ajustes de duración NO van aquí: se registran en la hoja AJUSTES por id_operacion",
-        "y se re-aplican solos tras re-importar, aunque cambie el orden de las filas.",
-        "La validación de REGLA-10 (hoja VALIDACION) reporta problemas pero nunca bloquea la importación.",
-        "Puede usar esta hoja como borrador para reordenar columnas antes de pegar.",
+        "Ordene la exportación de su ERP con las 12 columnas de abajo, en ESE orden, y péguela",
+        "EN UN SOLO PASO en ORDENES!A4 (o desde la primera fila libre). Nada más que hacer: las",
+        "columnas calculadas ya están escritas en las 1.200 filas provisionadas de la tabla.",
+        "«operacion» es opcional: si su ERP no maneja operaciones, déjela vacía y se asume \"0010\".",
+        "Los ajustes de duración NO van aquí: se registran en AJUSTES por id_operacion y se",
+        "re-aplican solos tras re-importar, aunque cambie el orden de las filas.",
+        "REGLA-10 (hoja VALIDACION) reporta problemas pero nunca bloquea la importación.",
     ]
-    for i, t in enumerate(notas, start=3):
+    for i, t in enumerate(notas, start=4):
         celda(ws, i, 1, t, font=F_NOTA)
-    encabezados(ws, 8, CAMPOS_IMPORT_ORDENES)
-    for i, o in enumerate(datos["ordenes"][:2]):  # dos filas de ejemplo del formato esperado
-        for j, campo in enumerate(CAMPOS_IMPORT_ORDENES):
-            v = o[campo]
-            celda(ws, 9 + i, 1 + j, v, font=F_NOTA, fill=FILL_GRIS,
+    fila_g = 4 + len(notas) + 1
+    celda(ws, fila_g, 1, "Layout esperado (vertical: una fila por columna a pegar)", font=F_SEC)
+    encabezados(ws, fila_g + 1, ["col.", "nombre de la columna", "EJEMPLO (no pegar)",
+                                 "EJEMPLO (no pegar)"])
+    ejemplos = datos["ordenes"][:2]
+    for j, campo in enumerate(CAMPOS_IMPORT_ORDENES):
+        fr = fila_g + 2 + j
+        celda(ws, fr, 1, f"{get_column_letter(j + 1)}")
+        celda(ws, fr, 2, campo)
+        for k, o in enumerate(ejemplos):
+            celda(ws, fr, 3 + k, o[campo], font=F_NOTA, fill=FILL_GRIS,
                   fmt=FMT_FECHA if campo == "fecha_inicio" else None)
-    for j in range(len(CAMPOS_IMPORT_ORDENES)):
-        ws.column_dimensions[get_column_letter(j + 1)].width = 18
+    for colw, w in (("A", 7), ("B", 26), ("C", 34), ("D", 34)):
+        ws.column_dimensions[colw].width = w
 
     # ----------------------------------------------- 2_IMPORTAR_EJECUCION
     ws = wb.create_sheet("2_IMPORTAR_EJECUCION")
     ws.sheet_properties.tabColor = "ED7D31"
-    celda(ws, 1, 1, "ZONA DE PEGADO — segunda exportación: estados y costos (tblEjecucion)", font=F_TIT)
+    celda(ws, 1, 1, "✔ ZONA DE PEGADO REAL — aquí SÍ se pegan datos: estados y costos (tblEjecucion)",
+          font=F_TIT)
     notas = [
         "Pegue aquí los estados y costos reales del ERP, con estas cabeceras exactas, desde la primera fila vacía.",
+        "(Las ÓRDENES no se pegan aquí ni en la hoja de guía: van en ORDENES!A4.)",
         "id_operacion se calcula solo. El catálogo CAT_ESTADOS_ERP traduce estado_sistema a Cerrada/Pendiente.",
         "Las órdenes sin par en esta tabla quedan como \"Pendiente\" (REGLA-10).",
     ]
@@ -2626,7 +2639,29 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws.sheet_properties.tabColor = "7030A0"
     celda(ws, 1, 1, "PLAN SEMANAL — el gráfico de carga y la grilla responden a los mismos "
                     "selectores. \"(todos)\" desactiva un criterio; \"-\" significa vacío.", font=F_SEC)
-    criterios = [("semana", 2, ["(todos)"] + semanas, semanas[1]),
+    # 7.1: el selector de SEMANA debe listar TODAS las semanas presentes en los
+    # datos (ORDENES + ASIGNACIONES), no solo las de la ventana del plan; si no,
+    # no se puede filtrar por semanas que sí tienen filas en la grilla. Como la
+    # lista supera el límite de ~255 caracteres de una validación literal, se
+    # escribe en un rango auxiliar (columna X, oculta) y la validación apunta
+    # ahí por nombre definido. El resto de selectores salen de catálogo (turno de
+    # CAT_TURNOS, área/sub-área/coordinador de CAT_CENTROS_COSTO, especialidad de
+    # CAT_PUESTOS) o de un dominio fijo (día), así que siguen como lista literal.
+    semanas_datos = sorted(set(esperado["serie_semanas"])
+                           | {a["semana"] for a in datos["asignaciones"]})
+    COL_AUX = 24                                      # columna X
+    celda(ws, 2, COL_AUX, "semanas con datos (validación) — no editar", font=F_NOTA)
+    celda(ws, 3, COL_AUX, "(todos)")
+    for i, sem in enumerate(semanas_datos):
+        celda(ws, 4 + i, COL_AUX, sem)
+    fila_aux_fin = 3 + len(semanas_datos)
+    ws.column_dimensions[get_column_letter(COL_AUX)].hidden = True
+    wb.defined_names.add(DefinedName(
+        "lista_semanas_plan",
+        attr_text=f"PLAN_SEMANAL!${get_column_letter(COL_AUX)}$3:"
+                  f"${get_column_letter(COL_AUX)}${fila_aux_fin}"))
+
+    criterios = [("semana", 2, "lista_semanas_plan", semanas[1]),
                  ("día", 4, ["(todos)"] + list(DIAS), "(todos)"),
                  ("turno", 6, ["(todos)"] + list(TURNOS), "(todos)"),
                  ("coordinador", 8, ["(todos)"] + sorted(set(COORD_POR_AREA.values())), "(todos)"),
@@ -2636,7 +2671,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     for nombre, colc, lista, defecto in criterios:
         celda(ws, 3, colc - 1, nombre + ":", font=F_SEC)
         celda(ws, 3, colc, defecto, font=F_EDIT, fill=FILL_GRIS)
-        dv = DataValidation(type="list", formula1='"' + ",".join(lista) + '"', allow_blank=False)
+        f1 = lista if isinstance(lista, str) else '"' + ",".join(lista) + '"'
+        dv = DataValidation(type="list", formula1=f1, allow_blank=False)
         ws.add_data_validation(dv)
         dv.add(f"{get_column_letter(colc)}3")
     FILA_GRILLA = 25  # encabezado de la grilla; el gráfico vive arriba, en la zona fija
@@ -2692,8 +2728,6 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
 
     # Gráfico: barras apiladas (verde dentro de capacidad, rojo sobreasignado)
     # + serie de línea con la capacidad productiva (REGLA-5 × factor).
-    y_max = max([v for v in esperado["carga_tecnicos"].values()]
-                + [v for v in esperado["capacidad_tecnicos"].values()]) + 5
     barras = BarChart()
     barras.type = "col"
     barras.grouping = "stacked"
@@ -2706,11 +2740,24 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     barras.set_categories(cats_tec)
     barras.series[0].graphicalProperties.solidFill = "63BE7B"   # dentro de capacidad
     barras.series[1].graphicalProperties.solidFill = "F8696B"   # sobreasignación
-    for s in barras.series:
-        s.dLbls = DataLabelList(showVal=True)  # etiquetas visibles, ceros incluidos
+    # 7.1 (c): con 16 técnicos, 32 etiquetas apiladas se encimaban. Se dejan SOLO
+    # en la serie de sobreasignación —la que hay que ver— y el resto se lee por
+    # el eje, ahora visible.
+    barras.series[1].dLbls = DataLabelList(showVal=True)
+    # 7.1 (a): SIN máximo fijo. El eje se autoescala en cada cambio de selector
+    # (antes estaba clavado en 46,76, dimensionado para una sola semana, y al
+    # filtrar "(todos)" las barras del año quedaban aplastadas).
     barras.y_axis.scaling.min = 0
-    barras.y_axis.scaling.max = y_max
     barras.y_axis.title = "HH"
+    # 7.1 (b): ejes VISIBLES con su escala. `delete=None` dejaba que el
+    # consumidor los ocultara; se fuerza a False. El eje de categorías además
+    # iba con axPos="l" (izquierda) por defecto de openpyxl: va abajo.
+    barras.y_axis.delete = False
+    barras.x_axis.delete = False
+    barras.x_axis.axPos = "b"
+    barras.x_axis.title = "Técnico"
+    barras.y_axis.majorTickMark = "out"
+    barras.x_axis.majorTickMark = "out"
     # Serie de capacidad como línea combinada SOBRE EL MISMO eje de valores
     # que las barras (mismos axId por defecto → ejes compartidos), con
     # marcador visible y sin etiquetas de datos.
@@ -3376,7 +3423,28 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         for colw, w in (("A", 38), ("B", 46)):
             ws.column_dimensions[colw].width = w
 
-    # Orden final de hojas: EXPORTAR y _COMPATIBILIDAD ya quedan al final tras los catálogos.
+    # ------------------------------------------------- ORDEN DE LAS HOJAS
+    # 7.1: el libro se ordena por USO, no por historia. (A) lo que se muestra,
+    # (B) el trabajo diario, (C) configuración, catálogos y guías al final.
+    # El puesto #1 queda reservado para el DASHBOARD de la próxima tirada.
+    # Reordenar no cambia fórmulas (referencian por nombre), pero se verifica.
+    ORDEN_HOJAS = [
+        # A. PRESENTACIÓN  (#1 reservado: DASHBOARD)
+        "PLAN_SEMANAL", "ADHERENCIA", "PERFIL_HH", "BACKLOG", "COSTOS",
+        "EQUIPOS_CRITICOS", "SEGUIMIENTO_HH", "SEGUIMIENTO_MENSUAL", "EXPORTAR",
+        # B. TRABAJO DIARIO
+        "ORDENES", "ASIGNACIONES", "AJUSTES", "PLAN_VACACIONES",
+        "2_IMPORTAR_EJECUCION", "TECNICOS", "CALENDARIO", "VALIDACION",
+        # C. CONFIGURACIÓN, CATÁLOGOS Y GUÍAS
+        "PARAMETROS", "CAT_CENTROS_COSTO", "CAT_PUESTOS", "CAT_ACTIVIDADES",
+        "CAT_TIPOS_OT", "CAT_ESTADOS_ERP", "CAT_TURNOS", "INICIO",
+        "GUIA_IMPORTAR_ORDENES", "_COMPATIBILIDAD", "_BANCO_PRUEBA",
+    ]
+    pos = {n: i for i, n in enumerate(ORDEN_HOJAS)}
+    # Cualquier hoja no listada queda al final, en su orden actual (nunca se pierde).
+    wb._sheets.sort(key=lambda h: (pos.get(h.title, len(ORDEN_HOJAS)),))
+    wb.active = 0
+
     wb.save(ruta)
     return ruta
 

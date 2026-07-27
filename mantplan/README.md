@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.0.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.0.1)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -70,6 +70,23 @@ python generar_mantplan.py --anio-completo --n-ordenes 1000 --semanas-programada
 - Caso de bloque condicional (VERIFICACION.md §3.5): con una semana sin
   técnicos sobreasignados, la alerta de capacidad del correo desaparece sin
   encabezado ni líneas en blanco huérfanas.
+- **7.1**: el selector de semana de `PLAN_SEMANAL` se construye desde **todas las
+  semanas presentes en los datos** (ORDENES + ASIGNACIONES), no desde la ventana
+  del plan: antes era una lista literal de 4 semanas y no se podía filtrar por
+  semanas que sí tenían filas en la grilla. Como la lista supera el límite de
+  ~255 caracteres de una validación literal, va en un rango auxiliar oculto
+  (`PLAN_SEMANAL!X`) al que apunta el nombre `lista_semanas_plan`. Los demás
+  selectores salen de catálogo (turno de `CAT_TURNOS`; área, sub-área y
+  coordinador de `CAT_CENTROS_COSTO`; especialidad de `CAT_PUESTOS`) o de un
+  dominio fijo (día), así que siguen como lista literal.
+- **7.1**: el gráfico de carga ya no lleva **máximo fijo** en el eje Y (estaba
+  clavado en 46,76, dimensionado para una sola semana: al filtrar «(todos)» las
+  barras del año quedaban aplastadas). Ahora autoescala, **los dos ejes son
+  visibles** con su escala y títulos (HH / Técnico), el eje de categorías va
+  abajo, y las etiquetas de datos quedan **solo en la serie de
+  sobreasignación** (con 16 técnicos, 32 etiquetas apiladas se encimaban). Se
+  mantiene el combinado: barras apiladas dentro-de-capacidad + sobreasignación,
+  con la capacidad como línea de referencia.
 - **§7 Banco de prueba** (volumen de un año): la variante compatible se recalculó
   con **145.546 fórmulas, 0 errores**, y se comparó contra el motor con **59.553
   comparaciones, 0 desviaciones**, incluyendo el contraste de los 16 chequeos de
@@ -160,9 +177,14 @@ no se imputa al costo de la orden.
   **`id_operacion` pasó al final** (columna AO) — desviación deliberada del
   orden de la Tabla 1, al servicio del pegado en un paso. En `tblEjecucion`,
   `id_operacion` también va al final por la misma razón.
-- `1_IMPORTAR_ORDENES` documenta el paso único: ordenar el export con esas 12
-  cabeceras y pegarlo en `ORDENES!A4`. `2_IMPORTAR_EJECUCION` ya era la
-  propia tabla.
+- **Las órdenes se pegan en `ORDENES!A4`** (columnas A:L, en un solo bloque).
+  `GUIA_IMPORTAR_ORDENES` **solo documenta** ese paso: no recibe datos. Antes se
+  llamaba `1_IMPORTAR_ORDENES` y, con su nombre numerado, su fila de cabeceras y
+  sus filas de ejemplo, parecía una zona de pegado — confundía. Ahora el layout
+  se muestra **en vertical** (una fila por columna esperada, con dos ejemplos
+  marcados como tales), lleva el aviso «⚠ ESTA HOJA NO RECIBE DATOS» arriba y
+  pestaña gris de guía. `2_IMPORTAR_EJECUCION` **sí** es zona de pegado real (es
+  la propia tabla) y lo dice en su encabezado: «✔ ZONA DE PEGADO REAL».
 - `tblOrdenes` y `tblEjecucion` están provisionadas a **1.200 filas** con
   todas las columnas calculadas ya escritas y **blindadas**: una fila sin
   `orden` produce vacío en todas las calculadas (nada de ids `"0010"`
@@ -779,27 +801,34 @@ plan` (materiales 0). Equipo de mayor gasto: EQ-110 (4.430 USD).
 
 ## Estructura del libro (27 hojas; 28 en el banco §7, con `_BANCO_PRUEBA`)
 
-`INICIO` · `PARAMETROS` · `1_IMPORTAR_ORDENES` (paso único de pegado) ·
-`2_IMPORTAR_EJECUCION` (`tblEjecucion`, 1.200 filas) · `ORDENES`
-(`tblOrdenes`, 1.200 filas × 42 columnas: 12 importadas A:L, 5 editables en
-azul, 26 calculadas incl. `es_habil` y `backlog_habiles`; `id_operacion` al
-final) · `TECNICOS` (con `rotativo`/`orden_rotacion` para la rotación y
-`supervisor` fijo) · `ASIGNACIONES` (448 filas; rotación derivada
-`n_ciclo`/`posicion_ciclo`, `en_vacaciones`, `turno_manual`/`turno` efectivo,
-`supervisor`, `trabaja_domingo`, `fecha`, REGLA-5 y franja horaria desde
-`CAT_TURNOS`) · `PLAN_VACACIONES` (`tblVacaciones`, periodos por técnico) ·
-`SEGUIMIENTO_HH` (horas reales técnico × semana + déficit por VAC) ·
-`SEGUIMIENTO_MENSUAL` (acumulado técnico × mes, base del bono) ·
-`AJUSTES` (`tblAjustes`, 300 filas) · `CALENDARIO` (patrón
-semanal + `tblExcepciones` 200 filas + grid de 760 días) · `PERFIL_HH` (serie
-dinámica de 60 semanas + matriz semáforo + REGLA-9) · `PLAN_SEMANAL` (7
-selectores + gráfico de carga + grilla 1.200) · `ADHERENCIA` (bloque semanal
-dinámico + 6 desgloses, solo días hábiles) · `COSTOS` (por área, sub-área y
-línea) · `BACKLOG` (tramos por especialidad, área y sub-área) ·
-`EQUIPOS_CRITICOS` · `VALIDACION` (9 chequeos REGLA-10 + 4 de ajustes + 3 de
-calendario) · 6 catálogos `CAT_*` (incl. `CAT_TURNOS`, turnos con su franja
-horaria) · `EXPORTAR` (correo semanal en una celda, 4 selectores) ·
-`_COMPATIBILIDAD`.
+Las hojas están ordenadas **por uso, no por historia**: primero lo que se
+muestra, después el trabajo diario, y al final la configuración, los catálogos y
+las guías. Es el mismo orden en las cuatro variantes. *(El puesto #1 queda
+reservado para el `DASHBOARD` de la próxima tirada.)*
+
+**A. Presentación** — `PLAN_SEMANAL` (7 selectores + gráfico de carga + grilla
+1.200) · `ADHERENCIA` (bloque semanal dinámico + 6 desgloses, solo días hábiles) ·
+`PERFIL_HH` (serie dinámica de 60 semanas + matriz semáforo + REGLA-9) ·
+`BACKLOG` (tramos por especialidad, área y sub-área) · `COSTOS` (por área,
+sub-área y línea) · `EQUIPOS_CRITICOS` · `SEGUIMIENTO_HH` (horas reales técnico ×
+semana + déficit por VAC) · `SEGUIMIENTO_MENSUAL` (acumulado técnico × mes, base
+del bono) · `EXPORTAR` (correo semanal en una celda, 4 selectores).
+
+**B. Trabajo diario** — `ORDENES` (`tblOrdenes`, 1.200 filas × 42 columnas: 12
+importadas A:L, 5 editables en azul, 26 calculadas incl. `es_habil` y
+`backlog_habiles`; `id_operacion` al final) · `ASIGNACIONES` (448 filas; rotación
+derivada `n_ciclo`/`posicion_ciclo`, `en_vacaciones`, `turno_manual`/`turno`
+efectivo, `supervisor`, `trabaja_domingo`, `fecha`, REGLA-5 y franja horaria) ·
+`AJUSTES` (`tblAjustes`, 300 filas) · `PLAN_VACACIONES` (`tblVacaciones`) ·
+`2_IMPORTAR_EJECUCION` (zona de pegado real) · `TECNICOS` (con
+`rotativo`/`orden_rotacion` y `supervisor` fijo) · `CALENDARIO` (patrón semanal +
+`tblExcepciones` 200 filas + grid de 760 días) · `VALIDACION` (9 chequeos
+REGLA-10 + 4 de ajustes + 3 de calendario).
+
+**C. Configuración, catálogos y guías** — `PARAMETROS` · los 6 catálogos
+`CAT_*` (incl. `CAT_TURNOS`) · `INICIO` (guía de texto) ·
+`GUIA_IMPORTAR_ORDENES` (solo documentación) · `_COMPATIBILIDAD` ·
+`_BANCO_PRUEBA` (solo en el banco).
 
 ## Limitaciones conocidas
 
