@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.2.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.3.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -591,7 +591,9 @@ atributos: `categoria_presupuesto` y `clasificacion` (`fijo`/`variable`). Se
 eligió el catálogo de **actividades** y no el de tipos de OT porque la actividad
 describe *qué* se gasta (repuesto, servicio, overhaul), mientras que el tipo de OT
 solo separa preventiva/correctiva — demasiado grueso para seis categorías.
-Onboardear otra empresa = editar el catálogo, cero código.
+Onboardear otra empresa = editar el catálogo, cero código. (La *clase de
+mantenimiento* del dashboard va en el catálogo contrario, y por el mismo
+criterio: ver más abajo.)
 
 | clasificación | categorías |
 |---|---|
@@ -691,6 +693,89 @@ los activos sin huecos** con `COUNTIFS` + `INDEX/MATCH` (sin funciones de derram
 ni `OFFSET`, para que funcione también en Excel 2016). Al generar el libro, un
 técnico inactivo directamente no produce filas de `ASIGNACIONES`; al marcar el
 flag en un libro ya entregado, las filas quedan neutralizadas y visibles.
+
+### Hoja DASHBOARD (capstone)
+
+Primera hoja del libro y la que se abre por defecto, con el encabezado
+inmovilizado. Es **capa visual y de solo lectura**: no implementa ninguna regla y
+no tiene números propios. Cada tarjeta es un `INDEX`/`MATCH` a la fila del mes en
+la hoja que ya calcula ese dato, o una acumulación de celdas que ya están en
+`PRESUPUESTO`. Para que eso fuera posible sin duplicar lógica, tres hojas fuente
+publican un bloque mensual nuevo —`ADHERENCIA` (adherencia, cumplimiento legal y
+mix), `PERFIL_HH` (carga vs capacidad productiva) y `BACKLOG` (pendientes al
+corte)— con **los mismos criterios** que sus bloques semanales de siempre.
+
+**Seis KPI**, todos del mes seleccionado: adherencia al programa · % de carga de
+capacidad · semanas de backlog · ejecución OPEX acumulada · mix de mantenimiento
+· cumplimiento legal. Cada uno lleva su meta al lado y semáforo por formato
+condicional. Dos matices que el tablero dice en pantalla, porque se malinterpretan
+solos: la capacidad es **productiva** (× `p_factor_productividad`), no tiempo de
+presencia, así que nadie debería exigir el 100 %; y el cumplimiento legal va en
+**rojo si hay vencidas** aunque el resto esté verde, porque es normativo y no se
+compensa con lo demás.
+
+**Cuatro gráficos**, alimentados por bloques que dependen del selector de mes:
+cumplimiento semanal vs meta, carga por especialidad, mix real vs meta y OPEX
+plan-real por mes separando fijo y variable. Ninguno lleva máximo de eje fijo
+—autoescalan al cambiar de mes— y los dos ejes van visibles.
+
+**Corte del mes en curso.** El tablero se ancla al parámetro `fecha_datos`, **no
+a `HOY()`**, para que sea la misma foto cada vez que se abre. Si el mes elegido
+es el de la fecha de datos, muestra **hasta el día anterior** y lo declara en
+pantalla; los meses cerrados van completos y los futuros se rotulan como
+planificado. (REGLA-3/REGLA-4 siguen usando `HOY()` a propósito: son el
+envejecimiento vivo del backlog, no la foto del tablero.)
+
+**Navegación sin macros**: una botonera de `HYPERLINK` a `PLAN_SEMANAL`,
+`ADHERENCIA`, `PERFIL_HH`, `BACKLOG`, `PRESUPUESTO`, `ORDENES` y `VALIDACION`.
+Las tarjetas están hechas con **celdas** (combinadas, con relleno y bordes), no
+con formas: el libro sigue sin objetos de dibujo más allá de los gráficos, y se
+ve igual en Excel 2016 y en LibreOffice. De hecho la hoja es **idéntica celda a
+celda en las dos variantes** del libro.
+
+Lo que el tablero **no** muestra, por decisión: nada por técnico individual (solo
+agregados por especialidad; el detalle sigue en `SEGUIMIENTO_HH` para el
+supervisor) y nada de «horas estimadas vs reales», que es un indicador de calidad
+de la planificación y no de desempeño de personas.
+
+### Clase de mantenimiento y metas de mix
+
+`CAT_TIPOS_OT` gana el atributo **`clase_mantenimiento`** con cinco valores:
+`predictivo · preventivo · correctivo_programado · emergencia · legal`. Va en el
+catálogo de tipos de OT y no en el de actividades porque el corte que interesa
+—correctivo **programado** vs **emergencia**— solo lo da el tipo de OT: la
+actividad («Reparación de falla») es la misma en los dos casos. Es la decisión
+inversa a la de la categoría de presupuesto, que sí vive en la actividad porque
+describe *qué* se gasta; el criterio es el mismo: cada atributo en el catálogo que
+realmente lo determina. **Onboardear otra empresa = mapear sus tipos de OT**, sin
+tocar código.
+
+Cada orden hereda la clase del catálogo. Si su tipo no está en catálogo o no trae
+clase, cae en **`SIN CLASIFICAR`** y se ve en el mix: igual que en el presupuesto,
+el trabajo no desaparece en silencio.
+
+Las metas de distribución viven en `PARAMETROS` y son editables: 25 % predictivo,
+40 % preventivo, 20 % correctivo programado, 5 % emergencia, 10 % legal. Un
+indicador de cuadre avisa si los cinco no suman 100.
+
+> **Estos porcentajes no son normativos.** No aparecen en EN 15341 ni en
+> VDI 2893: son convención de industria, y cada planta ajusta los suyos según su
+> criticidad, su edad de activos y su estrategia. Por eso son parámetros y no
+> constantes, y por eso el libro no cita códigos de indicador de ninguna norma:
+> usa el nombre del indicador.
+
+### Hojas ocultas y cómo volver a mostrarlas
+
+Las hojas que se consultan una vez al año van **ocultas**: los ocho catálogos
+`CAT_*`, `GUIA_IMPORTAR_ORDENES`, `INICIO`, `_COMPATIBILIDAD` y `_BANCO_PRUEBA`.
+Quedan 20 hojas visibles. `PARAMETROS` **no** se oculta, porque se ajusta con
+frecuencia.
+
+Están ocultas con `hidden`, nunca con `veryHidden`, así que se recuperan sin
+programar nada: **clic derecho en cualquier pestaña → Mostrar** (en Excel; en
+LibreOffice, *Hoja → Mostrar hoja*), se elige la hoja y aceptar. Editar un
+catálogo no obliga a dejarlo visible: los desplegables siguen leyendo de él
+aunque la hoja esté oculta.
 
 ### 10. Higiene de fórmulas
 
@@ -915,14 +1000,15 @@ costo plan es del ERP y no se recalcula con el ajuste manual; `precio` = 40 %
 del plan (REGLA-8 → materiales 60 %); dos órdenes históricas con `precio >
 plan` (materiales 0). Equipo de mayor gasto: EQ-110 (4.430 USD).
 
-## Estructura del libro (30 hojas; 31 en el banco §7, con `_BANCO_PRUEBA`)
+## Estructura del libro (31 hojas, 20 visibles; 32 en el banco §7, con `_BANCO_PRUEBA`)
 
 Las hojas están ordenadas **por uso, no por historia**: primero lo que se
 muestra, después el trabajo diario, y al final la configuración, los catálogos y
 las guías. Es el mismo orden en las cuatro variantes. *(El puesto #1 queda
 reservado para el `DASHBOARD` de la próxima tirada.)*
 
-**A. Presentación** — `PLAN_SEMANAL` (7 selectores + gráfico de carga + grilla
+**A. Presentación** — `DASHBOARD` (6 KPI, 4 gráficos, selector de mes y botonera) ·
+`PLAN_SEMANAL` (7 selectores + gráfico de carga + grilla
 1.200) · `ADHERENCIA` (bloque semanal dinámico + 6 desgloses, solo días hábiles) ·
 `PERFIL_HH` (serie dinámica de 60 semanas + matriz semáforo + REGLA-9) ·
 `BACKLOG` (tramos por especialidad, área y sub-área) · `COSTOS` (por área,
@@ -931,9 +1017,10 @@ categoría) · `EQUIPOS_CRITICOS` · `SEGUIMIENTO_HH` (horas reales técnico ×
 semana + déficit por VAC) · `SEGUIMIENTO_MENSUAL` (acumulado técnico × mes, base
 del bono) · `EXPORTAR` (correo semanal en una celda, 4 selectores).
 
-**B. Trabajo diario** — `ORDENES` (`tblOrdenes`, 1.200 filas × 42 columnas: 12
-importadas A:L, 5 editables en azul, 26 calculadas incl. `es_habil` y
-`backlog_habiles`; `id_operacion` al final) · `ASIGNACIONES` (448 filas; rotación
+**B. Trabajo diario** — `ORDENES` (`tblOrdenes`, 1.200 filas × 46 columnas: 12
+importadas A:L, 5 editables en azul, 29 calculadas incl. `es_habil`,
+`backlog_habiles`, `clase_mantenimiento` y `mes_clave`; `id_operacion` al final) ·
+`ASIGNACIONES` (448 filas; rotación
 derivada `n_ciclo`/`posicion_ciclo`, `en_vacaciones`, `turno_manual`/`turno`
 efectivo, `supervisor`, `trabaja_domingo`, `fecha`, REGLA-5 y franja horaria) ·
 `AJUSTES` (`tblAjustes`, 300 filas) · `PLAN_VACACIONES` (`tblVacaciones`) ·
@@ -942,7 +1029,8 @@ efectivo, `supervisor`, `trabaja_domingo`, `fecha`, REGLA-5 y franja horaria) ·
 `tblExcepciones` 200 filas + grid de 760 días) · `VALIDACION` (9 chequeos
 REGLA-10 + 4 de ajustes + 3 de calendario).
 
-**C. Configuración, catálogos y guías** — `PARAMETROS` (parámetros + 19 rangos
+**C. Configuración, catálogos y guías** (todo esto va OCULTO salvo `PARAMETROS`) —
+`PARAMETROS` (parámetros + 19 rangos
 auxiliares que alimentan los desplegables) · los 8 catálogos `CAT_*` (incl.
 `CAT_TURNOS`, `CAT_SUPERVISORES` y `CAT_MOTIVOS_AUSENCIA`) · `INICIO` (guía de texto) ·
 `GUIA_IMPORTAR_ORDENES` (solo documentación) · `_COMPATIBILIDAD` ·

@@ -1,6 +1,252 @@
-# VERIFICACION.md — MantPlan v3.2.0
+# VERIFICACION.md — MantPlan v3.3.0
 
-## 0. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
+## 0. DASHBOARD — capstone del entregable A
+
+Hoja de presentación en el **puesto #1**, activa al abrir, con paneles
+inmovilizados. Es capa **visual y de solo lectura**: no implementa ninguna
+regla, no guarda una segunda fuente de verdad y no recalcula nada que ya exista.
+**No se tocaron** las 10 reglas, la rotación, VAC, el seguimiento, la capacidad,
+el presupuesto ni la generación del banco (comprobado en el punto g).
+
+### Cómo se garantiza que el tablero no tiene números propios
+
+Cada tarjeta KPI es **un `INDEX`/`MATCH` a la fila del mes** en una hoja fuente,
+o una **acumulación de celdas que ya calcula `PRESUPUESTO`**. Para que eso fuera
+posible sin duplicar lógica, las hojas fuente publican su propio bloque mensual:
+
+| bloque nuevo | hoja | qué publica |
+|---|---|---|
+| `MES A MES — corte del tablero` | `ADHERENCIA` | corte, adherencia del mes, cumplimiento legal, conteo por clase y su reconciliación |
+| `MES A MES — carga vs capacidad productiva` | `PERFIL_HH` | HH planificadas y capacidad productiva por especialidad y mes |
+| `AL CORTE DEL TABLERO` | `BACKLOG` | pendientes y HH acumuladas al corte, capacidad semanal y semanas de backlog |
+
+Los tres usan el **mismo criterio** que el bloque semanal que ya tenían (la
+adherencia sigue contando solo días hábiles, REGLA-7; la capacidad sigue saliendo
+de `horas_disponibles` de `ASIGNACIONES`, REGLA-5). El tablero solo los lee.
+
+### 0) Dato nuevo: `clase_mantenimiento`
+
+Vive en **`CAT_TIPOS_OT`**, no en `CAT_ACTIVIDADES`. La razón es concreta: el
+corte que hoy no se podía hacer —correctivo **programado** vs **emergencia**— lo
+da únicamente el tipo de OT, porque la actividad («Reparación de falla») es la
+misma en ambos casos. Poner la clase en las actividades habría duplicado su
+columna `tipo`, que ya dice preventivo/correctivo/predictivo/legal. Es la
+decisión **inversa** a la del presupuesto —allí la categoría sí vive en la
+actividad, porque describe *qué* se gasta— y responde al mismo criterio: cada
+atributo en el catálogo que realmente lo determina.
+
+El catálogo pasa de 4 a 5 tipos para que las cinco clases existan (`TIPO-P3`,
+orden legal / calibración). Cada orden **hereda** su clase; si el tipo no está en
+catálogo o no trae clase, la orden cae en **`SIN CLASIFICAR`**, visible en el mix
+— mismo criterio que el presupuesto. Reparto del default:
+
+| clase | órdenes |
+|---|---:|
+| preventivo | 75 |
+| correctivo_programado | 43 |
+| predictivo | 38 |
+| emergencia | 38 |
+| legal | 4 |
+| **SIN CLASIFICAR** | **2** (las dos órdenes sembradas con `TIPO-X9`, fuera de catálogo) |
+
+`ORDENES` gana dos columnas derivadas: `clase_mantenimiento` y `mes_clave`
+(`AAAA-MM`, armada con `anio` y `mes` ya calculados para no depender del formato
+regional). `ADHERENCIA` gana además un desglose «POR CLASE DE MANTENIMIENTO»,
+igual que los que ya tenía por área, sub-área, especialidad y coordinador.
+
+**Metas de mix en `PARAMETROS`, editables:** 25 predictivo · 40 preventivo · 20
+correctivo programado · 5 emergencia · 10 legal, más un **indicador de cuadre**
+derivado (mismo patrón que el cuadre anual del presupuesto) que avisa si no suman
+100. En el libro entregado: `cuadra: 100 %`.
+
+> **Estos porcentajes NO son normativos.** No están en EN 15341 ni en VDI 2893:
+> son convención de industria. Por eso son parámetros editables y por eso el
+> tablero no cita códigos de indicador de ninguna norma.
+
+### (a) Cada KPI coincide EXACTAMENTE con su hoja de origen
+
+El verificador escribe el mes en `DASHBOARD!B3`, **recalcula el libro** y compara
+tres cosas para cada tarjeta: el valor del tablero, la celda de la hoja fuente y
+el valor calculado de cero por el motor Python.
+
+| KPI | fórmula del tablero | celda de origen comparada |
+|---|---|---|
+| 1 · Adherencia | `INDEX`/`MATCH` | `ADHERENCIA!E`(fila del mes) |
+| 2 · % carga de capacidad | `INDEX`/`MATCH` | `PERFIL_HH!L`(fila del mes) |
+| 3 · Semanas de backlog | `INDEX`/`MATCH` | `BACKLOG!F`(fila del mes) |
+| 4 · Ejecución OPEX | `SUMPRODUCT` sobre las celdas mensuales | `PRESUPUESTO`, filas `TOTAL GENERAL` de PRESUPUESTO y REAL |
+| 5 · Mix (desvío máximo) | `MAX` sobre el bloque C | conteos de `ADHERENCIA!K:P`(fila del mes) |
+| 6 · Cumplimiento legal | `INDEX`/`MATCH` | `ADHERENCIA!I`(fila del mes) |
+
+**Resultado: 0 desviaciones** en las tres vías, en los meses probados. Ningún
+KPI tiene un número propio.
+
+### (b) Al cambiar de mes se mueve todo, de forma coherente
+
+Cada fila de esta tabla es **un recálculo completo del libro** con ese mes en el
+selector (0 errores de fórmula en todos):
+
+**Default** (fecha de datos 2026-07-27):
+
+| mes | corte aplicado | órdenes | adherencia | % carga | semanas backlog | OPEX acum. | mix (desvío máx.) | legal |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| 2026-02 | 2026-02-28 | 4 | 0 % | — | 0,03 | 25,2 % | 45 pp | — |
+| 2026-07 | **2026-07-26** | **29** (31 quedan fuera) | 89,7 % | 34,0 % | 0,40 | 70,6 % | 15,2 pp | — |
+| 2026-08 | 2026-08-31 | 56 | 0 % | 36,1 % | 1,22 | 73,5 % | 11,8 pp | **0 % · 2 vencidas** |
+| 2027-01 | 2027-01-31 | 2 | 0 % | — | 1,29 | — | 25 pp | — |
+
+**Banco §7** (fecha de datos 2026-11-02):
+
+| mes | corte aplicado | órdenes | adherencia | % carga | semanas backlog | OPEX acum. | mix (desvío máx.) | legal |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| 2026-03 | 2026-03-31 | 84 | 84,5 % | 19,9 % | 0,23 | 102,5 % | 24,8 pp | **75 % · 1 vencida** |
+| 2026-11 | **2026-11-01** | **0** (271 quedan fuera) | — | — | 0,69 | 94,6 % | — | — |
+| 2026-12 | 2026-12-31 | 60 | 0 % | 10,8 % | 1,96 | 94,1 % | 6,7 pp | **0 % · 10 vencidas** |
+
+Los cuatro gráficos se alimentan de bloques que dependen del mismo selector, así
+que se mueven con él: el semanal muestra las semanas ISO del mes elegido, el de
+especialidad y el de mix leen la fila de ese mes, y el de OPEX deja en blanco los
+meses posteriores al elegido.
+
+Tres celdas en blanco que **son correctas y no fallos**: `% carga` está vacío en
+los meses sin filas de `ASIGNACIONES` (el default solo programa 4 semanas, así
+que fuera de julio y agosto no hay capacidad que medir); `OPEX` está vacío cuando
+el mes no pertenece al año presupuestado (2027-01); y `legal` está vacío cuando
+el mes no tiene ninguna orden de esa clase. La adherencia sale 0 % en varios
+meses porque el dataset solo tiene cierres (`EJECUCION`) dentro de la ventana
+programada.
+
+### (c) El mes en curso corta el DÍA ANTERIOR a la fecha de datos
+
+El corte se ancla a **`p_fecha_datos`** (parámetro nuevo, se inyecta al generar
+con el ancla del libro) y **nunca a `HOY()`**: así el tablero es la misma foto
+cada vez que se abre. REGLA-3/REGLA-4 siguen usando `HOY()` por diseño — son el
+envejecimiento vivo del backlog, no la foto del tablero.
+
+- Default, mes 2026-07 con fecha de datos 2026-07-27 → corte **2026-07-26**.
+  Entran **29** órdenes; **31** órdenes de julio con fecha ≥ 27 quedan fuera.
+  Ni el día de la fecha de datos ni los posteriores entran.
+- Banco, mes 2026-11 con fecha de datos 2026-11-02 → corte **2026-11-01**.
+  Entran **0** (la ventana programada arranca el día 2); **271** quedan fuera.
+- Meses cerrados y futuros: corte = fin de mes, verificado celda a celda contra
+  la columna `corte` de la hoja fuente en los 7 meses probados.
+
+El tablero **lo dice en pantalla**, no solo en la documentación:
+`MES EN CURSO: incluye hasta el 2026-07-26 (ni el día de la fecha de datos ni los
+posteriores entran)`, y cambia el texto a «mes cerrado» o «mes futuro: muestra lo
+PLANIFICADO» según corresponda.
+
+### (d) Reconciliación del mix: nada se pierde
+
+Por cada mes probado se comprobó que **las 5 clases + SIN CLASIFICAR = todas las
+órdenes del mes** hasta el corte, en tres sitios a la vez: la columna DIFERENCIA
+del bloque de `ADHERENCIA` (**0** en todos), la fila DIFERENCIA del bloque C del
+tablero (**0** en todos) y la suma de porcentajes (**100 %** en todos los meses
+con órdenes). Ejemplo del banco, 2026-03: predictivo 4 + preventivo 14 +
+correctivo programado 34 + emergencia 25 + legal 4 + SIN CLASIFICAR 3 = **84** =
+órdenes del mes.
+
+El **cuadre de metas** se probó en los dos sentidos: con los defaults muestra
+`cuadra: 100 %`; el indicador es derivado, así que cualquier edición que rompa la
+suma lo pone en rojo con el total real.
+
+### (e) Ejes: ninguno con máximo fijo
+
+| gráfico | `y.max` | eje Y visible | eje X visible |
+|---|---|---|---|
+| A · Cumplimiento semanal del mes vs meta | `None` | sí | sí |
+| B · Carga vs capacidad productiva por especialidad | `None` | sí | sí |
+| C · Mix de mantenimiento: real vs meta | `None` | sí | sí |
+| D · OPEX plan vs real por mes (fijo y variable) | `None` | sí | sí |
+
+Autoescala en los cuatro, con `delete=False` explícito en ambos ejes (dejarlo en
+`None` permitía que el consumidor los ocultara) y el eje de categorías forzado
+abajo. Etiquetas de datos **solo** en la serie de barras del gráfico A, que es la
+que se lee de un vistazo; en los demás manda el eje, ya visible.
+
+### (f) Navegación
+
+Los 7 hipervínculos (`PLAN_SEMANAL · ADHERENCIA · PERFIL_HH · BACKLOG ·
+PRESUPUESTO · ORDENES · VALIDACION`) apuntan a hojas que **existen y están
+visibles**; ninguno apunta a una hoja oculta. Son `HYPERLINK("#HOJA!A1", …)`:
+sin macros, y funcionan igual en Excel y en LibreOffice.
+
+### Higiene: hojas ocultas
+
+**11 hojas ocultas** (12 en el banco) con `hidden`, **nunca `veryHidden`**: los 8
+catálogos `CAT_*`, `GUIA_IMPORTAR_ORDENES`, `INICIO`, `_COMPATIBILIDAD` y
+`_BANCO_PRUEBA`. Quedan **20 hojas visibles**, `PARAMETROS` entre ellas porque se
+ajusta con frecuencia. Se recuperan con clic derecho en cualquier pestaña →
+*Mostrar*.
+
+### Restricciones duras: comprobadas sobre los archivos finales
+
+| restricción | comprobación |
+|---|---:|
+| Sin macros / VBA | 0 `vbaProject` en los 4 archivos; siguen siendo `.xlsx` |
+| Sin formas ni objetos de dibujo | 7 marcos de gráfico; **0** formas, **0** conectores, **0** imágenes. Las tarjetas son celdas combinadas con relleno, bordes y formato condicional |
+| Sin `LET` ni funciones dinámicas | 0 `OFFSET`, 0 `INDIRECT`, 0 referencias de columna completa, 0 enlaces externos |
+| Igual en ambas variantes | El `DASHBOARD` es **idéntico celda a celda** entre `MantPlan.xlsx` y `MantPlan_compatible.xlsx`: **194 celdas comparadas, 0 diferencias**, 4 gráficos en cada uno. Usa `INDEX`/`MATCH` directo, así que no depende del modo de referencias |
+
+### Prohibiciones de presentación
+
+Barrido automático sobre la hoja `DASHBOARD` de los dos libros: **0** apariciones
+de un nombre de técnico, **0** menciones de «estimadas vs reales» y **0** códigos
+de indicador de norma. El detalle individual sigue donde estaba, en
+`SEGUIMIENTO_HH`, y el tablero solo agrega por especialidad.
+
+### (g) Nada del motor previo cambió de valor
+
+Comparación bloque a bloque del motor contra el commit anterior (`5d5df33`), con
+la misma ancla: de los **29 bloques** de `calcular_esperado`, el único campo que
+cambia es **`tipo_ot`**, y por una razón deliberada: la siembra sintética ahora
+deriva el tipo de OT preventivo de la naturaleza de la actividad, para que un
+«Análisis predictivo» no quede clasificado como preventivo y el mix signifique
+algo. `clasificacion` (REGLA-1) es preventiva en los tipos afectados igual que
+antes, así que **ningún agregado se mueve**: perfil, adherencia, presupuesto,
+costos, backlog, seguimiento, capacidad, rotación y validación son idénticos.
+(`exportar` figura como distinto solo porque incrusta órdenes completas y estas
+llevan las dos columnas nuevas; sus cifras —34 órdenes, 275 HH, 202/73
+preventiva/correctiva, 15 técnicos, top 5— son las mismas.)
+
+| | fórmulas | errores | comparaciones | fallos |
+|---|---:|---:|---:|---:|
+| Default (compatible, ancla 2026-07-27) | 79.066 | **0** | 15.436 | **0** |
+| Banco §7 (compatible, 1.000 órdenes) | 150.496 | **0** | 62.177 | **0** |
+| DASHBOARD, default (4 meses × recálculo) | — | **0** | 150 | **0** |
+| DASHBOARD, banco (3 meses × recálculo) | — | **0** | 88 | **0** |
+
+Los 16 contadores de `VALIDACION` del banco siguen cuadrando uno a uno con el
+manifiesto de siembra, la ventana programada mantiene 190 programadas / 75
+remanente / 0 fuera de especialidad / 0 no disponible / 0 sobre capacidad, y la
+reconciliación del presupuesto sigue en 12/12 meses en los dos datasets.
+
+> **Mejora del verificador, de paso.** Ahora lee el ancla del propio libro
+> (`PARAMETROS!fecha_datos`) en vez de usar `date.today()`, y mide las cuatro
+> columnas de envejecimiento —y los tramos de `BACKLOG`— contra el día real del
+> recálculo, inferido del libro y exigido único. Antes, ejecutar la verificación
+> un día distinto al del ancla producía cientos de falsos fallos; ahora verifica
+> el archivo que de verdad se entrega, se ejecute el día que se ejecute.
+
+### Qué NO se verificó / supuestos
+
+(i) Solo se recalculan las variantes **compatibles**: LibreOffice no evalúa
+`XLOOKUP`. Para el tablero esto es menos relevante que nunca, porque sus celdas
+son idénticas en las dos variantes (comprobado arriba). (ii) El aspecto visual
+—que las tarjetas se vean como tarjetas, los colores, el ancho de columnas— no se
+puede verificar por programa: se comprueba la estructura (celdas combinadas,
+rellenos, bordes, reglas de formato condicional), no el render. (iii) Los
+hipervínculos se verifican por su destino en la fórmula, no haciendo clic.
+(iv) El criterio del KPI 5 (desvío máximo en puntos porcentuales, y la clase que
+lo causa) es una **elección de legibilidad**, no un estándar; queda documentado
+en el propio tablero y en el README. (v) Las metas de mix son convención, no
+norma. (vi) `semanas_de_backlog` usa como denominador la capacidad productiva de
+una semana con la **dotación activa actual**; no proyecta altas ni bajas.
+(vii) El recálculo independiente lo corre el usuario.
+
+---
+
+## 0-bis. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
 
 Tirada de correcciones. **No toca las 10 reglas, el presupuesto, VAC, el
 seguimiento ni el banco**: con los 16 técnicos activos el motor devuelve
@@ -254,7 +500,7 @@ DASHBOARD.** (vii) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-bis. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
+## 0-ter. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
 
 Hoja **derivada** nueva (`PRESUPUESTO`), colocada en el grupo de presentación
 justo después de `COSTOS`. **No toca las 10 reglas, la rotación, VAC, el
@@ -359,7 +605,7 @@ mide contra el día de apertura, igual que las columnas de envejecimiento.
 
 ---
 
-## 0-ter. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+## 0-quater. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
 
 Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
 rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los

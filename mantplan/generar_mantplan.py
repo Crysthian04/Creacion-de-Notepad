@@ -40,14 +40,14 @@ from openpyxl.chart import BarChart, LineChart, Reference, Series
 from openpyxl.chart.label import DataLabelList
 from openpyxl.chart.marker import Marker
 from openpyxl.formatting.rule import CellIsRule, ColorScaleRule, FormulaRule
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.2.0"
+VERSION = "3.3.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -98,6 +98,29 @@ PARAMETROS = [
      "Año del presupuesto OPEX de la hoja PRESUPUESTO (por defecto, el año del ancla)."),
     ("tolerancia_desviacion_presupuesto", 0.10,
      "Desviación relativa tolerada antes de marcar sobre/bajo presupuesto (semáforo)."),
+    # DASHBOARD: fecha a la que están los datos del libro. El tablero corta con
+    # ella y NUNCA con HOY(), para que la foto sea estable y reproducible. Se
+    # inyecta al generar (= el ancla). REGLA-3/REGLA-4 siguen usando HOY() por
+    # diseño: son el envejecimiento vivo del backlog, no la foto del tablero.
+    ("fecha_datos", None,
+     "FECHA de los datos del libro. El DASHBOARD corta con ella (mes en curso: hasta el día anterior)."),
+    # DASHBOARD — metas de distribución del mix de mantenimiento. NO son
+    # normativas: no salen de EN 15341 ni de VDI 2893, son convención de
+    # industria y cada planta ajusta las suyas. Por eso son editables.
+    ("meta_pct_predictivo", 25, "Meta de mix: % de órdenes predictivas. Convención, NO norma."),
+    ("meta_pct_preventivo", 40, "Meta de mix: % de órdenes preventivas. Convención, NO norma."),
+    ("meta_pct_correctivo_programado", 20,
+     "Meta de mix: % de correctivos programados. Convención, NO norma."),
+    ("meta_pct_emergencia", 5, "Meta de mix: % de emergencias. Convención, NO norma."),
+    ("meta_pct_legal", 10, "Meta de mix: % de órdenes legales. Convención, NO norma."),
+    # Cuadre DERIVADO de las metas (mismo patrón que el cuadre anual del
+    # presupuesto): avisa si los cinco porcentajes no suman 100.
+    ("cuadre_metas_mix",
+     '=IF(p_meta_pct_predictivo+p_meta_pct_preventivo+p_meta_pct_correctivo_programado'
+     '+p_meta_pct_emergencia+p_meta_pct_legal=100,"cuadra: 100 %","DESCUADRE: suman "'
+     '&(p_meta_pct_predictivo+p_meta_pct_preventivo+p_meta_pct_correctivo_programado'
+     '+p_meta_pct_emergencia+p_meta_pct_legal)&" %, deben sumar 100")',
+     "Cuadre de las metas de mix. Derivado: avisa si los cinco porcentajes no suman 100."),
 ]
 # Fila de cada parámetro dentro de la hoja PARAMETROS (encabezado en fila 3).
 FILA_PARAM = {p[0]: 4 + i for i, p in enumerate(PARAMETROS)}
@@ -259,12 +282,33 @@ def _categorias_presupuesto():
 CATEGORIAS_PRESUPUESTO = _categorias_presupuesto()
 SIN_CLASIFICAR_PPTO = "SIN CLASIFICAR"
 
+# DASHBOARD: la CLASE DE MANTENIMIENTO es atributo del TIPO DE OT y no de la
+# actividad. Razón: es el tipo de OT —y solo él— el que distingue un correctivo
+# PROGRAMADO de una EMERGENCIA (la actividad "Reparación de falla" es la misma en
+# los dos casos), y ese corte es justo el que hoy no se podía hacer. Poner la
+# clase en CAT_ACTIVIDADES habría duplicado su columna `tipo`, que ya dice
+# preventivo/correctivo/predictivo/legal. Es la decisión inversa a la del
+# presupuesto (allí la categoría SÍ vive en la actividad, porque describe QUÉ se
+# gasta) y por el mismo criterio: cada atributo en el catálogo que lo determina.
+# Onboardear otra empresa = mapear sus tipos de OT a estas 5 clases.
+CLASES_MANTENIMIENTO = ["predictivo", "preventivo", "correctivo_programado",
+                        "emergencia", "legal"]
+SIN_CLASIFICAR_CLASE = "SIN CLASIFICAR"
 TIPOS_OT = [
-    ("TIPO-P1", "Orden preventiva programada", "preventiva"),
-    ("TIPO-P2", "Orden preventiva legal/predictiva", "preventiva"),
-    ("TIPO-C1", "Orden correctiva planificada", "correctiva"),
-    ("TIPO-C2", "Orden correctiva de emergencia", "correctiva"),
+    ("TIPO-P1", "Orden preventiva programada", "preventiva", "preventivo"),
+    ("TIPO-P2", "Orden predictiva (análisis de condición)", "preventiva", "predictivo"),
+    ("TIPO-P3", "Orden legal / calibración obligatoria", "preventiva", "legal"),
+    ("TIPO-C1", "Orden correctiva planificada", "correctiva", "correctivo_programado"),
+    ("TIPO-C2", "Orden correctiva de emergencia", "correctiva", "emergencia"),
 ]
+# tipo_ot → clase. Un tipo sin clase (o fuera de catálogo) cae en SIN CLASIFICAR:
+# el mismo criterio que el presupuesto, la orden nunca desaparece del mix.
+CAT_CLASE = {t[0]: t[3] for t in TIPOS_OT}
+# Naturaleza de cada actividad (columna `tipo` de CAT_ACTIVIDADES) y tipo de OT
+# preventivo que le corresponde. Solo se usan para SEMBRAR datos sintéticos
+# coherentes; el libro no depende de ellos.
+TIPO_ACTIVIDAD = {a[0]: a[2] for a in ACTIVIDADES}
+TIPO_OT_PREVENTIVO = {"preventivo": "TIPO-P1", "predictivo": "TIPO-P2", "legal": "TIPO-P3"}
 
 ESTADOS_ERP = [
     ("CERR", "Cerrada"),
@@ -330,7 +374,7 @@ EQUIPOS_POR_AREA = {
 }
 ESPECIALIDADES = ("MEC", "ELE", "AUT", "TERCERO")
 
-CAT_TIPOS = {c: cl for c, _, cl in TIPOS_OT}
+CAT_TIPOS = {t[0]: t[2] for t in TIPOS_OT}
 CAT_ESTADOS = dict(ESTADOS_ERP)
 CAT_CECO = {c[0]: c for c in CENTROS_COSTO}
 CAT_PUESTOS = {c: e for c, e, *_ in PUESTOS}
@@ -723,11 +767,18 @@ def generar_datos(hoy):
         area = CAT_CECO[ceco][3] if ceco in CAT_CECO else "PRODUCCION"
         equipos = EQUIPOS_POR_AREA[area]
         equipo = equipos[consecutivo[0] % len(equipos)]
-        if tipo is None:
-            tipo = ("TIPO-P1", "TIPO-P2")[consecutivo[0] % 2] if clasif == "preventiva" \
-                else ("TIPO-C1", "TIPO-C2")[consecutivo[0] % 2]
         if act is None:
             act = ("ACT-01", "ACT-02", "ACT-04")[consecutivo[0] % 3] if clasif == "preventiva" else "ACT-03"
+        if tipo is None:
+            # El tipo de OT preventivo se deriva de la NATURALEZA de la actividad
+            # (columna `tipo` de CAT_ACTIVIDADES), para que la clase de
+            # mantenimiento del mix sea coherente con el trabajo descrito: un
+            # "Análisis predictivo" no puede quedar como preventivo. Los
+            # correctivos alternan planificada/emergencia, que es justo el corte
+            # que el tipo de OT aporta y la actividad no puede dar.
+            tipo = (TIPO_OT_PREVENTIVO[TIPO_ACTIVIDAD.get(act, "preventivo")]
+                    if clasif == "preventiva"
+                    else ("TIPO-C1", "TIPO-C2")[consecutivo[0] % 2])
         tarifa = TARIFA["preventiva" if clasif == "preventiva" else "correctiva"]
         o = {
             "orden": oid, "operacion": operacion,
@@ -779,7 +830,7 @@ def generar_datos(hoy):
     for si, horas in PRESUPUESTO_TERCERO.items():
         for j, h in enumerate(partir_horas(horas)):
             nueva(lunes_sem[si] + timedelta(days=j % 5), h, "TERCERO", "preventiva",
-                  "plan_tercero", si=si, ceco="CC-310", act="ACT-05", tipo="TIPO-P2")
+                  "plan_tercero", si=si, ceco="CC-310", act="ACT-05", tipo="TIPO-P3")
 
     # Órdenes de fin de semana (6.1: base L-S). El SÁBADO es hábil (consume
     # capacidad y cuenta en adherencia); el DOMINGO es el día normal no hábil
@@ -977,7 +1028,7 @@ HORAS_VENTANA = (2, 3, 4)
 HORAS_CRUDO = (2, 3, 4, 6, 8, 10)
 # Combinaciones (actividad, tipo_ot) tomadas de los CATÁLOGOS, no hardcodeadas.
 COMBOS_PREV = [("ACT-01", "TIPO-P1"), ("ACT-02", "TIPO-P1"),
-               ("ACT-04", "TIPO-P2"), ("ACT-05", "TIPO-P2")]
+               ("ACT-04", "TIPO-P2"), ("ACT-05", "TIPO-P3")]
 COMBOS_CORR = [("ACT-03", "TIPO-C1"), ("ACT-03", "TIPO-C2"), ("ACT-06", "TIPO-C1")]
 
 
@@ -1508,8 +1559,13 @@ def calcular_esperado(datos):
             "horas_efectivas": efectivas,
             "estado": CAT_ESTADOS.get(e["estado_sistema"], "Pendiente") if e else "Pendiente",
             "semana": semana, "anio": f.year if f else "", "mes": f.month if f else "",
+            # DASHBOARD: clave de mes AAAA-MM y clase de mantenimiento heredada
+            # del catálogo de tipos de OT (SIN CLASIFICAR si el tipo no la trae).
+            "mes_clave": f"{f.year}-{f.month:02d}" if f else "",
             "dia_semana": dia,
             "clasificacion": regla_1_clasificacion(o["tipo_ot"], CAT_TIPOS),
+            "clase_mantenimiento": (CAT_CLASE.get(o["tipo_ot"], "") or SIN_CLASIFICAR_CLASE)
+                                   if o["tipo_ot"] else "",
             "linea": ceco[CECO_LINEA] if ceco else SIN_CATALOGO,
             "area": area_o, "sub_area": sub_o,
             "coordinador": ceco[CECO_COORD] if ceco else SIN_CATALOGO,
@@ -1580,7 +1636,9 @@ def calcular_esperado(datos):
                          ("especialidad", list(ESPECIALIDADES)),
                          ("coordinador", sorted(set(COORD_POR_AREA.values()))),
                          ("tecnico_asignado", [t[1] for t in TECNICOS_ACTIVOS]),
-                         ("clasificacion", ["preventiva", "correctiva", "sin_clasificar"])):
+                         ("clasificacion", ["preventiva", "correctiva", "sin_clasificar"]),
+                         ("clase_mantenimiento",
+                          CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE])):
         for v in valores:
             adherencia[(dim, v)] = regla_7_adherencia([o for o in habiles if o[dim] == v])
 
@@ -1853,7 +1911,8 @@ CAMPOS_ORDENES = [
     "equipo", "centro_costo", "puesto_trabajo", "cod_actividad", "tipo_ot",
     "fecha_inicio", "horas_estimadas", "costo_plan",
     "horas_efectivas",
-    "estado", "semana", "anio", "mes", "dia_semana", "es_habil", "clasificacion",
+    "estado", "semana", "anio", "mes", "mes_clave", "dia_semana", "es_habil",
+    "clasificacion", "clase_mantenimiento",
     "linea", "area", "sub_area", "coordinador", "especialidad", "actividad",
     "backlog_dias", "backlog_habiles", "estado_backlog", "en_plan",
     "tecnico_asignado", "turno_asignado", "HHA", "HHD",
@@ -1951,12 +2010,27 @@ def formulas_ordenes(R):
                 return f'=IF({fe}="","",YEAR({fe}))'
             if campo == "mes":
                 return f'=IF({fe}="","",MONTH({fe}))'
+            if campo == "mes_clave":
+                # DASHBOARD: clave de mes AAAA-MM. Se arma con anio y mes ya
+                # calculados (no con TEXT sobre la fecha) para no depender del
+                # formato regional. Es la clave del selector y de los bloques
+                # mensuales de ADHERENCIA / PERFIL_HH / BACKLOG.
+                return (f'=IF({fe}="","",{f("anio", fila)}&"-"&'
+                        f'TEXT({f("mes", fila)},"00"))')
             if campo == "dia_semana":
                 return f'=IF({fe}="","",INDEX(lista_dias,WEEKDAY({fe},2)))'
             if campo == "es_habil":
                 # Calendario laboral con el área y sub-área de la propia orden.
                 return (f'=IF({fe}="","",'
                         + formula_es_habil(R, fe, f("area", fila), f("sub_area", fila)) + ")")
+            if campo == "clase_mantenimiento":
+                # DASHBOARD: la clase se HEREDA del catálogo de tipos de OT. Si el
+                # tipo no está o no tiene clase, la orden cae en SIN CLASIFICAR
+                # (visible en el mix), nunca desaparece.
+                cl = R.busca(f("tipo_ot", fila), "tblTiposOT", "codigo",
+                             "clase_mantenimiento", f'"{SIN_CLASIFICAR_CLASE}"')
+                return (f'=IF({f("tipo_ot", fila)}="","",'
+                        f'IF({cl}="","{SIN_CLASIFICAR_CLASE}",{cl}))')
             if campo == "clasificacion":
                 return f'=IF({f("tipo_ot", fila)}="","",' + \
                     R.busca(f("tipo_ot", fila), "tblTiposOT", "codigo",
@@ -2070,6 +2144,17 @@ FILL_GRIS = PatternFill("solid", fgColor="F2F2F2")
 FILL_VERDE = PatternFill("solid", fgColor="C6EFCE")
 FILL_AMAR = PatternFill("solid", fgColor="FFEB9C")
 FILL_ROJO = PatternFill("solid", fgColor="FFC7CE")
+# DASHBOARD: las tarjetas se dibujan con CELDAS (combinadas, relleno y bordes),
+# nunca con formas ni objetos de dibujo, para que se vean igual en Excel 2016 y
+# en LibreOffice y para que el libro siga siendo un .xlsx sin objetos.
+FILL_TARJETA = PatternFill("solid", fgColor="F7F9FC")
+FILL_BANDA = PatternFill("solid", fgColor="1F4E78")
+F_KPI = Font(name="Arial", size=26, bold=True, color="1F4E78")
+F_KPI_TIT = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+F_KPI_META = Font(name="Arial", size=9, color="595959")
+F_BOTON = Font(name="Arial", size=10, bold=True, color="1F4E78", underline="single")
+_LADO = Side(style="thin", color="BFBFBF")
+BORDE_TARJETA = Border(left=_LADO, right=_LADO, top=_LADO, bottom=_LADO)
 FMT_FECHA = "yyyy-mm-dd"
 FMT_DINERO = "#,##0"
 FMT_PCT = "0.0%"
@@ -2102,6 +2187,25 @@ def agregar_tabla(ws, tb):
     ws.add_table(t)
 
 
+# ── DASHBOARD: fechas derivadas de una clave de mes "AAAA-MM" ──────────────
+# El corte NUNCA usa HOY(): se ancla a p_fecha_datos (la fecha de los datos del
+# libro). Si el mes de la clave es el mes de esa fecha, el corte es el DÍA
+# ANTERIOR (mes en curso parcial); en cualquier otro mes, el último día del mes.
+def _mes_ini(c):
+    return f'DATE(VALUE(LEFT({c},4)),VALUE(RIGHT({c},2)),1)'
+
+
+def _mes_fin(c):
+    return f'DATE(VALUE(LEFT({c},4)),VALUE(RIGHT({c},2))+1,0)'
+
+
+MES_DE_FECHA_DATOS = 'YEAR(p_fecha_datos)&"-"&TEXT(MONTH(p_fecha_datos),"00")'
+
+
+def _mes_corte(c):
+    return f'IF({c}="","",IF({c}={MES_DE_FECHA_DATOS},p_fecha_datos-1,{_mes_fin(c)}))'
+
+
 def semaforo_carga(ws, rango):
     """Semáforo REGLA-6: verde < 85 %, amarillo 85–100 %, rojo > 100 %."""
     ws.conditional_formatting.add(rango, CellIsRule(
@@ -2126,6 +2230,10 @@ def escala_adherencia(ws, rango):
 
 
 def construir_libro(datos, esperado, ruta, refs="estructuradas"):
+    # Anclas de los bloques mensuales que alimentan el DASHBOARD. Las hojas
+    # fuente las publican al construirse y el tablero las lee: así el tablero
+    # referencia celdas concretas en vez de recalcular nada.
+    ANC = {}
     hoy = datos["hoy"]
     semanas = datos["semanas"]
     n_ord, n_ejec, n_asig = len(datos["ordenes"]), len(datos["ejecucion"]), len(datos["asignaciones"])
@@ -2154,7 +2262,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                                 ["codigo", "descripcion", "tipo",
                                  "categoria_presupuesto", "clasificacion"], len(ACTIVIDADES)),
         "tblTiposOT": Tabla("tblTiposOT", "CAT_TIPOS_OT", 3,
-                            ["codigo", "descripcion", "clasificacion"], len(TIPOS_OT)),
+                            ["codigo", "descripcion", "clasificacion",
+                             "clase_mantenimiento"], len(TIPOS_OT)),
         "tblEstados": Tabla("tblEstados", "CAT_ESTADOS_ERP", 3,
                             ["estado_sistema", "estado_normalizado"], len(ESTADOS_ERP)),
         "tblTurnos": Tabla("tblTurnos", "CAT_TURNOS", 3,
@@ -2221,6 +2330,9 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             v = datos["semana_referencia"]
         if p == "anio_presupuesto":
             v = datos["anio_presupuesto"]
+        # DASHBOARD: la fecha de datos es el ancla del libro, no HOY().
+        if p == "fecha_datos":
+            v = datos["hoy"]
         # Un valor que empieza por "=" es una celda DERIVADA (fórmula): se
         # muestra con estilo de celda calculada (negro), no de input (azul),
         # y no lleva validación de entrada.
@@ -2256,6 +2368,16 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     dv4 = DataValidation(type="whole", operator="between", formula1="1", formula2="20")
     ws.add_data_validation(dv4)
     dv4.add(f"B{FILA_PARAM['top_tareas']}")
+    # Metas de mix: enteros 0..100 (no bloquean; el cuadre es el que avisa).
+    dv5 = DataValidation(type="whole", operator="between", formula1="0", formula2="100",
+                         showErrorMessage=False)
+    ws.add_data_validation(dv5)
+    for _m in ("predictivo", "preventivo", "correctivo_programado", "emergencia", "legal"):
+        dv5.add(f"B{FILA_PARAM['meta_pct_' + _m]}")
+    ws.conditional_formatting.add(
+        f"B{FILA_PARAM['cuadre_metas_mix']}",
+        FormulaRule(formula=[f'LEFT($B${FILA_PARAM["cuadre_metas_mix"]},9)="DESCUADRE"'],
+                    fill=FILL_ROJO))
 
     nombres = {
         "p_moneda": FILA_PARAM["moneda"], "p_horas_jornada": FILA_PARAM["horas_jornada"],
@@ -2274,6 +2396,12 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "p_tolerancia_horas_bono": FILA_PARAM["tolerancia_horas_bono"],
         "p_anio_presupuesto": FILA_PARAM["anio_presupuesto"],
         "p_tolerancia_desviacion_presupuesto": FILA_PARAM["tolerancia_desviacion_presupuesto"],
+        "p_fecha_datos": FILA_PARAM["fecha_datos"],
+        "p_meta_pct_predictivo": FILA_PARAM["meta_pct_predictivo"],
+        "p_meta_pct_preventivo": FILA_PARAM["meta_pct_preventivo"],
+        "p_meta_pct_correctivo_programado": FILA_PARAM["meta_pct_correctivo_programado"],
+        "p_meta_pct_emergencia": FILA_PARAM["meta_pct_emergencia"],
+        "p_meta_pct_legal": FILA_PARAM["meta_pct_legal"],
     }
     for nom, fila in nombres.items():
         wb.defined_names.add(DefinedName(nom, attr_text=f"PARAMETROS!$B${fila}"))
@@ -2810,6 +2938,12 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             f'<=p_tolerancia_desviacion_presupuesto,"dentro",'
             f'IF($O${bloques["desv"][f]}>0,"sobre","bajo"))))'))
 
+    # El DASHBOARD lee estas filas tal cual (KPI 4 y gráfico D): no recalcula el
+    # presupuesto, solo acumula las celdas mensuales que ya están aquí.
+    for _k in ("ppto", "real"):
+        for _f in ("TOTAL GENERAL", "Subtotal FIJO", "Subtotal VARIABLE"):
+            ANC[f"ppto_{_k}_{_f.split()[-1].lower()}"] = bloques[_k][_f]
+
     # Reconciliación visible: la fila DIFERENCIA debe quedar en 0 los 12 meses.
     fr_dif = bloques["real"]["DIFERENCIA (debe ser 0)"]
     ws.conditional_formatting.add(
@@ -3124,6 +3258,53 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         celda(ws, fr, 6, f'=IF(E{fr}="","",IF(E{fr}<=1-p_meta_ratio_prev_corr,"SI","NO"))')
         if k in ocultas_k:
             ws.row_dimensions[fr].hidden = True
+    # ── MES A MES (fuente del DASHBOARD) ───────────────────────────────────
+    # Carga y capacidad PRODUCTIVA por especialidad y mes, con el mismo corte que
+    # ADHERENCIA. La capacidad sale de las MISMAS horas_disponibles de
+    # ASIGNACIONES que usa el bloque semanal, multiplicadas por el factor de
+    # productividad: es capacidad productiva, no tiempo nominal de presencia.
+    fpm = fila_r9 + CAP_SEM + 3
+    ANC["perfil_mes"] = fpm
+    celda(ws, fpm - 1, 1, "MES A MES — carga vs capacidad PRODUCTIVA por especialidad "
+                          "(fuente del DASHBOARD; no editar). Capacidad productiva = horas "
+                          "disponibles (REGLA-5) × p_factor_productividad. Nunca se exige el "
+                          "100 % del tiempo de presencia.", font=F_SEC)
+    esp_mes = ESPECIALIDADES_PROPIAS
+    cab_pm = ["mes", "corte", "inicio_mes"]
+    for e_ in esp_mes:
+        cab_pm += [f"planificada_{e_}", f"productiva_{e_}"]
+    cab_pm += ["planificada_TOTAL", "productiva_TOTAL", "pct_carga"]
+    encabezados(ws, fpm, cab_pm)
+    o_mesk = R.col("tblOrdenes", "mes_clave")
+    o_fecha = R.col("tblOrdenes", "fecha_inicio")
+    a_fecha = R.col("tblAsignaciones", "fecha")
+    a_esp = R.col("tblAsignaciones", "especialidad")
+    a_disp = R.col("tblAsignaciones", "horas_disponibles")
+    for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
+        fr = fpm + 1 + i
+        celda(ws, fr, 1, f"{anio_m}-{mes_m:02d}")
+        celda(ws, fr, 2, "=" + _mes_corte(f"$A{fr}"), fmt=FMT_FECHA)
+        celda(ws, fr, 3, "=" + _mes_ini(f"$A{fr}"), fmt=FMT_FECHA)
+        for j, e_ in enumerate(esp_mes):
+            cp, cc = 4 + 2 * j, 5 + 2 * j
+            celda(ws, fr, cp,
+                  f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},'
+                  f'{R.col("tblOrdenes", "especialidad")},"{e_}",'
+                  f'{o_mesk},$A{fr},{o_fecha},"<="&$B{fr})', fmt=FMT_HH)
+            celda(ws, fr, cc,
+                  f'=SUMIFS({a_disp},{a_esp},"{e_}",{a_fecha},">="&$C{fr},'
+                  f'{a_fecha},"<="&$B{fr})*p_factor_productividad', fmt=FMT_HH)
+        ctp, ctc = 4 + 2 * len(esp_mes), 5 + 2 * len(esp_mes)
+        Lp = [get_column_letter(4 + 2 * j) + str(fr) for j in range(len(esp_mes))]
+        Lc = [get_column_letter(5 + 2 * j) + str(fr) for j in range(len(esp_mes))]
+        celda(ws, fr, ctp, "=" + "+".join(Lp), fmt=FMT_HH)
+        celda(ws, fr, ctc, "=" + "+".join(Lc), fmt=FMT_HH)
+        celda(ws, fr, ctc + 1,
+              f"=IF({get_column_letter(ctc)}{fr}=0,\"\","
+              f"{get_column_letter(ctp)}{fr}/{get_column_letter(ctc)}{fr})", fmt=FMT_PCT)
+    col_pct = get_column_letter(6 + 2 * len(esp_mes))
+    semaforo_carga(ws, f"{col_pct}{fpm + 1}:{col_pct}{fpm + len(esperado['meses'])}")
+
     for colw, w in (("A", 13), ("B", 13), ("C", 13), ("D", 14), ("E", 14), ("F", 14),
                     ("G", 14), ("H", 12), ("I", 11), ("N", 13), ("O", 18)):
         ws.column_dimensions[colw].width = w
@@ -3362,7 +3543,64 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     f3 = bloque_adh(f2, "POR COORDINADOR", "coordinador", sorted(set(COORD_POR_AREA.values())))
     f4 = bloque_adh(f3, "POR CLASIFICACIÓN", "clasificacion",
                     ["preventiva", "correctiva", "sin_clasificar"])
-    bloque_adh(f4, "POR TÉCNICO", "tecnico_asignado", [t[1] for t in TECNICOS_ACTIVOS])
+    f5 = bloque_adh(f4, "POR CLASE DE MANTENIMIENTO (mix; la clase la hereda la orden de "
+                    "CAT_TIPOS_OT)", "clase_mantenimiento",
+                    CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE])
+    f6 = bloque_adh(f5, "POR TÉCNICO", "tecnico_asignado", [t[1] for t in TECNICOS_ACTIVOS])
+
+    # ── MES A MES (fuente del DASHBOARD) ───────────────────────────────────
+    # El tablero NO calcula: lee estas filas. Aquí vive el corte (mes en curso
+    # hasta el día ANTERIOR a p_fecha_datos), la adherencia del mes, el
+    # cumplimiento legal y el mix por clase con su reconciliación.
+    fm = f6 + 1
+    ANC["adh_mes"] = fm          # fila de encabezados; los datos empiezan en fm+1
+    celda(ws, fm - 1, 1, "MES A MES — corte del tablero (fuente del DASHBOARD; no editar). "
+                         "El mes de la fecha de datos se corta el DÍA ANTERIOR a ella; el resto, "
+                         "a fin de mes. El mix cuenta TODAS las órdenes del mes (la adherencia, "
+                         "solo días hábiles, como REGLA-7).", font=F_SEC)
+    cab_mes = (["mes", "corte", "total_ot", "cerradas", "adherencia", "meta",
+                "legal_programadas", "legal_cerradas", "legal_adherencia", "legal_vencidas"]
+               + CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE,
+                                         "CONTROL — órdenes del mes", "DIFERENCIA (debe ser 0)"])
+    encabezados(ws, fm, cab_mes)
+    o_mesk = R.col("tblOrdenes", "mes_clave")
+    o_fecha = R.col("tblOrdenes", "fecha_inicio")
+    o_est = R.col("tblOrdenes", "estado")
+    o_clase = R.col("tblOrdenes", "clase_mantenimiento")
+    for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
+        fr = fm + 1 + i
+        celda(ws, fr, 1, f"{anio_m}-{mes_m:02d}")
+        celda(ws, fr, 2, "=" + _mes_corte(f"$A{fr}"), fmt=FMT_FECHA)
+        base = f'{o_mesk},$A{fr},{o_fecha},"<="&$B{fr}'
+        hab = f'{R.col("tblOrdenes", "es_habil")},"sí"'
+        celda(ws, fr, 3, f"=COUNTIFS({base},{hab})")
+        celda(ws, fr, 4, f'=COUNTIFS({base},{hab},{o_est},"Cerrada")')
+        celda(ws, fr, 5, f'=IF($C{fr}=0,"",$D{fr}/$C{fr})', fmt=FMT_PCT)
+        celda(ws, fr, 6, "=p_meta_adherencia", fmt="0%")
+        # Cumplimiento legal: se mide sobre TODAS las órdenes legales del mes
+        # (también las de día no hábil): un vencimiento normativo no se excusa
+        # porque cayera en domingo.
+        leg = f'{base},{o_clase},"legal"'
+        celda(ws, fr, 7, f"=COUNTIFS({leg})")
+        celda(ws, fr, 8, f'=COUNTIFS({leg},{o_est},"Cerrada")')
+        celda(ws, fr, 9, f'=IF($G{fr}=0,"",$H{fr}/$G{fr})', fmt=FMT_PCT)
+        celda(ws, fr, 10, f'=COUNTIFS({leg},{o_est},"Pendiente")')
+        for j, cl in enumerate(CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE]):
+            celda(ws, fr, 11 + j, f'=COUNTIFS({base},{o_clase},"{cl}")')
+        c_ini = get_column_letter(11)
+        c_fin = get_column_letter(10 + len(CLASES_MANTENIMIENTO) + 1)
+        col_ctrl = 11 + len(CLASES_MANTENIMIENTO) + 1
+        celda(ws, fr, col_ctrl, f"=COUNTIFS({base})")
+        celda(ws, fr, col_ctrl + 1,
+              f"=SUM({c_ini}{fr}:{c_fin}{fr})-{get_column_letter(col_ctrl)}{fr}")
+    ult_mes = fm + len(esperado["meses"])
+    escala_adherencia(ws, f"E{fm + 1}:E{ult_mes}")
+    escala_adherencia(ws, f"I{fm + 1}:I{ult_mes}")
+    ws.conditional_formatting.add(f"J{fm + 1}:J{ult_mes}",
+                                  CellIsRule(operator="greaterThan", formula=["0"], fill=FILL_ROJO))
+    col_dif = get_column_letter(12 + len(CLASES_MANTENIMIENTO) + 1)
+    ws.conditional_formatting.add(f"{col_dif}{fm + 1}:{col_dif}{ult_mes}",
+                                  CellIsRule(operator="notEqual", formula=["0"], fill=FILL_ROJO))
     grafico = LineChart()
     grafico.title = "Adherencia semanal vs meta"
     grafico.height, grafico.width = 8, 16
@@ -3487,8 +3725,36 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
 
     f0 = matriz_backlog(10, "POR ESPECIALIDAD", "especialidad", list(ESPECIALIDADES))
     f1 = matriz_backlog(f0, "POR ÁREA", "area", areas)
-    matriz_backlog(f1, "POR SUB-ÁREA (herencia: área sin subdividir con su propio nombre)",
-                   "sub_area", SUBAREAS)
+    f2 = matriz_backlog(f1, "POR SUB-ÁREA (herencia: área sin subdividir con su propio nombre)",
+                        "sub_area", SUBAREAS)
+
+    # ── AL CORTE DEL TABLERO (fuente del DASHBOARD) ────────────────────────
+    # Semanas de backlog = horas pendientes acumuladas hasta el corte ÷ capacidad
+    # productiva de una semana. Es una AGREGACIÓN nueva sobre datos que ya
+    # existen (estado, horas_efectivas, fecha): el detalle por tramos sigue
+    # siendo el de arriba, y el tablero enlaza a él.
+    fbm = f2 + 1
+    ANC["backlog_mes"] = fbm
+    celda(ws, fbm - 1, 1, "AL CORTE DEL TABLERO (fuente del DASHBOARD; no editar) — el backlog "
+                          "es ACUMULADO: cuenta todo lo pendiente con fecha hasta el corte del "
+                          "mes, no solo lo del mes.", font=F_SEC)
+    encabezados(ws, fbm, ["mes", "corte", "ordenes_pendientes", "hh_pendientes",
+                          "capacidad_productiva_semanal", "semanas_de_backlog"])
+    o_fecha = R.col("tblOrdenes", "fecha_inicio")
+    o_est = R.col("tblOrdenes", "estado")
+    for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
+        fr = fbm + 1 + i
+        celda(ws, fr, 1, f"{anio_m}-{mes_m:02d}")
+        celda(ws, fr, 2, "=" + _mes_corte(f"$A{fr}"), fmt=FMT_FECHA)
+        pend = f'{o_est},"Pendiente",{o_fecha},"<="&$B{fr}'
+        celda(ws, fr, 3, f"=COUNTIFS({pend})")
+        celda(ws, fr, 4, f'=SUMIFS({R.col("tblOrdenes", "horas_efectivas")},{pend})', fmt=FMT_HH)
+        celda(ws, fr, 5,
+              f'=p_base_semanal_horas*p_factor_productividad*'
+              f'COUNTIFS({R.col("tblTecnicos", "activo")},"{SI}")', fmt=FMT_HH)
+        celda(ws, fr, 6, f'=IF($E{fr}=0,"",$D{fr}/$E{fr})', fmt="0.0")
+    for colw, w in (("F", 20), ("E", 26), ("D", 15), ("C", 19)):
+        ws.column_dimensions[colw].width = w
     for colw, w in (("A", 22), ("B", 10), ("C", 13), ("D", 10), ("E", 10)):
         ws.column_dimensions[colw].width = w
 
@@ -3613,8 +3879,10 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ("CAT_ACTIVIDADES", "tblActividades", ACTIVIDADES,
          "Catálogo de actividades", ("C", '"correctivo,preventivo,predictivo,legal"')),
         ("CAT_TIPOS_OT", "tblTiposOT", TIPOS_OT,
-         "Traducción de tipos de OT del ERP → preventiva/correctiva (REGLA-1)",
-         ("C", '"preventiva,correctiva"')),
+         "Traducción de tipos de OT del ERP → preventiva/correctiva (REGLA-1) y → clase "
+         "de mantenimiento (mix del DASHBOARD). Un tipo sin clase cae en SIN CLASIFICAR",
+         [("C", '"preventiva,correctiva"'),
+          ("D", '"' + ",".join(CLASES_MANTENIMIENTO) + '"')]),
         ("CAT_ESTADOS_ERP", "tblEstados", ESTADOS_ERP,
          "Traducción de estados del ERP → Cerrada/Pendiente", ("B", '"Cerrada,Pendiente"')),
         # 6.2: catálogo de turnos con franja horaria (fuente única).
@@ -3929,14 +4197,371 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         for colw, w in (("A", 38), ("B", 46)):
             ws.column_dimensions[colw].width = w
 
+    # ═══════════════════════════════════════════════════════════ DASHBOARD
+    # Capa VISUAL y de SOLO LECTURA. No implementa ninguna regla ni guarda una
+    # segunda fuente de verdad: cada KPI es un INDEX/MATCH a la fila del mes en
+    # ADHERENCIA / PERFIL_HH / BACKLOG, o una acumulación de celdas que ya
+    # calcula PRESUPUESTO. Se dibuja con CELDAS (combinadas + relleno + bordes)
+    # y formato condicional: sin formas, sin objetos de dibujo y sin macros.
+    ws = wb.create_sheet("DASHBOARD")
+    ws.sheet_properties.tabColor = "1F4E78"
+    NM = len(esperado["meses"])
+    fa0, fa1 = ANC["adh_mes"] + 1, ANC["adh_mes"] + NM
+    fp0, fp1 = ANC["perfil_mes"] + 1, ANC["perfil_mes"] + NM
+    fb0, fb1 = ANC["backlog_mes"] + 1, ANC["backlog_mes"] + NM
+
+    def r_adh(col):
+        return f"ADHERENCIA!${col}${fa0}:${col}${fa1}"
+
+    def r_per(col):
+        return f"PERFIL_HH!${col}${fp0}:${col}${fp1}"
+
+    def r_bkl(col):
+        return f"BACKLOG!${col}${fb0}:${col}${fb1}"
+
+    SEL = "$B$3"
+
+    def del_mes(rango, rango_mes):
+        """Lee la celda del mes seleccionado en una hoja fuente. El tablero no
+        recalcula: localiza la fila del mes y la lee tal cual."""
+        return f'IFERROR(INDEX({rango},MATCH({SEL},{rango_mes},0)),"")'
+
+    col_carga = get_column_letter(6 + 2 * len(ESPECIALIDADES_PROPIAS))
+    col_mix0 = 11                                   # 1.ª columna de mix en ADHERENCIA
+
+    # ---- encabezado ------------------------------------------------------
+    celda(ws, 1, 1, '="TABLERO DE MANTENIMIENTO — "&p_nombre_planta&" · "&p_nombre_empresa',
+          font=F_TIT)
+    ws.merge_cells("A1:R1")
+    celda(ws, 2, 1, "Solo lectura: cada indicador se lee de su hoja de origen (botonera de abajo). "
+                    "Las metas de mix son convención de industria, NO una norma; se ajustan en "
+                    "PARAMETROS.", font=F_NOTA)
+    ws.merge_cells("A2:R2")
+    celda(ws, 3, 1, "Mes:", font=F_SEC)
+    # Al abrir, el tablero muestra el mes de la fecha de datos (la vista natural);
+    # si ese mes no tiene órdenes, cae al último mes con datos.
+    _mes_hoy = f"{datos['hoy'].year}-{datos['hoy'].month:02d}"
+    _meses_txt = [f"{a_}-{m_:02d}" for a_, m_ in esperado["meses"]]
+    celda(ws, 3, 2, _mes_hoy if _mes_hoy in _meses_txt else _meses_txt[-1], font=F_EDIT)
+    # El corte se declara SIEMPRE en pantalla, y se ancla a p_fecha_datos: nunca
+    # a HOY(), para que el tablero sea la misma foto cada vez que se abre.
+    celda(ws, 3, 4,
+          f'="Fecha de datos: "&TEXT(p_fecha_datos,"yyyy-mm-dd")&"   ·   "&'
+          f'IF({SEL}={MES_DE_FECHA_DATOS},'
+          f'"MES EN CURSO: incluye hasta el "&TEXT(p_fecha_datos-1,"yyyy-mm-dd")&'
+          f'" (ni el día de la fecha de datos ni los posteriores entran)",'
+          f'IF({SEL}<{MES_DE_FECHA_DATOS},"mes cerrado: incluye el mes completo",'
+          f'"mes futuro: muestra lo PLANIFICADO del mes completo"))', font=F_SEC)
+    ws.merge_cells("D3:R3")
+
+    # ---- botonera de navegación (HYPERLINK; sin macros) ------------------
+    for i, (hoja, rot) in enumerate([
+            ("PLAN_SEMANAL", "PLAN SEMANAL"), ("ADHERENCIA", "ADHERENCIA"),
+            ("PERFIL_HH", "PERFIL HH"), ("BACKLOG", "BACKLOG"),
+            ("PRESUPUESTO", "PRESUPUESTO"), ("ORDENES", "ORDENES"),
+            ("VALIDACION", "VALIDACION")]):
+        c0 = 1 + i * 2
+        celda(ws, 4, c0, f'=HYPERLINK("#{hoja}!A1","▸ {rot}")', font=F_BOTON,
+              fill=FILL_GRIS, alinear="center")
+        ws.merge_cells(start_row=4, start_column=c0, end_row=4, end_column=c0 + 1)
+    # El encabezado (título + selector + botonera) queda fijo al desplazarse.
+    ws.freeze_panes = "A6"
+
+    # ---- 6 tarjetas KPI --------------------------------------------------
+    def tarjeta(fila, col, titulo, formula, fmt, meta, nota, semaforo=None):
+        """Tarjeta hecha con celdas: banda de título, número grande combinado,
+        línea de meta y línea de origen. El semáforo es formato condicional."""
+        c1, c2 = col, col + 4
+        L1, L2 = get_column_letter(c1), get_column_letter(c2)
+        celda(ws, fila, c1, titulo, font=F_KPI_TIT, fill=FILL_BANDA, alinear="center")
+        ws.merge_cells(start_row=fila, start_column=c1, end_row=fila, end_column=c2)
+        celda(ws, fila + 1, c1, formula, font=F_KPI, fmt=fmt, fill=FILL_TARJETA,
+              alinear="center")
+        ws.merge_cells(start_row=fila + 1, start_column=c1, end_row=fila + 2, end_column=c2)
+        celda(ws, fila + 3, c1, meta, font=F_KPI_META, fill=FILL_TARJETA, alinear="center")
+        ws.merge_cells(start_row=fila + 3, start_column=c1, end_row=fila + 3, end_column=c2)
+        celda(ws, fila + 4, c1, nota, font=F_NOTA, fill=FILL_TARJETA, alinear="center")
+        ws.merge_cells(start_row=fila + 4, start_column=c1, end_row=fila + 4, end_column=c2)
+        for f_ in range(fila, fila + 5):
+            for c_ in range(c1, c2 + 1):
+                ws.cell(row=f_, column=c_).border = BORDE_TARJETA
+        ws.row_dimensions[fila + 1].height = 26
+        ws.row_dimensions[fila + 2].height = 12
+        if semaforo:
+            semaforo(f"{L1}{fila + 1}:{L2}{fila + 1}", f"{L1}{fila + 1}")
+
+    def sem_num(rango, ref, cortes):
+        """Semáforo numérico que ignora la celda vacía: sin el ISNUMBER, Excel
+        compara texto contra número y pintaría de rojo una tarjeta en blanco."""
+        for expr, fill in cortes:
+            ws.conditional_formatting.add(rango, FormulaRule(
+                formula=[f"AND(ISNUMBER({ref}),{expr.format(c=ref)})"], fill=fill))
+
+    F1, F2 = 6, 12
+    tarjeta(F1, 1, "1 · ADHERENCIA AL PROGRAMA",
+            "=" + del_mes(r_adh("E"), r_adh("A")), "0.0%",
+            '="meta "&TEXT(p_meta_adherencia,"0%")&"  ·  REGLA-7, solo días hábiles"',
+            "origen: ADHERENCIA › MES A MES",
+            lambda r, ref: escala_adherencia(ws, r))
+    tarjeta(F1, 7, "2 · % CARGA DE CAPACIDAD",
+            "=" + del_mes(r_per(col_carga), r_per("A")), "0.0%",
+            '="capacidad PRODUCTIVA = disponible × "&TEXT(p_factor_productividad,"0%")&'
+            '"  ·  no es el 100 % del tiempo de presencia"',
+            "origen: PERFIL_HH › MES A MES",
+            lambda r, ref: semaforo_carga(ws, r))
+    tarjeta(F1, 13, "3 · SEMANAS DE BACKLOG",
+            "=" + del_mes(r_bkl("F"), r_bkl("A")), "0.0",
+            "HH pendientes al corte ÷ capacidad productiva de una semana",
+            "origen: BACKLOG › AL CORTE (el detalle por tramos, en la hoja)",
+            lambda r, ref: sem_num(r, ref, [("{c}<4", FILL_VERDE),
+                                            ("AND({c}>=4,{c}<=8)", FILL_AMAR),
+                                            ("{c}>8", FILL_ROJO)]))
+
+    # KPI 4 — ejecución OPEX acumulada (enero → mes elegido). Acumula las celdas
+    # mensuales que YA calcula PRESUPUESTO; no vuelve a sumar costos de órdenes.
+    ARR12D = "{1,2,3,4,5,6,7,8,9,10,11,12}"
+    mes_num = f"VALUE(RIGHT({SEL},2))"
+
+    def acum(fila):
+        return f"SUMPRODUCT(({ARR12D}<={mes_num})*(PRESUPUESTO!$C${fila}:$N${fila}))"
+
+    tarjeta(F2, 1, "4 · EJECUCIÓN OPEX (acumulada)",
+            f'=IF(VALUE(LEFT({SEL},4))<>p_anio_presupuesto,"",'
+            f'IF({acum(ANC["ppto_ppto_general"])}=0,"",'
+            f'{acum(ANC["ppto_real_general"])}/{acum(ANC["ppto_ppto_general"])}))', "0.0%",
+            '="real ÷ presupuesto, enero → mes elegido  ·  tolerancia "&'
+            'TEXT(p_tolerancia_desviacion_presupuesto,"0%")',
+            "origen: PRESUPUESTO › filas TOTAL GENERAL",
+            lambda r, ref: sem_num(r, ref, [
+                ("ABS({c}-1)<=p_tolerancia_desviacion_presupuesto", FILL_VERDE),
+                ("{c}>1+p_tolerancia_desviacion_presupuesto", FILL_ROJO),
+                ("{c}<1-p_tolerancia_desviacion_presupuesto", FILL_AMAR)]))
+
+    # KPI 5 — MIX. Criterio elegido, por legibilidad: el DESVÍO MÁXIMO en puntos
+    # porcentuales entre el mix real del mes y su meta, y la clase que lo causa.
+    # Un solo número dice "cuán lejos estoy del mix objetivo" y, al lado, de qué
+    # clase se trata; un % de "cumplimiento compuesto" escondería la causa.
+    FG_C = 68                                  # bloque de datos del gráfico C
+    rng_pp = f"$E${FG_C + 1}:$E${FG_C + len(CLASES_MANTENIMIENTO) + 1}"
+    rng_cl = f"$A${FG_C + 1}:$A${FG_C + len(CLASES_MANTENIMIENTO) + 1}"
+    tarjeta(F2, 7, "5 · MIX DE MANTENIMIENTO",
+            f'=IF(COUNT({rng_pp})=0,"",MAX({rng_pp}))', '0.0" pp"',
+            f'=IF(COUNT({rng_pp})=0,"",'
+            f'"desvío máximo vs meta · clase: "&INDEX({rng_cl},MATCH(MAX({rng_pp}),{rng_pp},0)))',
+            "origen: ADHERENCIA › MES A MES (conteo por clase) vs metas de PARAMETROS",
+            lambda r, ref: sem_num(r, ref, [("{c}<=5", FILL_VERDE),
+                                            ("AND({c}>5,{c}<=10)", FILL_AMAR),
+                                            ("{c}>10", FILL_ROJO)]))
+
+    # KPI 6 — cumplimiento legal. Es normativo: si queda alguna orden legal
+    # vencida al corte, la tarjeta va en ROJO aunque el porcentaje sea alto.
+    celda(ws, F2 + 5, 7, "=" + del_mes(r_adh("J"), r_adh("A")), font=F_NOTA)
+    ws.cell(row=F2 + 5, column=7).number_format = "0"
+    celda(ws, F2 + 5, 8, "← órdenes legales vencidas al corte (celda de apoyo del semáforo)",
+          font=F_NOTA)
+    ref_venc = f"$G${F2 + 5}"
+    tarjeta(F2, 13, "6 · CUMPLIMIENTO LEGAL / CALIBRACIONES",
+            "=" + del_mes(r_adh("I"), r_adh("A")), "0.0%",
+            f'="legales cerradas ÷ programadas del mes  ·  vencidas: "&{ref_venc}',
+            "origen: ADHERENCIA › MES A MES (clase legal)",
+            lambda r, ref: [
+                ws.conditional_formatting.add(r, FormulaRule(
+                    formula=[f"AND(ISNUMBER({ref_venc}),{ref_venc}>0)"], fill=FILL_ROJO)),
+                ws.conditional_formatting.add(r, FormulaRule(
+                    formula=[f"AND(ISNUMBER({ref}),{ref}>=1)"], fill=FILL_VERDE)),
+                ws.conditional_formatting.add(r, FormulaRule(
+                    formula=[f"AND(ISNUMBER({ref}),{ref}<1)"], fill=FILL_AMAR))])
+
+    # ---- bloques de datos de los gráficos --------------------------------
+    # Viven en la propia hoja, debajo y a la vista (no ocultos): son la fuente
+    # de los cuatro gráficos y hacen auditable de dónde sale cada barra. Todos
+    # LEEN de las hojas fuente; ninguno vuelve a agregar órdenes.
+    celda(ws, 51, 1, "BLOQUES DE DATOS DE LOS GRÁFICOS — se leen de las hojas fuente y responden "
+                     "al mes seleccionado. No editar.", font=F_SEC)
+
+    # A) cumplimiento semanal del mes: hasta 6 semanas ISO cuyo lunes cae en el
+    #    mes. La adherencia de cada semana se LEE del bloque semanal de
+    #    ADHERENCIA (columna D), no se recalcula.
+    FG_A = 53
+    celda(ws, FG_A - 1, 1, "A · cumplimiento semanal del mes elegido", font=F_NOTA)
+    encabezados(ws, FG_A, ["semana", "adherencia", "meta"])
+    ini_mes_sel = _mes_ini(SEL)
+    fin_mes_sel = _mes_fin(SEL)
+    # El bloque semanal de ADHERENCIA arranca en la fila 5 (título 3, cabecera 4).
+    adh_sem_val = f"ADHERENCIA!$D$5:$D${4 + CAP_SEM}"
+    adh_sem_lbl = f"ADHERENCIA!$A$5:$A${4 + CAP_SEM}"
+    for k in range(6):
+        fr = FG_A + 1 + k
+        lun = f"({ini_mes_sel}-WEEKDAY({ini_mes_sel},2)+1+{7 * k})"
+        celda(ws, fr, 1, f'=IF({lun}>{fin_mes_sel},"",'
+                         f'YEAR({lun}+4-WEEKDAY({lun},2))&"-S"&'
+                         f'TEXT(_xlfn.ISOWEEKNUM({lun}),"00"))')
+        celda(ws, fr, 2, f'=IF($A{fr}="","",IFERROR(INDEX({adh_sem_val},'
+                         f'MATCH($A{fr},{adh_sem_lbl},0)),""))', fmt=FMT_PCT)
+        celda(ws, fr, 3, f'=IF($A{fr}="","",p_meta_adherencia)', fmt=FMT_PCT)
+
+    # B) carga vs capacidad productiva por especialidad (nunca por técnico).
+    FG_B = 61
+    celda(ws, FG_B - 1, 1, "B · carga vs capacidad productiva por especialidad "
+                           "(agregado; el detalle individual vive en SEGUIMIENTO_HH)",
+          font=F_NOTA)
+    encabezados(ws, FG_B, ["especialidad", "planificada", "capacidad productiva"])
+    for j, e_ in enumerate(ESPECIALIDADES_PROPIAS):
+        fr = FG_B + 1 + j
+        celda(ws, fr, 1, e_)
+        celda(ws, fr, 2, "=" + del_mes(r_per(get_column_letter(4 + 2 * j)), r_per("A")),
+              fmt=FMT_HH)
+        celda(ws, fr, 3, "=" + del_mes(r_per(get_column_letter(5 + 2 * j)), r_per("A")),
+              fmt=FMT_HH)
+
+    # C) mix real vs meta por clase. El % real sale de los conteos por clase del
+    #    bloque MES A MES de ADHERENCIA; la meta, de PARAMETROS.
+    celda(ws, FG_C - 1, 1, "C · mix de mantenimiento: real vs meta (en % de las órdenes del mes)",
+          font=F_NOTA)
+    encabezados(ws, FG_C, ["clase", "real %", "meta %", "órdenes", "desvío |pp|"])
+    metas_clase = {"predictivo": "p_meta_pct_predictivo", "preventivo": "p_meta_pct_preventivo",
+                   "correctivo_programado": "p_meta_pct_correctivo_programado",
+                   "emergencia": "p_meta_pct_emergencia", "legal": "p_meta_pct_legal"}
+    tot_mix = del_mes(r_adh(get_column_letter(col_mix0 + len(CLASES_MANTENIMIENTO) + 1)),
+                      r_adh("A"))
+    for j, cl in enumerate(CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE]):
+        fr = FG_C + 1 + j
+        celda(ws, fr, 1, cl)
+        celda(ws, fr, 4, "=" + del_mes(r_adh(get_column_letter(col_mix0 + j)), r_adh("A")))
+        celda(ws, fr, 2, f'=IF(N({tot_mix})=0,"",$D{fr}/{tot_mix})', fmt=FMT_PCT)
+        # SIN CLASIFICAR no tiene meta: su objetivo es 0 (no debería haber nada).
+        celda(ws, fr, 3, f"={metas_clase[cl]}/100" if cl in metas_clase else "=0", fmt=FMT_PCT)
+        celda(ws, fr, 5, f'=IF($B{fr}="","",ABS($B{fr}-$C{fr})*100)', fmt="0.0")
+    fmix = FG_C + 1 + len(CLASES_MANTENIMIENTO) + 1
+    celda(ws, fmix, 1, "TOTAL (control)", font=F_SEC)
+    celda(ws, fmix, 2, f'=IF(N({tot_mix})=0,"",SUM($B${FG_C + 1}:$B${fmix - 1}))', fmt=FMT_PCT)
+    celda(ws, fmix, 4, f'=SUM($D${FG_C + 1}:$D${fmix - 1})')
+    celda(ws, fmix + 1, 1, "DIFERENCIA vs órdenes del mes (debe ser 0)", font=F_NOTA)
+    celda(ws, fmix + 1, 4, f'=$D{fmix}-N({tot_mix})')
+    ws.conditional_formatting.add(f"D{fmix + 1}", CellIsRule(
+        operator="notEqual", formula=["0"], fill=FILL_ROJO))
+    celda(ws, fmix + 2, 1,
+          f"=PARAMETROS!$B${FILA_PARAM['cuadre_metas_mix']}", font=F_NOTA)
+
+    # D) OPEX plan vs real por mes, separando fijo y variable. Lee las filas de
+    #    subtotales de PRESUPUESTO; los meses posteriores al elegido se dejan en
+    #    blanco, así el gráfico acompaña al selector.
+    FG_D = 80
+    celda(ws, FG_D - 1, 1, "D · OPEX plan vs real por mes (fijo y variable) — hasta el mes elegido",
+          font=F_NOTA)
+    encabezados(ws, FG_D, ["mes", "plan fijo", "plan variable", "real fijo", "real variable"])
+    MESES_AB_D = ["ene", "feb", "mar", "abr", "may", "jun",
+                  "jul", "ago", "sep", "oct", "nov", "dic"]
+    for m in range(1, 13):
+        fr = FG_D + m
+        cl_m = get_column_letter(2 + m)          # C..N en PRESUPUESTO
+        celda(ws, fr, 1, MESES_AB_D[m - 1])
+        for j, clave in enumerate(("ppto_ppto_fijo", "ppto_ppto_variable",
+                                   "ppto_real_fijo", "ppto_real_variable")):
+            celda(ws, fr, 2 + j,
+                  f'=IF({m}>{mes_num},"",PRESUPUESTO!${cl_m}${ANC[clave]})', fmt=FMT_DINERO)
+
+    # ---- 4 gráficos ------------------------------------------------------
+    # Ninguno lleva máximo de eje fijo (autoescala al cambiar de mes) y los dos
+    # ejes van visibles con su escala.
+    def ejes(ch, tit_x, tit_y, minimo=0):
+        ch.y_axis.scaling.min = minimo
+        ch.y_axis.delete = False
+        ch.x_axis.delete = False
+        ch.x_axis.axPos = "b"
+        ch.x_axis.title = tit_x
+        ch.y_axis.title = tit_y
+        ch.y_axis.majorTickMark = "out"
+        ch.x_axis.majorTickMark = "out"
+        ch.legend.position = "b"
+
+    gA = BarChart()
+    gA.type, gA.gapWidth = "col", 60
+    gA.title = "A · Cumplimiento semanal del mes vs meta"
+    gA.height, gA.width = 8, 15
+    gA.add_data(Reference(ws, min_col=2, min_row=FG_A, max_row=FG_A + 6), titles_from_data=True)
+    cats_a = Reference(ws, min_col=1, min_row=FG_A + 1, max_row=FG_A + 6)
+    gA.set_categories(cats_a)
+    gA.series[0].graphicalProperties.solidFill = "4472C4"
+    gA.series[0].dLbls = DataLabelList(showVal=True)
+    metaA = LineChart()
+    metaA.add_data(Reference(ws, min_col=3, min_row=FG_A, max_row=FG_A + 6), titles_from_data=True)
+    metaA.set_categories(cats_a)
+    sA = metaA.series[0]
+    sA.graphicalProperties.line.solidFill = "C00000"
+    sA.graphicalProperties.line.width = 25000
+    sA.smooth = False
+    sA.marker = Marker(symbol="none")
+    gA += metaA
+    ejes(gA, "Semana ISO", "Adherencia")
+    ws.add_chart(gA, "A18")
+
+    gB = BarChart()
+    gB.type, gB.gapWidth = "col", 60
+    gB.title = "B · Carga vs capacidad productiva por especialidad"
+    gB.height, gB.width = 8, 15
+    gB.add_data(Reference(ws, min_col=2, max_col=3, min_row=FG_B,
+                          max_row=FG_B + len(ESPECIALIDADES_PROPIAS)), titles_from_data=True)
+    gB.set_categories(Reference(ws, min_col=1, min_row=FG_B + 1,
+                                max_row=FG_B + len(ESPECIALIDADES_PROPIAS)))
+    gB.series[0].graphicalProperties.solidFill = "4472C4"
+    gB.series[1].graphicalProperties.solidFill = "A9C4E8"
+    ejes(gB, "Especialidad", "HH")
+    ws.add_chart(gB, "J18")
+
+    gC = BarChart()
+    gC.type, gC.gapWidth = "col", 60
+    gC.title = "C · Mix de mantenimiento: real vs meta"
+    gC.height, gC.width = 8, 15
+    gC.add_data(Reference(ws, min_col=2, max_col=3, min_row=FG_C,
+                          max_row=FG_C + len(CLASES_MANTENIMIENTO) + 1), titles_from_data=True)
+    gC.set_categories(Reference(ws, min_col=1, min_row=FG_C + 1,
+                                max_row=FG_C + len(CLASES_MANTENIMIENTO) + 1))
+    gC.series[0].graphicalProperties.solidFill = "4472C4"
+    gC.series[1].graphicalProperties.solidFill = "ED7D31"
+    ejes(gC, "Clase de mantenimiento", "% de las órdenes del mes")
+    ws.add_chart(gC, "A34")
+
+    gD = BarChart()
+    gD.type, gD.gapWidth = "col", 40
+    gD.title = "D · OPEX plan vs real por mes (fijo y variable)"
+    gD.height, gD.width = 8, 15
+    gD.add_data(Reference(ws, min_col=2, max_col=5, min_row=FG_D, max_row=FG_D + 12),
+                titles_from_data=True)
+    gD.set_categories(Reference(ws, min_col=1, min_row=FG_D + 1, max_row=FG_D + 12))
+    for si, color in enumerate(("1F4E78", "A9C4E8", "C55A11", "F4B183")):
+        gD.series[si].graphicalProperties.solidFill = color
+    ejes(gD, "Mes", '=p_moneda')
+    ws.add_chart(gD, "J34")
+
+    # ---- selector de mes: rango + nombre definido (misma técnica que 7.1) --
+    COL_MES = 24                                   # columna X, fuera del tablero
+    celda(ws, 2, COL_MES, "meses con datos (validación) — no editar", font=F_NOTA)
+    for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
+        celda(ws, 3 + i, COL_MES, f"{anio_m}-{mes_m:02d}")
+    LM = get_column_letter(COL_MES)
+    wb.defined_names.add(DefinedName(
+        "lista_meses_dash", attr_text=f"DASHBOARD!${LM}$3:${LM}${2 + NM}"))
+    ws.column_dimensions[LM].hidden = True
+    dvm = DataValidation(type="list", formula1="lista_meses_dash", allow_blank=False,
+                         showErrorMessage=False)
+    ws.add_data_validation(dvm)
+    dvm.add("B3")
+
+    for colw, w in ([("A", 22), ("B", 12), ("C", 12)]
+                    + [(get_column_letter(c), 11) for c in range(4, 19)]):
+        ws.column_dimensions[colw].width = w
+    ws.row_dimensions[1].height = 24
+    ws.sheet_view.showGridLines = False
+
     # ------------------------------------------------- ORDEN DE LAS HOJAS
     # 7.1: el libro se ordena por USO, no por historia. (A) lo que se muestra,
     # (B) el trabajo diario, (C) configuración, catálogos y guías al final.
-    # El puesto #1 queda reservado para el DASHBOARD de la próxima tirada.
+    # El DASHBOARD ocupa el puesto #1 y es la hoja activa al abrir.
     # Reordenar no cambia fórmulas (referencian por nombre), pero se verifica.
     ORDEN_HOJAS = [
-        # A. PRESENTACIÓN  (#1 reservado: DASHBOARD)
-        "PLAN_SEMANAL", "ADHERENCIA", "PERFIL_HH", "BACKLOG", "COSTOS", "PRESUPUESTO",
+        # A. PRESENTACIÓN
+        "DASHBOARD", "PLAN_SEMANAL", "ADHERENCIA", "PERFIL_HH", "BACKLOG", "COSTOS", "PRESUPUESTO",
         "EQUIPOS_CRITICOS", "SEGUIMIENTO_HH", "SEGUIMIENTO_MENSUAL", "EXPORTAR",
         # B. TRABAJO DIARIO
         "ORDENES", "ASIGNACIONES", "AJUSTES", "PLAN_VACACIONES",
@@ -3951,6 +4576,15 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # Cualquier hoja no listada queda al final, en su orden actual (nunca se pierde).
     wb._sheets.sort(key=lambda h: (pos.get(h.title, len(ORDEN_HOJAS)),))
     wb.active = 0
+
+    # HIGIENE: las hojas que se consultan una vez al año se ocultan. `hidden`
+    # (no `veryHidden`): el usuario las recupera con clic derecho en cualquier
+    # pestaña → Mostrar. PARAMETROS queda VISIBLE porque se ajusta a menudo.
+    OCULTAS = ([h for h in wb.sheetnames if h.startswith("CAT_")]
+               + ["GUIA_IMPORTAR_ORDENES", "INICIO", "_COMPATIBILIDAD", "_BANCO_PRUEBA"])
+    for nombre in OCULTAS:
+        if nombre in wb.sheetnames:
+            wb[nombre].sheet_state = "hidden"
 
     wb.save(ruta)
     return ruta
