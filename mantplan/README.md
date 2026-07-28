@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.4.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.5.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -15,15 +15,28 @@ están implementadas dos veces y verificadas una contra la otra:
 
 ## Contenido de esta carpeta
 
+**Tres archivos, tres propósitos.** Es la distinción que más importa antes de
+abrir nada: la **PLANTILLA** es para trabajar con datos reales, el **DEMO** es
+para enseñar el tablero lleno y el **BANCO** es solo para probar a volumen. El
+demo lleva casos sucios sembrados a propósito para ejercitar las validaciones, así
+que empezar a trabajar sobre él significa heredar basura.
+
 | Archivo | Qué es | Cuándo usarlo |
 |---|---|---|
-| `MantPlan.xlsx` | Libro principal: `XLOOKUP` + referencias estructuradas | **Excel 2021 / Microsoft 365** |
-| `MantPlan_compatible.xlsx` | Mismo libro y mismos datos con `INDEX/MATCH` + rangos A1 acotados | **Excel 2016 o anterior, y LibreOffice** |
-| `MantPlan_banco.xlsx` | **§7 Banco de prueba**: 1.000 órdenes de un año + ventana programada | Inspección humana a volumen real |
-| `MantPlan_banco_compatible.xlsx` | El banco en variante `INDEX/MATCH` | Excel 2016 / LibreOffice |
-| `generar_mantplan.py` | Motor de reglas en Python + generador determinista de los cuatro libros | — |
+| `MantPlan_plantilla.xlsx` | **Archivo de arranque**: 8 órdenes de ejemplo marcadas y limpias; `VALIDACION` abre en cero | **Para trabajar con datos reales** (Excel 2021 / 365) |
+| `MantPlan_plantilla_compatible.xlsx` | La plantilla en variante `INDEX/MATCH` | Para trabajar, en Excel 2016 / LibreOffice |
+| `MantPlan.xlsx` | **Demo**: 200 órdenes sintéticas, con casos sucios a propósito | Enseñar la herramienta con el tablero lleno |
+| `MantPlan_compatible.xlsx` | El demo en variante `INDEX/MATCH` | Enseñarla en Excel 2016 / LibreOffice |
+| `MantPlan_banco.xlsx` | **§7 Banco de prueba**: 1.000 órdenes de un año + ventana programada | Solo probar a volumen real |
+| `MantPlan_banco_compatible.xlsx` | El banco en variante `INDEX/MATCH` | Solo probar, en Excel 2016 / LibreOffice |
+| `generar_mantplan.py` | Motor de reglas en Python + generador determinista de los seis libros | — |
+| `MANUAL.md` | **El porqué**: una sección por decisión de diseño, con su motivo y su consecuencia | Defender el diseño ante quien lo cuestione |
 | `VERIFICACION.md` | Reporte de verificación (recálculo + comparación + casos) | — |
 | `README.md` | Este documento | — |
+
+El **cómo se usa** no está en este repositorio: vive dentro del propio libro, en
+la hoja `INSTRUCTIVO` (puesto #2, siempre visible). Es la única guía, para que no
+haya dos versiones que puedan divergir.
 
 Los dos libros del **dataset por defecto** llevan las mismas 200 órdenes
 sintéticas ancladas al **2026-07-27**, sobre tablas provisionadas para **1.200
@@ -43,6 +56,10 @@ pip install openpyxl
 python generar_mantplan.py --fecha-ancla 2026-07-27
 python generar_mantplan.py --fecha-ancla 2026-07-27 --salida MantPlan_compatible.xlsx --refs compatibles
 python generar_mantplan.py --resumen                              # números esperados (rotación, VAC, seguimiento)
+
+# Plantilla de producción (8 órdenes de ejemplo, limpias) — la que se entrega
+python generar_mantplan.py --plantilla --fecha-ancla 2026-07-27 --salida MantPlan_plantilla.xlsx
+python generar_mantplan.py --plantilla --fecha-ancla 2026-07-27 --salida MantPlan_plantilla_compatible.xlsx --refs compatibles
 
 # §7 Banco de prueba (un año + ventana programada). Ancla FIJA, determinista.
 python generar_mantplan.py --anio-completo --salida MantPlan_banco.xlsx
@@ -817,7 +834,7 @@ la encontrara, **aborta** con el nombre de la hoja en vez de pisar una celda.
 ### Hojas ocultas y cómo volver a mostrarlas
 
 Las hojas que se consultan una vez al año van **ocultas**: los ocho catálogos
-`CAT_*`, `GUIA_IMPORTAR_ORDENES`, `INICIO`, `_COMPATIBILIDAD` y `_BANCO_PRUEBA`.
+`CAT_*`, `GUIA_IMPORTAR_ORDENES`, `_COMPATIBILIDAD` y `_BANCO_PRUEBA`.
 Quedan 20 hojas visibles. `PARAMETROS` **no** se oculta, porque se ajusta con
 frecuencia.
 
@@ -826,6 +843,37 @@ programar nada: **clic derecho en cualquier pestaña → Mostrar** (en Excel; en
 LibreOffice, *Hoja → Mostrar hoja*), se elige la hoja y aceptar. Editar un
 catálogo no obliga a dejarlo visible: los desplegables siguen leyendo de él
 aunque la hoja esté oculta.
+
+### Modo plantilla e INSTRUCTIVO
+
+`--plantilla` genera el archivo con el que alguien empieza a trabajar de verdad.
+Lleva **8 órdenes de ejemplo** en vez de 200, y son inconfundibles: `OT-EJEMPLO-001`…,
+equipo `EQ-EJEMPLO`, descripción que empieza por «EJEMPLO — BORRAR ANTES DE USAR»
+y relleno ámbar en toda la fila. `PLAN_VACACIONES` trae una fila de ejemplo y
+`PRESUPUESTO` sus montos, para que se vea el formato esperado en vez de una hoja
+en blanco.
+
+Lo importante es lo que **no** lleva: ninguno de los casos sucios que el demo
+siembra a propósito. Sin duplicados, sin códigos fuera de catálogo, sin
+huérfanos, sin órdenes sin fecha ni sin horas, ninguna en día no laborable y
+todas con su par en `2_IMPORTAR_EJECUCION`. Por eso **`VALIDACION` abre con sus
+16 chequeos en cero**: el primer hallazgo que vea el usuario será suyo, no ruido
+de fábrica.
+
+El roster de 16 técnicos se conserva —la rotación necesita al menos cuatro por
+especialidad para funcionar de entrada— y los catálogos mantienen sus códigos de
+ejemplo, que son el andamio sobre el que se mapea el ERP propio. El `INSTRUCTIVO`
+dice explícitamente que ambas cosas se reemplazan.
+
+La hoja **`INSTRUCTIVO`** ocupa el puesto #2, va **visible en los seis libros** y
+es la **única** guía: absorbió a la antigua hoja `INICIO`, que estaba oculta.
+Tener dos guías, una visible y otra no, es garantía de que acaben diciendo cosas
+distintas. Cubre, en este orden: qué es y qué no es la herramienta · la
+configuración inicial paso a paso · el ciclo semanal · el ciclo mensual · qué no
+tocar y por qué · los problemas frecuentes con su causa · y **lo que la
+herramienta no puede calcular** (MTBF, MTTR, disponibilidad, OEE, indicadores de
+repuestos) con el motivo de cada uno, para que nadie los pida esperando un número
+que sería inventado.
 
 ### 10. Higiene de fórmulas
 
@@ -1050,14 +1098,15 @@ costo plan es del ERP y no se recalcula con el ajuste manual; `precio` = 40 %
 del plan (REGLA-8 → materiales 60 %); dos órdenes históricas con `precio >
 plan` (materiales 0). Equipo de mayor gasto: EQ-110 (4.430 USD).
 
-## Estructura del libro (31 hojas, 20 visibles; 32 en el banco §7, con `_BANCO_PRUEBA`)
+## Estructura del libro (31 hojas, 21 visibles; 32 en el banco §7, con `_BANCO_PRUEBA`)
 
 Las hojas están ordenadas **por uso, no por historia**: primero lo que se
 muestra, después el trabajo diario, y al final la configuración, los catálogos y
 las guías. Es el mismo orden en las cuatro variantes. *(El puesto #1 queda
 reservado para el `DASHBOARD` de la próxima tirada.)*
 
-**A. Presentación** — `DASHBOARD` (6 KPI, 4 gráficos, selector de mes y botonera) ·
+**A. Presentación** — `DASHBOARD` (6 KPI, 5 gráficos, selector de mes y botonera) ·
+`INSTRUCTIVO` (la guía del libro, visible) ·
 `PLAN_SEMANAL` (7 selectores + gráfico de carga + grilla
 1.200) · `ADHERENCIA` (bloque semanal dinámico + 6 desgloses, solo días hábiles) ·
 `PERFIL_HH` (serie dinámica de 60 semanas + matriz semáforo + REGLA-9) ·
@@ -1082,7 +1131,7 @@ REGLA-10 + 4 de ajustes + 3 de calendario).
 **C. Configuración, catálogos y guías** (todo esto va OCULTO salvo `PARAMETROS`) —
 `PARAMETROS` (parámetros + 19 rangos
 auxiliares que alimentan los desplegables) · los 8 catálogos `CAT_*` (incl.
-`CAT_TURNOS`, `CAT_SUPERVISORES` y `CAT_MOTIVOS_AUSENCIA`) · `INICIO` (guía de texto) ·
+`CAT_TURNOS`, `CAT_SUPERVISORES` y `CAT_MOTIVOS_AUSENCIA`) ·
 `GUIA_IMPORTAR_ORDENES` (solo documentación) · `_COMPATIBILIDAD` ·
 `_BANCO_PRUEBA` (solo en el banco).
 

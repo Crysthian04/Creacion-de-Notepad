@@ -17,6 +17,7 @@ Uso:
     python generar_mantplan.py --fecha-ancla 2026-07-19
     python generar_mantplan.py --refs compatibles     # variante INDEX/MATCH + rangos A1
     python generar_mantplan.py --resumen              # imprime números esperados
+    python generar_mantplan.py --plantilla            # archivo de arranque (8 órdenes)
     python generar_mantplan.py --anio-completo        # §7: banco de prueba de un año
 
 `--refs compatibles` produce el mismo libro pero con INDEX/MATCH y rangos
@@ -47,7 +48,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.4.0"
+VERSION = "3.5.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -199,9 +200,11 @@ def _fecha_ancla_year(hoy):
 
 # Parte B: excepciones que rompen el patrón. area vacía = toda la planta;
 # sub_area vacía = toda el área. Las fechas se fijan al año del ancla.
-def construir_excepciones(hoy):
-    y = hoy.year
-    exc = [
+def feriados_del_anio(y):
+    """Los ~12 feriados generales del año (área y sub-área vacías). Es lo único
+    del calendario que sirve tal cual en una planta real; el resto de
+    excepciones que siembra `construir_excepciones` son andamio de demostración."""
+    return [
         # ~12 feriados generales del año (area y sub_area vacías)
         (date(y, 1, 1), "feriado", "no", "", "", "Año Nuevo"),
         (date(y, 1, 6), "feriado", "no", "", "", "Día de Reyes"),
@@ -216,6 +219,11 @@ def construir_excepciones(hoy):
         (date(y, 12, 8), "feriado", "no", "", "", "Inmaculada Concepción"),
         (date(y, 12, 25), "feriado", "no", "", "", "Navidad"),
     ]
+
+
+def construir_excepciones(hoy):
+    y = hoy.year
+    exc = list(feriados_del_anio(y))
     # Excepciones dentro de las semanas del plan (para verificación):
     lunes = hoy - timedelta(days=hoy.weekday())
     s31_mie = lunes + timedelta(weeks=1, days=2)   # miércoles de la 2.ª semana futura
@@ -1030,6 +1038,116 @@ def generar_datos(hoy):
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
             "ajustes": ajustes, "excepciones": excepciones, "edge_regla8": edge_regla8}
 
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 3-ter. MODO PLANTILLA — el archivo que se entrega para trabajar de verdad
+#    El dataset de demo (200 órdenes) siembra a propósito casos sucios para
+#    ejercitar REGLA-10; eso es justo lo que NO debe llevar el archivo con el
+#    que alguien empieza a trabajar. La plantilla trae ocho órdenes de ejemplo
+#    inconfundibles y LIMPIAS, para que VALIDACION abra en cero y el primer
+#    hallazgo que vea el usuario sea suyo.
+# ══════════════════════════════════════════════════════════════════════════
+
+MARCA_EJEMPLO = "EJEMPLO — BORRAR ANTES DE USAR"
+PREFIJO_EJEMPLO = "OT-EJEMPLO-"
+EQUIPO_EJEMPLO = "EQ-EJEMPLO"
+
+
+def _dia_habil_plantilla(base, salto, exc):
+    """Primer día hábil (L-S y sin excepción) desde `base` + `salto` días."""
+    d = base + timedelta(days=salto)
+    for _ in range(30):
+        if es_habil(d, "", "", exc) == "sí":
+            return d
+        d += timedelta(days=1)
+    raise AssertionError("no se encontró día hábil para la plantilla")
+
+
+def generar_datos_plantilla(hoy):
+    """Datos de ARRANQUE: 8 órdenes de ejemplo, marcadas y limpias.
+
+    Limpias quiere decir: sin duplicados, sin códigos fuera de catálogo, sin
+    huérfanos, con fecha y horas en todas, ninguna en día no laborable y con su
+    par en EJECUCION. Los 16 técnicos se conservan porque la rotación necesita
+    al menos cuatro por especialidad para arrancar; el INSTRUCTIVO explica que
+    se reemplazan.
+    """
+    lunes = hoy - timedelta(days=hoy.weekday())
+    lunes_sem = [lunes + timedelta(weeks=k) for k in (-1, 0, 1, 2)]
+    semanas = [regla_2_semana(d) for d in lunes_sem]
+    # Calendario limpio: solo los feriados generales. Sin las excepciones de
+    # demostración (ni las que están fuera de catálogo a propósito).
+    excepciones = [{"fecha": f, "tipo": t, "habil": h, "area": a_, "sub_area": s_,
+                    "motivo": m}
+                   for f, t, h, a_, s_, m in feriados_del_anio(hoy.year)]
+    semana_referencia = lunes_sem[0]
+    n_por_ciclo = _n_por_ciclo()
+
+    # Vacaciones: una fila de ejemplo, para que se vea el formato esperado.
+    plan_vacaciones = [{"tecnico": _tec("MEC", 5),
+                        "fecha_inicio": lunes_sem[3] + timedelta(days=7),
+                        "fecha_fin": lunes_sem[3] + timedelta(days=13),
+                        "motivo": MOTIVOS_AUSENCIA[0][0]}]
+    asignaciones = _asignaciones_de(lunes_sem, semanas, semana_referencia, plan_vacaciones)
+
+    # Ocho órdenes: dos por especialidad propia y dos de tercero, repartidas
+    # entre la semana corriente y la siguiente, cubriendo las cuatro clases del
+    # mix y los dos rubros, para que el tablero se vea "vivo" con datos mínimos.
+    plantilla = [
+        # (especialidad, ceco, actividad, tipo_ot, horas, salto de días, cerrada)
+        ("MEC", "CC-110", "ACT-01", "TIPO-P1", 6, 0, True),
+        ("MEC", "CC-110", "ACT-02", "TIPO-P1", 4, 1, True),
+        ("ELE", "CC-120", "ACT-04", "TIPO-P2", 8, 1, True),
+        ("ELE", "CC-120", "ACT-03", "TIPO-C1", 5, 2, True),
+        ("AUT", "CC-220", "ACT-04", "TIPO-P2", 6, 3, True),
+        ("MEC", "CC-210", "ACT-03", "TIPO-C2", 3, 4, True),
+        ("ELE", "CC-120", "ACT-01", "TIPO-P1", 4, 8, False),
+        ("TERCERO", "CC-310", "ACT-05", "TIPO-P3", 8, 9, False),
+    ]
+    puesto_de = {"MEC": "PU-MEC", "ELE": "PU-ELE", "AUT": "PU-AUT",
+                 "OP": "PU-OP", "TERCERO": "PU-TER"}
+    tec_de = {"MEC": _tec("MEC", 1), "ELE": _tec("ELE", 1),
+              "AUT": TECNICOS_ACTIVOS[-1][1], "TERCERO": ""}
+    ordenes, ejecucion = [], []
+    for i, (esp, ceco, act, tipo, horas, salto, cerrada) in enumerate(plantilla, start=1):
+        fecha = _dia_habil_plantilla(lunes_sem[1], salto, excepciones)
+        oid = f"{PREFIJO_EJEMPLO}{i:03d}"
+        desc = f"{MARCA_EJEMPLO} — {CAT_ACTIVIDADES[act]}"
+        clasif = CAT_TIPOS[tipo]
+        ordenes.append({
+            "orden": oid, "operacion": "0010",
+            "descripcion_general": desc,
+            "descripcion_operacion": f"{desc} en {EQUIPO_EJEMPLO}",
+            "equipo": EQUIPO_EJEMPLO, "centro_costo": ceco,
+            "puesto_trabajo": puesto_de[esp], "cod_actividad": act, "tipo_ot": tipo,
+            "fecha_inicio": fecha, "horas_estimadas": horas,
+            "costo_plan": horas * TARIFA[clasif],
+            "tecnico_asignado": tec_de[esp],
+            "permiso_requerido": "", "bloqueo_energia": "", "link_checklist": "",
+            "observaciones": MARCA_EJEMPLO,
+            "_grupo": "ejemplo", "_si": 1, "_clasif": clasif,
+            "id_operacion": oid + "0010",
+        })
+        # TODAS las órdenes llevan su par en EJECUCION: si faltara, el chequeo
+        # "Órdenes sin par en EJECUCION" abriría distinto de cero. Las dos
+        # últimas quedan en estado LIB (pendiente), que es lo normal.
+        ejecucion.append({
+            "orden": oid, "operacion": "0010",
+            "estado_sistema": "CERR" if cerrada else "LIB",
+            "prioridad": "2-MEDIA",
+            "estado_instalacion": "", "estado_usuario": "",
+            "precio": horas * TARIFA[clasif] * 0.4,
+            "costo_real": horas * TARIFA[clasif],
+            "costo_plan_total": horas * TARIFA[clasif],
+            "id_operacion": oid + "0010",
+        })
+    return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
+            "semana_referencia": semana_referencia, "n_por_ciclo": n_por_ciclo,
+            "plan_vacaciones": plan_vacaciones, "anio_presupuesto": hoy.year,
+            "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
+            "ajustes": [], "excepciones": excepciones, "edge_regla8": [],
+            "es_plantilla": True}
 
 # ══════════════════════════════════════════════════════════════════════════
 # 3-bis. §7 — BANCO DE PRUEBA: un año en crudo + ventana programada
@@ -2180,6 +2298,7 @@ FILL_ROJO = PatternFill("solid", fgColor="FFC7CE")
 # DASHBOARD: las tarjetas se dibujan con CELDAS (combinadas, relleno y bordes),
 # nunca con formas ni objetos de dibujo, para que se vean igual en Excel 2016 y
 # en LibreOffice y para que el libro siga siendo un .xlsx sin objetos.
+FILL_EJEMPLO = PatternFill("solid", fgColor="FFF2CC")   # aviso: fila de ejemplo
 FILL_TARJETA = PatternFill("solid", fgColor="F7F9FC")
 FILL_BANDA = PatternFill("solid", fgColor="1F4E78")
 F_KPI = Font(name="Arial", size=26, bold=True, color="1F4E78")
@@ -2267,6 +2386,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # fuente las publican al construirse y el tablero las lee: así el tablero
     # referencia celdas concretas en vez de recalcular nada.
     ANC = {}
+    ES_PLANTILLA = datos.get("es_plantilla", False)
     hoy = datos["hoy"]
     semanas = datos["semanas"]
     n_ord, n_ejec, n_asig = len(datos["ordenes"]), len(datos["ejecucion"]), len(datos["asignaciones"])
@@ -2314,42 +2434,127 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     wb = Workbook()
     wb.calculation.fullCalcOnLoad = True  # cálculo automático al abrir, nunca manual
 
-    # ------------------------------------------------------------- INICIO
+    # ---------------------------------------------------------- INSTRUCTIVO
+    # Guía ÚNICA del libro. Absorbe la antigua hoja INICIO: tener dos guías
+    # (una visible y otra oculta) es garantía de que acaben diciendo cosas
+    # distintas. Va en el puesto #2, siempre visible, en los cuatro libros.
     ws = wb.active
-    ws.title = "INICIO"
+    ws.title = "INSTRUCTIVO"
     ws.sheet_properties.tabColor = "1F4E78"
-    celda(ws, 1, 1, "MantPlan — Planificador semanal de mantenimiento", font=F_TIT)
-    celda(ws, 2, 1, f"Versión {VERSION} · generado {hoy.isoformat()} · datos 100 % sintéticos de ejemplo", font=F_NOTA)
-    filas_ini = [
-        "",
-        "PRINCIPIO RECTOR — separación entre lógica y datos:",
-        "  · MOTOR: las 10 reglas de negocio viven en las fórmulas de este libro y nunca cambian.",
-        "  · CATÁLOGOS: centros de costo, puestos, actividades, tipos de OT y estados se cargan por empresa.",
-        "  · PARÁMETROS: jornada, productividad, ventanas de backlog y metas se ajustan en PARAMETROS.",
-        "  · No hay macros, ni enlaces externos, ni códigos de empresa dentro de ninguna fórmula.",
-        "",
-        "FLUJO DE USO EN 5 PASOS:",
-        "  1. Ajuste PARAMETROS y cargue los catálogos de su empresa (hojas CAT_*).",
-        "  2. Pegue la exportación de órdenes (12 columnas, en este orden) directamente en ORDENES!A4:",
-        "     un solo bloque contiguo A:L. Hay 1.200 filas provisionadas con las fórmulas ya escritas.",
-        "  3. Pegue la segunda exportación (estados y costos) en 2_IMPORTAR_EJECUCION.",
-        "  4. Complete TECNICOS (incl. rotativo y orden_rotacion) y fije semana_referencia en",
-        "     PARAMETROS: el turno de ASIGNACIONES se DERIVA solo de la rotación. Para una",
-        "     excepción puntual escriba en turno_manual. Asigne técnicos en ORDENES. Los ajustes",
-        "     de duración van en AJUSTES por id_operacion: se re-aplican solos tras re-importar.",
-        "  5. Revise VALIDACION y trabaje con PERFIL_HH, PLAN_SEMANAL, ADHERENCIA, COSTOS y BACKLOG.",
-        "",
-        "CONVENCIONES:",
-        "  · Celdas de texto azul = editables por el usuario. El resto se calcula solo.",
-        "  · El libro recalcula automáticamente al abrir (sin macros).",
-        "  · Las fórmulas usan XLOOKUP (Excel 2021/365). Para Excel 2016 vea la hoja _COMPATIBILIDAD.",
-        "  · Los filtros se hacen con los autofiltros de cada tabla y con los selectores de PLAN_SEMANAL.",
-        "  · ORDENES: HHA/HHD agregan las horas del técnico en ese día; HHD negativo (rojo) = sobreasignado.",
-        "  · PLAN_SEMANAL: el gráfico de carga por técnico responde a los mismos selectores que la grilla.",
+    celda(ws, 1, 1, "INSTRUCTIVO — cómo se usa MantPlan", font=F_TIT)
+    celda(ws, 3, 1, f"Versión {VERSION} · generado {hoy.isoformat()} · "
+                    + ("ARCHIVO DE PLANTILLA: trae 8 órdenes de EJEMPLO que hay que borrar."
+                       if ES_PLANTILLA else
+                       "ARCHIVO DE DEMOSTRACIÓN: los datos son sintéticos, no sirven para "
+                       "trabajar."), font=F_NOTA)
+    filas_ins = [
+        ("", ""),
+        ("A. QUÉ ES Y QUÉ NO ES", "sec"),
+        ("Sirve para PROGRAMAR y CONTROLAR la semana de mantenimiento: repartir el trabajo "
+         "entre los técnicos, ver si la carga cabe en las horas disponibles, medir si se "
+         "cumplió lo programado y seguir el gasto contra el presupuesto.", ""),
+        ("NO genera órdenes de trabajo: las órdenes salen de su ERP/CMMS y se pegan aquí.", ""),
+        ("NO sustituye al ERP/CMMS: no guarda historial, no cierra órdenes, no notifica.", ""),
+        ("NO analiza confiabilidad: no calcula MTBF, MTTR ni criticidad (ver el punto G).", ""),
+        ("NO gestiona almacén: no conoce stock, reservas ni consumo de repuestos.", ""),
+        ("", ""),
+        ("B. ANTES DE EMPEZAR — configuración, una sola vez", "sec"),
+        ("1. PARAMETROS — nombre de empresa y planta, moneda, horas de jornada, factor de "
+         "productividad, metas de adherencia y de mix, y la fecha de datos.", ""),
+        ("2. Catálogos (hojas CAT_*, ocultas: clic derecho en una pestaña → Mostrar) — mapee "
+         "los códigos de SU ERP: centros de costo, puestos de trabajo, actividades, tipos de "
+         "OT, estados del ERP, supervisores y turnos. Es lo único que hay que traducir.", ""),
+        ("3. TECNICOS — reemplace el roster de ejemplo por su gente. `rotativo` = sí si entra "
+         "al ciclo de turnos; `orden_rotacion` = su posición de arranque (1..N, sin repetir "
+         "dentro de la misma especialidad y área); `activo` = no lo saca de las listas, de la "
+         "capacidad y del ciclo sin borrarlo.", ""),
+        ("4. CALENDARIO — marque el patrón semanal y cargue feriados y paros de planta.", ""),
+        ("5. PLAN_VACACIONES — periodos de vacaciones y permisos por técnico.", ""),
+        ("6. PRESUPUESTO — el plan de gasto por mes y categoría.", ""),
+        ("ADVERTENCIA: BORRE TODAS LAS FILAS DE EJEMPLO ANTES DE CARGAR DATOS REALES. "
+         "Si su exportación trae menos filas que el ejemplo, las sobrantes se quedan abajo y "
+         "contaminan TODOS los reportes: seleccione las filas de datos completas y bórrelas, "
+         "no basta con escribir encima.", "aviso"),
+        ("", ""),
+        ("C. USO SEMANAL — el ciclo", "sec"),
+        ("1. Pegue la exportación de órdenes en ORDENES!A4 (12 columnas, un bloque contiguo "
+         "A:L). NO se pega en la hoja de guía: esa solo documenta el formato.", ""),
+        ("2. Pegue las notificaciones (estados y costos) en 2_IMPORTAR_EJECUCION.", ""),
+        ("3. Revise VALIDACION. Reporta, nunca bloquea: nada se pierde, pero lo que aparezca "
+         "ahí hay que arreglarlo en el catálogo o en el origen.", ""),
+        ("4. Ajuste duraciones en AJUSTES si la hora estándar del ERP no es realista. Se "
+         "guardan por id_operacion, así que sobreviven a la siguiente importación.", ""),
+        ("5. Asigne técnico en ORDENES (columna azul tecnico_asignado).", ""),
+        ("6. Revise la carga en PERFIL_HH y el reparto en PLAN_SEMANAL. Si una especialidad "
+         "pasa del 100 % de su capacidad productiva, mueva trabajo antes de publicar.", ""),
+        ("7. Copie el correo ya redactado desde EXPORTAR y envíelo.", ""),
+        ("", ""),
+        ("D. USO MENSUAL", "sec"),
+        ("Cargue el gasto real del mes (llega con las notificaciones), revise PRESUPUESTO "
+         "—plan contra real por categoría— y abra el DASHBOARD con el mes elegido en el "
+         "selector. El tablero corta el mes en curso hasta el día ANTERIOR a la fecha de "
+         "datos, y lo dice en pantalla.", ""),
+        ("", ""),
+        ("E. QUÉ NO TOCAR", "sec"),
+        ("Color de las celdas: el TEXTO AZUL es lo editable. El texto negro es una columna "
+         "CALCULADA: si escribe encima, borra la fórmula de esa fila y esa fila deja de "
+         "actualizarse, en silencio.", ""),
+        ("No toque las hojas derivadas (ADHERENCIA, PERFIL_HH, BACKLOG, COSTOS, "
+         "SEGUIMIENTO_*, EQUIPOS_CRITICOS, DASHBOARD): se recalculan solas desde ORDENES, "
+         "ASIGNACIONES y los catálogos. Cualquier cambio ahí se pierde al recalcular.", ""),
+        ("En ASIGNACIONES, el turno se DERIVA de la rotación. Para una excepción puntual use "
+         "turno_manual; al vaciarlo vuelve la rotación automática.", ""),
+        ("", ""),
+        ("F. SI ALGO SALE MAL", "sec"),
+        # El código de error se escribe con palabras a propósito: un literal como
+        # "#NAME?" dentro de una celda de texto hace que cualquier auditoría de
+        # errores del libro lo cuente como un error real.
+        ("Salen errores de nombre de función (NOMBRE en Excel español, NAME en inglés) en "
+         "muchas celdas → su Excel es anterior a 2021 y no conoce XLOOKUP. Use el archivo "
+         "_compatible.xlsx, que hace lo mismo con INDEX/MATCH.", ""),
+        ("VALIDACION reporta códigos desconocidos → falta mapear ese código en el catálogo "
+         "correspondiente (CAT_CENTROS_COSTO, CAT_PUESTOS, CAT_ACTIVIDADES, CAT_TIPOS_OT).", ""),
+        ("Aparecen órdenes que no reconozco → quedaron filas de ejemplo, o filas de una "
+         "importación anterior más larga. Bórrelas (ver la advertencia del punto B).", ""),
+        ("El tablero está casi vacío → no hay datos cargados del mes elegido en el selector, "
+         "o el mes en curso todavía no tiene órdenes anteriores a la fecha de datos.", ""),
+        ("Un técnico no aparece en las listas → está marcado activo = no en TECNICOS.", ""),
+        ("Un técnico aparece sin turno y con 0 h → está de vacaciones (PLAN_VACACIONES) o "
+         "inactivo. El hueco se deja a la vista a propósito.", ""),
+        ("", ""),
+        ("G. LO QUE ESTA HERRAMIENTA NO PUEDE CALCULAR", "sec"),
+        ("MTBF y MTTR — harían falta las fechas de falla y de puesta en marcha de cada "
+         "parada. Aquí no hay eventos de parada, solo órdenes.", ""),
+        ("Disponibilidad — requiere tiempo requerido de operación y tiempo fuera de servicio "
+         "del equipo; ninguno de los dos entra en este libro.", ""),
+        ("OEE — necesita producción real, velocidad nominal y calidad; son datos de "
+         "producción, no de mantenimiento.", ""),
+        ("Indicadores de repuestos (rotación de inventario, quiebres, inmovilizado) — "
+         "requieren el stock y los movimientos de almacén.", ""),
+        ("Pedirle estos indicadores a este archivo daría números inventados. Se calculan "
+         "donde están los datos: el ERP, el sistema de producción o el de almacén.", ""),
+        ("", ""),
+        ("PRINCIPIO DE DISEÑO — por qué está hecho así", "sec"),
+        ("MOTOR: las 10 reglas de negocio viven en las fórmulas y no cambian entre empresas. "
+         "CATÁLOGOS: lo que sí cambia. PARAMETROS: lo que se ajusta. Sin macros, sin enlaces "
+         "externos y sin ningún código de empresa dentro de una fórmula: por eso adaptarlo a "
+         "otra planta es editar catálogos, no programar. El detalle de cada decisión está en "
+         "MANUAL.md, junto al archivo.", ""),
     ]
-    for i, txt in enumerate(filas_ini, start=3):
-        celda(ws, i, 1, txt, font=F_SEC if txt.endswith(":") else F_TXT)
-    ws.column_dimensions["A"].width = 110
+    fi = 5
+    for txt, estilo in filas_ins:
+        if estilo == "sec":
+            celda(ws, fi, 1, txt, font=F_SEC)
+        elif estilo == "aviso":
+            celda(ws, fi, 1, txt, font=F_SEC, fill=FILL_ROJO, wrap=True)
+            ws.row_dimensions[fi].height = 30
+        else:
+            celda(ws, fi, 1, txt, wrap=bool(txt))
+            if len(txt) > 110:
+                ws.row_dimensions[fi].height = 28
+        fi += 1
+    ws.column_dimensions["A"].width = 118
+    ws.sheet_view.showGridLines = False
 
     # --------------------------------------------------------- PARAMETROS
     ws = wb.create_sheet("PARAMETROS")
@@ -2563,7 +2768,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         fila = E.fila_ini + i
         for j, campo in enumerate(CAMPOS_EJECUCION[:-1], start=1):
             celda(ws, fila, j, e.get(campo),
-                  fmt=FMT_DINERO if campo in ("precio", "costo_real", "costo_plan_total") else None)
+                  fmt=FMT_DINERO if campo in ("precio", "costo_real", "costo_plan_total") else None,
+                  fill=FILL_EJEMPLO if (ES_PLANTILLA and i < n_ejec) else None)
         ord_ref = R.this("tblEjecucion", "orden", fila)
         op_ref = R.this("tblEjecucion", "operacion", fila)
         celda(ws, fila, len(CAMPOS_EJECUCION),
@@ -2597,7 +2803,10 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                 fmt = "0"
             elif campo in ("HHA", "HHD"):
                 fmt = "0.00"
-            celda(ws, fila, j, v, font=fnt, fmt=fmt)
+            # En la PLANTILLA, las filas de ejemplo van con relleno de aviso: se
+            # tienen que ver distintas de un dato real de un vistazo.
+            celda(ws, fila, j, v, font=fnt, fmt=fmt,
+                  fill=FILL_EJEMPLO if (ES_PLANTILLA and i < n_ord) else None)
     agregar_tabla(ws, O)
     ws.freeze_panes = "D4"
     let = O.letra
@@ -2797,10 +3006,11 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     for i in range(CAP_VACACIONES):
         v = datos["plan_vacaciones"][i] if i < len(datos["plan_vacaciones"]) else {}
         fila = V.fila_ini + i
-        celda(ws, fila, 1, v.get("tecnico"), font=F_EDIT)
-        celda(ws, fila, 2, v.get("fecha_inicio"), font=F_EDIT, fmt=FMT_FECHA)
-        celda(ws, fila, 3, v.get("fecha_fin"), font=F_EDIT, fmt=FMT_FECHA)
-        celda(ws, fila, 4, v.get("motivo"), font=F_EDIT)
+        marca = FILL_EJEMPLO if (ES_PLANTILLA and i < len(datos["plan_vacaciones"])) else None
+        celda(ws, fila, 1, v.get("tecnico"), font=F_EDIT, fill=marca)
+        celda(ws, fila, 2, v.get("fecha_inicio"), font=F_EDIT, fmt=FMT_FECHA, fill=marca)
+        celda(ws, fila, 3, v.get("fecha_fin"), font=F_EDIT, fmt=FMT_FECHA, fill=marca)
+        celda(ws, fila, 4, v.get("motivo"), font=F_EDIT, fill=marca)
     agregar_tabla(ws, V)
     ws.freeze_panes = "A4"
     dv = DataValidation(type="list", formula1="lista_tecnicos", allow_blank=True)
@@ -4727,7 +4937,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # Hojas que se ocultan al final (se necesita la lista antes, para saber a
     # cuáles NO ponerles el botón de vuelta).
     OCULTAS = ([h for h in wb.sheetnames if h.startswith("CAT_")]
-               + ["GUIA_IMPORTAR_ORDENES", "INICIO", "_COMPATIBILIDAD", "_BANCO_PRUEBA"])
+               + ["GUIA_IMPORTAR_ORDENES", "_COMPATIBILIDAD", "_BANCO_PRUEBA"])
 
     # ------------------------------------- BOTÓN DE VUELTA AL TABLERO
     # Problema real al presentar: desde el tablero se navega a una hoja, pero
@@ -4777,7 +4987,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # Reordenar no cambia fórmulas (referencian por nombre), pero se verifica.
     ORDEN_HOJAS = [
         # A. PRESENTACIÓN
-        "DASHBOARD", "PLAN_SEMANAL", "ADHERENCIA", "PERFIL_HH", "BACKLOG", "COSTOS", "PRESUPUESTO",
+        "DASHBOARD", "INSTRUCTIVO", "PLAN_SEMANAL", "ADHERENCIA", "PERFIL_HH", "BACKLOG", "COSTOS", "PRESUPUESTO",
         "EQUIPOS_CRITICOS", "SEGUIMIENTO_HH", "SEGUIMIENTO_MENSUAL", "EXPORTAR",
         # B. TRABAJO DIARIO
         "ORDENES", "ASIGNACIONES", "AJUSTES", "PLAN_VACACIONES",
@@ -4785,7 +4995,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         # C. CONFIGURACIÓN, CATÁLOGOS Y GUÍAS
         "PARAMETROS", "CAT_CENTROS_COSTO", "CAT_PUESTOS", "CAT_ACTIVIDADES",
         "CAT_TIPOS_OT", "CAT_ESTADOS_ERP", "CAT_TURNOS", "CAT_SUPERVISORES",
-        "CAT_MOTIVOS_AUSENCIA", "INICIO",
+        "CAT_MOTIVOS_AUSENCIA",
         "GUIA_IMPORTAR_ORDENES", "_COMPATIBILIDAD", "_BANCO_PRUEBA",
     ]
     pos = {n: i for i, n in enumerate(ORDEN_HOJAS)}
@@ -5058,6 +5268,10 @@ def main(argv=None):
     ap.add_argument("--refs", choices=["estructuradas", "compatibles"], default="estructuradas",
                     help="compatibles = INDEX/MATCH + rangos A1 (verificación / Excel 2016)")
     ap.add_argument("--resumen", action="store_true", help="imprime los números esperados")
+    # Modo PLANTILLA: el archivo listo para trabajar con datos reales.
+    ap.add_argument("--plantilla", action="store_true",
+                    help="archivo de arranque: 8 órdenes de ejemplo marcadas y limpias "
+                         "(VALIDACION abre en cero)")
     # §7 — banco de prueba (OPCIÓN; sin estos flags sale el dataset de 4 semanas)
     ap.add_argument("--anio-completo", action="store_true",
                     help="§7: banco de prueba de un año (ancla fija 2026) con ventana programada")
@@ -5070,16 +5284,20 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     t0 = time.perf_counter()
+    if args.anio_completo and args.plantilla:
+        ap.error("--plantilla y --anio-completo son excluyentes: el banco es para "
+                 "probar a volumen, la plantilla para arrancar limpio")
     if args.anio_completo:
         datos = generar_datos_banco(args.n_ordenes, args.semanas_programadas, args.semilla)
         hoy = datos["hoy"]
     else:
         hoy = date.fromisoformat(args.fecha_ancla) if args.fecha_ancla else date.today()
-        datos = generar_datos(hoy)
+        datos = generar_datos_plantilla(hoy) if args.plantilla else generar_datos(hoy)
     esperado = calcular_esperado(datos)
     construir_libro(datos, esperado, args.salida, refs=args.refs)
     seg = time.perf_counter() - t0
-    modo = "BANCO §7" if args.anio_completo else "default"
+    modo = ("BANCO §7" if args.anio_completo
+            else "PLANTILLA" if args.plantilla else "demo")
     print(f"Generado {args.salida} (refs {args.refs}, ancla {hoy.isoformat()}, "
           f"{modo}, {len(datos['ordenes'])} órdenes, {seg:.1f} s)")
     if args.resumen:

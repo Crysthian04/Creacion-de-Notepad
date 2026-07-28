@@ -1,6 +1,166 @@
-# VERIFICACION.md — MantPlan v3.4.0
+# VERIFICACION.md — MantPlan v3.5.0
 
-## 0. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
+## 0. Plantilla de producción e instructivo de uso
+
+Última tirada del entregable A. **No toca** las 10 reglas, el motor, el dashboard
+ni el banco: los tres datasets salen del mismo código y se verifican por separado
+(punto f).
+
+### Modo `--plantilla`: el archivo con el que se empieza a trabajar
+
+El dataset de demo siembra casos sucios **a propósito** para ejercitar REGLA-10.
+Eso es justo lo que no debe llevar el archivo que alguien abre para trabajar: se
+hereda basura y el primer hallazgo que ve el usuario no es suyo. `--plantilla`
+genera un tercer dataset, limpio, con ocho órdenes de ejemplo inconfundibles.
+
+| | plantilla | demo | banco §7 |
+|---|---:|---:|---:|
+| Órdenes | **8** | 200 | 1.000 |
+| Filas de EJECUCION | **8** | 162 | 851 |
+| Casos sucios sembrados | **0** | 21 | 16 contadores |
+| Ajustes manuales | 0 | 4 | 9 |
+| Excepciones de calendario | **12** (solo feriados reales) | 17 | 17 |
+| Hallazgos de VALIDACION al abrir | **0** | varios | varios |
+
+### (a) La plantilla abre con VALIDACION en CERO
+
+Los **16 chequeos** en cero, comprobado sobre el libro recalculado:
+
+```
+0  Órdenes duplicadas por id_operacion        0  Órdenes con ajuste manual de horas
+0  Órdenes sin fecha de inicio                0  Desviación total de horas
+0  Órdenes sin horas estimadas                0  Ajustes huérfanos
+0  Centros de costo fuera de catálogo         0  id_operacion duplicados en tblAjustes
+0  Puestos de trabajo fuera de catálogo       0  Órdenes en día NO laborable
+0  Actividades fuera de catálogo              0  Excepciones con área fuera de catálogo
+0  Tipos de OT fuera de catálogo              0  Excepciones con sub-área fuera de catálogo
+0  Registros de EJECUCION sin par en ORDENES  0  Órdenes sin par en EJECUCION
+```
+
+> **Desviación consciente de lo pedido, y por qué.** El encargo decía «~8 órdenes
+> y ~6 de ejecución». Se generan **8 filas de EJECUCION, no 6**: con seis, el
+> chequeo «Órdenes sin par en EJECUCION» abriría en **2** y el requisito de cero
+> hallazgos —que es el que tiene una razón detrás— quedaría incumplido. La
+> variedad se conserva igual: **6 órdenes cerradas y 2 pendientes** (estado `LIB`),
+> que es el reparto realista y da una adherencia de ejemplo del 75 %.
+
+### (b) Las filas de ejemplo son inconfundibles
+
+Ocho órdenes, `OT-EJEMPLO-001` … `OT-EJEMPLO-008`, todas con:
+
+- **id** con el prefijo `OT-EJEMPLO-`
+- **equipo** `EQ-EJEMPLO`
+- **descripción** que empieza por `EJEMPLO — BORRAR ANTES DE USAR`
+- **relleno ámbar** (`FFF2CC`) en toda la fila, en `ORDENES` y en
+  `2_IMPORTAR_EJECUCION`
+
+Verificado además que el relleno **no se derrama** a la primera fila vacía: el
+aviso marca exactamente las filas que hay que borrar, ni una más.
+
+`PLAN_VACACIONES` trae **1 fila** de ejemplo, también resaltada, y `PRESUPUESTO`
+llega con **41 celdas** de monto, para que el formato esperado se vea en vez de
+una hoja en blanco.
+
+Cubren, con ocho órdenes, las **cuatro clases** del mix, los **dos rubros**
+(calibración y lubricación), las tres especialidades propias y un trabajo de
+tercero: suficiente para que el tablero se vea vivo sin ensuciar nada.
+
+### (c) INSTRUCTIVO: una sola guía, visible y en el puesto #2
+
+**La antigua hoja `INICIO` desaparece.** Estaba oculta y decía cosas parecidas
+pero no idénticas al futuro instructivo; mantener dos guías —una visible y otra
+no— es garantía de que acaben divergiendo. Su contenido útil (el principio de
+diseño motor/catálogos/parámetros) se absorbió en la sección final del
+`INSTRUCTIVO`.
+
+Comprobado en los **seis libros** (plantilla ×2, demo ×2, banco ×2):
+
+| comprobación | resultado |
+|---|---|
+| `INSTRUCTIVO` existe | sí, en los 6 |
+| Puesto en el libro | **#2**, justo detrás de `DASHBOARD`, en los 6 |
+| Estado | **visible** en los 6 |
+| `INICIO` presente | **no**, en ninguno |
+| Secciones A–G completas | sí, las 7 |
+| Menciona MTBF · MTTR · OEE · disponibilidad | sí |
+| Advertencia de borrar las filas de ejemplo | sí, destacada en rojo |
+
+La sección **G** no solo lista lo que no se puede calcular: da el motivo de cada
+uno (no hay eventos de parada, ni tiempos de operación, ni producción, ni
+movimientos de almacén) y cierra diciendo dónde sí se calculan. Es el punto que
+evita que alguien pida esos indicadores y se acabe fabricando un número.
+
+### (d) Botón de vuelta también en INSTRUCTIVO
+
+Presente en `INSTRUCTIVO!A2` de los seis libros, apuntando a `DASHBOARD!A1`,
+dentro de la zona visible y sin pisar contenido. Con el `INSTRUCTIVO` sumado, el
+botón está ahora en **20 hojas visibles** (19 antes).
+
+### (e) La plantilla no arrastra ningún caso sucio
+
+Se comprueban **14 categorías** de suciedad, una por cada cosa que el demo o el
+banco siembran a propósito, y todas dan **0** en la plantilla:
+
+ids duplicados · órdenes sin fecha · sin horas · centro de costo fuera de
+catálogo · actividad fuera de catálogo · tipo de OT fuera de catálogo · ejecución
+huérfana · orden sin ejecución · ajustes manuales · órdenes en día no laborable ·
+excepción con área fuera de catálogo · excepción con sub-área fuera de catálogo ·
+casos borde de REGLA-8 · órdenes que caen en `SIN CLASIFICAR`.
+
+**Control de la prueba:** el mismo recuento sobre el dataset de demo da **21**
+casos. Sin ese contraste, un «0» podría significar que la comprobación no mira
+donde debe.
+
+El calendario de la plantilla se queda con los **12 feriados generales** y pierde
+las cinco excepciones de demostración —incluidas las dos que están fuera de
+catálogo a propósito, de donde salían los dos últimos chequeos—. Para conseguirlo
+se separó `feriados_del_anio()` de `construir_excepciones()`: un primer filtro por
+tipo dejaba pasar el «Feriado de planta (demo capacidad)», que es andamio de
+demostración y no tenía nada que hacer en un archivo de producción.
+
+### (f) Recálculo y motor ↔ Excel, en los tres datasets
+
+| | fórmulas | errores | comparaciones | fallos |
+|---|---:|---:|---:|---:|
+| **Plantilla** (compatible, 8 órdenes) | 79.933 | **0** | — | — |
+| Demo (compatible, ancla 2026-07-27) | 80.731 | **0** | 15.643 | **0** |
+| Banco §7 (compatible, 1.000 órdenes) | 152.181 | **0** | 63.177 | **0** |
+| DASHBOARD sobre la plantilla | — | **0** | 50 | **0** |
+| DASHBOARD sobre el demo | — | **0** | 135 | **0** |
+| Verificador de plantilla (a)–(e) | — | — | 108 | **0** |
+
+El tablero funciona igual sobre la plantilla: los KPI siguen coincidiendo con su
+hoja de origen y con el motor, con solo ocho órdenes. Las pruebas de regresión
+—`activo`, override de turno, presupuesto— pasan sin cambios.
+
+> **Fallo encontrado y corregido durante la verificación.** El `INSTRUCTIVO`
+> explicaba el error de Excel 2016 escribiendo el literal `#NAME?` dentro de una
+> celda de texto. Cualquier auditoría de errores del libro —incluida la del
+> propio recálculo— lo contaba como un **error real**: la plantilla reportaba
+> «1 error» que no existía. Se reformuló a «errores de nombre de función (NOMBRE
+> en Excel español, NAME en inglés)»: se entiende igual y no ensucia ninguna
+> auditoría, ni la mía ni la de quien reciba el archivo.
+
+### Qué NO se verificó / supuestos
+
+(i) Solo se recalculan las variantes **compatibles**. (ii) La plantilla se
+verifica con el ancla `2026-07-27`; sin `--fecha-ancla` toma el día de
+generación, y las fechas de las 8 órdenes se recolocan al primer día hábil
+disponible — el generador las desplaza para que ninguna caiga en domingo o
+feriado, así que la garantía de «cero hallazgos» se mantiene con cualquier ancla,
+pero eso solo se ha comprobado con una. (iii) La legibilidad del `INSTRUCTIVO`
+—que un jefe que nunca vio la herramienta lo entienda— no es verificable por
+programa: se comprueba que las siete secciones y los conceptos clave estén, no
+que se entiendan. (iv) `MANUAL.md` es un documento de criterio: no tiene nada que
+verificar automáticamente. (v) La plantilla conserva los 16 técnicos y los
+códigos de catálogo de ejemplo **a propósito** —la rotación necesita al menos
+cuatro por especialidad y los códigos son el andamio del mapeo—, y el
+`INSTRUCTIVO` dice explícitamente que ambos se reemplazan. (vi) El recálculo
+independiente lo corre el usuario.
+
+---
+
+## 0-bis. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
 
 Tirada de ajustes sobre el DASHBOARD. **No toca** las 10 reglas, la rotación,
 VAC, el seguimiento, la capacidad ni el banco (comprobado en el punto f).
@@ -187,7 +347,7 @@ en ningún sitio. (vi) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-bis. DASHBOARD — capstone del entregable A
+## 0-ter. DASHBOARD — capstone del entregable A
 
 Hoja de presentación en el **puesto #1**, activa al abrir, con paneles
 inmovilizados. Es capa **visual y de solo lectura**: no implementa ninguna
@@ -433,7 +593,7 @@ una semana con la **dotación activa actual**; no proyecta altas ni bajas.
 
 ---
 
-## 0-ter. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
+## 0-quater. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
 
 Tirada de correcciones. **No toca las 10 reglas, el presupuesto, VAC, el
 seguimiento ni el banco**: con los 16 técnicos activos el motor devuelve
@@ -687,7 +847,7 @@ DASHBOARD.** (vii) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-quater. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
+## 0-quinquies. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
 
 Hoja **derivada** nueva (`PRESUPUESTO`), colocada en el grupo de presentación
 justo después de `COSTOS`. **No toca las 10 reglas, la rotación, VAC, el
@@ -792,7 +952,7 @@ mide contra el día de apertura, igual que las columnas de envejecimiento.
 
 ---
 
-## 0-quinquies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+## 0-sexies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
 
 Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
 rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los
