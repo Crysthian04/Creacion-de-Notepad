@@ -47,7 +47,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.3.0"
+VERSION = "3.4.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -107,20 +107,20 @@ PARAMETROS = [
     # DASHBOARD — metas de distribución del mix de mantenimiento. NO son
     # normativas: no salen de EN 15341 ni de VDI 2893, son convención de
     # industria y cada planta ajusta las suyas. Por eso son editables.
-    ("meta_pct_predictivo", 25, "Meta de mix: % de órdenes predictivas. Convención, NO norma."),
-    ("meta_pct_preventivo", 40, "Meta de mix: % de órdenes preventivas. Convención, NO norma."),
-    ("meta_pct_correctivo_programado", 20,
-     "Meta de mix: % de correctivos programados. Convención, NO norma."),
-    ("meta_pct_emergencia", 5, "Meta de mix: % de emergencias. Convención, NO norma."),
-    ("meta_pct_legal", 10, "Meta de mix: % de órdenes legales. Convención, NO norma."),
+    # El mix se mide sobre HORAS de mano de obra, no sobre conteo de órdenes.
+    ("meta_pct_predictivo", 60, "Meta de mix (% de HH): predictivo. Convención, NO norma."),
+    ("meta_pct_preventivo", 25, "Meta de mix (% de HH): preventivo. Convención, NO norma."),
+    ("meta_pct_correctivo_programado", 10,
+     "Meta de mix (% de HH): correctivo programado. Convención, NO norma."),
+    ("meta_pct_emergencia", 5, "Meta de mix (% de HH): emergencia. Convención, NO norma."),
     # Cuadre DERIVADO de las metas (mismo patrón que el cuadre anual del
-    # presupuesto): avisa si los cinco porcentajes no suman 100.
+    # presupuesto): avisa si los cuatro porcentajes no suman 100.
     ("cuadre_metas_mix",
      '=IF(p_meta_pct_predictivo+p_meta_pct_preventivo+p_meta_pct_correctivo_programado'
-     '+p_meta_pct_emergencia+p_meta_pct_legal=100,"cuadra: 100 %","DESCUADRE: suman "'
+     '+p_meta_pct_emergencia=100,"cuadra: 100 %","DESCUADRE: suman "'
      '&(p_meta_pct_predictivo+p_meta_pct_preventivo+p_meta_pct_correctivo_programado'
-     '+p_meta_pct_emergencia+p_meta_pct_legal)&" %, deben sumar 100")',
-     "Cuadre de las metas de mix. Derivado: avisa si los cinco porcentajes no suman 100."),
+     '+p_meta_pct_emergencia)&" %, deben sumar 100")',
+     "Cuadre de las metas de mix. Derivado: avisa si los cuatro porcentajes no suman 100."),
 ]
 # Fila de cada parámetro dentro de la hoja PARAMETROS (encabezado en fila 3).
 FILA_PARAM = {p[0]: 4 + i for i, p in enumerate(PARAMETROS)}
@@ -253,18 +253,25 @@ ESPECIALIDADES_PROPIAS = [e for _c, e, _d, propia in PUESTOS if propia == SI]
 # que el tipo de OT solo separa preventiva/correctiva, demasiado grueso para las 6
 # categorías. Onboardear otra empresa = editar este catálogo, cero código.
 ACTIVIDADES = [
-    # codigo, descripcion, tipo, categoria_presupuesto, clasificacion
-    ("ACT-01", "Inspección de rutina", "preventivo", "Repuestos mandatorios", "fijo"),
-    ("ACT-02", "Lubricación programada", "preventivo", "Repuestos mandatorios", "fijo"),
-    ("ACT-03", "Reparación de falla", "correctivo", "Correctivos - materiales", "variable"),
-    ("ACT-04", "Análisis predictivo", "predictivo", "Servicios contratados", "fijo"),
-    ("ACT-05", "Certificación legal", "legal", "Servicios contratados", "fijo"),
+    # codigo, descripcion, tipo, categoria_presupuesto, clasificacion, rubro
+    # El RUBRO es la etiqueta transversal (calibración / lubricación) y vive
+    # aquí, en la ACTIVIDAD, porque es la actividad la que dice qué trabajo se
+    # hace: el tipo de OT no distingue una lubricación de una inspección. Vacío
+    # es lo normal y NO es "sin clasificar": la mayoría del trabajo no es ni
+    # calibración ni lubricación.
+    ("ACT-01", "Inspección de rutina", "preventivo", "Repuestos mandatorios", "fijo", ""),
+    ("ACT-02", "Lubricación programada", "preventivo", "Repuestos mandatorios", "fijo",
+     "lubricacion"),
+    ("ACT-03", "Reparación de falla", "correctivo", "Correctivos - materiales", "variable", ""),
+    ("ACT-04", "Análisis predictivo", "predictivo", "Servicios contratados", "fijo", ""),
+    ("ACT-05", "Certificación legal", "legal", "Servicios contratados", "fijo", "calibracion"),
     # §7: el banco de prueba necesita variedad de tipos de trabajo; el overhaul
     # se añade al CATÁLOGO (no se hardcodea en la lógica). El dataset por
     # defecto no lo usa: sus órdenes siguen saliendo de ACT-01…ACT-04.
-    ("ACT-06", "Overhaul mayor", "correctivo", "Overhauls programados", "fijo"),
-    ("ACT-07", "Servicio externo no contratado", "correctivo", "Servicios requeridos", "variable"),
-    ("ACT-08", "Refacción / mejora menor", "correctivo", "Refacciones nuevas", "variable"),
+    ("ACT-06", "Overhaul mayor", "correctivo", "Overhauls programados", "fijo", ""),
+    ("ACT-07", "Servicio externo no contratado", "correctivo", "Servicios requeridos",
+     "variable", ""),
+    ("ACT-08", "Refacción / mejora menor", "correctivo", "Refacciones nuevas", "variable", ""),
 ]
 # Categorías OPEX en orden de presentación: primero las FIJAS, luego las VARIABLES,
 # dentro de cada grupo en el orden del catálogo. Se DERIVAN del catálogo (si el
@@ -290,20 +297,34 @@ SIN_CLASIFICAR_PPTO = "SIN CLASIFICAR"
 # preventivo/correctivo/predictivo/legal. Es la decisión inversa a la del
 # presupuesto (allí la categoría SÍ vive en la actividad, porque describe QUÉ se
 # gasta) y por el mismo criterio: cada atributo en el catálogo que lo determina.
-# Onboardear otra empresa = mapear sus tipos de OT a estas 5 clases.
+# Onboardear otra empresa = mapear sus tipos de OT a estas 4 clases.
+#
+# CLASE y RUBRO son dos dimensiones DISTINTAS y no se mezclan:
+#   · CLASE  → la ESTRATEGIA con la que se ataca la falla. Es una partición: sus
+#     porcentajes suman 100. Son 4 y ninguna es "legal": una calibración
+#     obligatoria es mantenimiento PREVENTIVO hecho por exigencia normativa, no
+#     una estrategia aparte. Meterla como clase inflaba el preventivo hacia
+#     abajo y hacía irreconciliable el mix.
+#   · RUBRO  → una ETIQUETA TRANSVERSAL del trabajo (calibración, lubricación).
+#     Puede estar vacía —lo normal— y NO forma partición: una orden es
+#     clase=preventivo Y rubro=calibracion a la vez. Cuenta en el preventivo del
+#     mix y además alimenta su propia tarjeta de cumplimiento.
 CLASES_MANTENIMIENTO = ["predictivo", "preventivo", "correctivo_programado",
-                        "emergencia", "legal"]
+                        "emergencia"]
 SIN_CLASIFICAR_CLASE = "SIN CLASIFICAR"
+RUBROS = ["calibracion", "lubricacion"]
 TIPOS_OT = [
     ("TIPO-P1", "Orden preventiva programada", "preventiva", "preventivo"),
     ("TIPO-P2", "Orden predictiva (análisis de condición)", "preventiva", "predictivo"),
-    ("TIPO-P3", "Orden legal / calibración obligatoria", "preventiva", "legal"),
+    ("TIPO-P3", "Orden de calibración / verificación legal", "preventiva", "preventivo"),
     ("TIPO-C1", "Orden correctiva planificada", "correctiva", "correctivo_programado"),
     ("TIPO-C2", "Orden correctiva de emergencia", "correctiva", "emergencia"),
 ]
 # tipo_ot → clase. Un tipo sin clase (o fuera de catálogo) cae en SIN CLASIFICAR:
 # el mismo criterio que el presupuesto, la orden nunca desaparece del mix.
 CAT_CLASE = {t[0]: t[3] for t in TIPOS_OT}
+# actividad → rubro ("" si la actividad no lleva etiqueta transversal)
+CAT_RUBRO = {a[0]: a[5] for a in ACTIVIDADES}
 # Naturaleza de cada actividad (columna `tipo` de CAT_ACTIVIDADES) y tipo de OT
 # preventivo que le corresponde. Solo se usan para SEMBRAR datos sintéticos
 # coherentes; el libro no depende de ellos.
@@ -1566,6 +1587,8 @@ def calcular_esperado(datos):
             "clasificacion": regla_1_clasificacion(o["tipo_ot"], CAT_TIPOS),
             "clase_mantenimiento": (CAT_CLASE.get(o["tipo_ot"], "") or SIN_CLASIFICAR_CLASE)
                                    if o["tipo_ot"] else "",
+            # RUBRO: dimensión independiente de la clase. Vacío es lo normal.
+            "rubro": CAT_RUBRO.get(o["cod_actividad"], "") if o["cod_actividad"] else "",
             "linea": ceco[CECO_LINEA] if ceco else SIN_CATALOGO,
             "area": area_o, "sub_area": sub_o,
             "coordinador": ceco[CECO_COORD] if ceco else SIN_CATALOGO,
@@ -1638,7 +1661,8 @@ def calcular_esperado(datos):
                          ("tecnico_asignado", [t[1] for t in TECNICOS_ACTIVOS]),
                          ("clasificacion", ["preventiva", "correctiva", "sin_clasificar"]),
                          ("clase_mantenimiento",
-                          CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE])):
+                          CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE]),
+                         ("rubro", RUBROS)):
         for v in valores:
             adherencia[(dim, v)] = regla_7_adherencia([o for o in habiles if o[dim] == v])
 
@@ -1912,7 +1936,7 @@ CAMPOS_ORDENES = [
     "fecha_inicio", "horas_estimadas", "costo_plan",
     "horas_efectivas",
     "estado", "semana", "anio", "mes", "mes_clave", "dia_semana", "es_habil",
-    "clasificacion", "clase_mantenimiento",
+    "clasificacion", "clase_mantenimiento", "rubro",
     "linea", "area", "sub_area", "coordinador", "especialidad", "actividad",
     "backlog_dias", "backlog_habiles", "estado_backlog", "en_plan",
     "tecnico_asignado", "turno_asignado", "HHA", "HHD",
@@ -2023,6 +2047,15 @@ def formulas_ordenes(R):
                 # Calendario laboral con el área y sub-área de la propia orden.
                 return (f'=IF({fe}="","",'
                         + formula_es_habil(R, fe, f("area", fila), f("sub_area", fila)) + ")")
+            if campo == "rubro":
+                # Etiqueta transversal heredada de la ACTIVIDAD. Vacía si la
+                # actividad no lleva rubro: eso es normal, no es SIN CLASIFICAR.
+                # La búsqueda sobre una celda de catálogo vacía devuelve 0 (tanto
+                # con XLOOKUP como con INDEX/MATCH), así que se normaliza a "".
+                rb = R.busca(f("cod_actividad", fila), "tblActividades", "codigo",
+                             "rubro", '""')
+                return (f'=IF({f("cod_actividad", fila)}="","",'
+                        f'IF({rb}=0,"",{rb}))')
             if campo == "clase_mantenimiento":
                 # DASHBOARD: la clase se HEREDA del catálogo de tipos de OT. Si el
                 # tipo no está o no tiene clase, la orden cae en SIN CLASIFICAR
@@ -2260,7 +2293,8 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                              "es_especialidad_propia"], len(PUESTOS)),
         "tblActividades": Tabla("tblActividades", "CAT_ACTIVIDADES", 3,
                                 ["codigo", "descripcion", "tipo",
-                                 "categoria_presupuesto", "clasificacion"], len(ACTIVIDADES)),
+                                 "categoria_presupuesto", "clasificacion", "rubro"],
+                                len(ACTIVIDADES)),
         "tblTiposOT": Tabla("tblTiposOT", "CAT_TIPOS_OT", 3,
                             ["codigo", "descripcion", "clasificacion",
                              "clase_mantenimiento"], len(TIPOS_OT)),
@@ -2372,7 +2406,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     dv5 = DataValidation(type="whole", operator="between", formula1="0", formula2="100",
                          showErrorMessage=False)
     ws.add_data_validation(dv5)
-    for _m in ("predictivo", "preventivo", "correctivo_programado", "emergencia", "legal"):
+    for _m in ("predictivo", "preventivo", "correctivo_programado", "emergencia"):
         dv5.add(f"B{FILA_PARAM['meta_pct_' + _m]}")
     ws.conditional_formatting.add(
         f"B{FILA_PARAM['cuadre_metas_mix']}",
@@ -2401,7 +2435,6 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "p_meta_pct_preventivo": FILA_PARAM["meta_pct_preventivo"],
         "p_meta_pct_correctivo_programado": FILA_PARAM["meta_pct_correctivo_programado"],
         "p_meta_pct_emergencia": FILA_PARAM["meta_pct_emergencia"],
-        "p_meta_pct_legal": FILA_PARAM["meta_pct_legal"],
     }
     for nom, fila in nombres.items():
         wb.defined_names.add(DefinedName(nom, attr_text=f"PARAMETROS!$B${fila}"))
@@ -3546,27 +3579,45 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     f5 = bloque_adh(f4, "POR CLASE DE MANTENIMIENTO (mix; la clase la hereda la orden de "
                     "CAT_TIPOS_OT)", "clase_mantenimiento",
                     CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE])
-    f6 = bloque_adh(f5, "POR TÉCNICO", "tecnico_asignado", [t[1] for t in TECNICOS_ACTIVOS])
+    # RUBRO es transversal: sus filas NO suman con las de clase (una orden puede
+    # estar en preventivo y además en calibración). Por eso va en su propio
+    # bloque y no como una fila más del mix.
+    f5b = bloque_adh(f5, "POR RUBRO (etiqueta transversal; no suma con las clases)",
+                     "rubro", RUBROS)
+    f6 = bloque_adh(f5b, "POR TÉCNICO", "tecnico_asignado", [t[1] for t in TECNICOS_ACTIVOS])
 
     # ── MES A MES (fuente del DASHBOARD) ───────────────────────────────────
-    # El tablero NO calcula: lee estas filas. Aquí vive el corte (mes en curso
+    # El tablero NO calcula: lee estas filas. Aquí viven el corte (mes en curso
     # hasta el día ANTERIOR a p_fecha_datos), la adherencia del mes, el
-    # cumplimiento legal y el mix por clase con su reconciliación.
+    # cumplimiento por RUBRO (lubricación y calibración) y el mix por CLASE, en
+    # conteo y en horas, con sus dos reconciliaciones.
     fm = f6 + 1
     ANC["adh_mes"] = fm          # fila de encabezados; los datos empiezan en fm+1
     celda(ws, fm - 1, 1, "MES A MES — corte del tablero (fuente del DASHBOARD; no editar). "
                          "El mes de la fecha de datos se corta el DÍA ANTERIOR a ella; el resto, "
                          "a fin de mes. El mix cuenta TODAS las órdenes del mes (la adherencia, "
-                         "solo días hábiles, como REGLA-7).", font=F_SEC)
-    cab_mes = (["mes", "corte", "total_ot", "cerradas", "adherencia", "meta",
-                "legal_programadas", "legal_cerradas", "legal_adherencia", "legal_vencidas"]
-               + CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE,
-                                         "CONTROL — órdenes del mes", "DIFERENCIA (debe ser 0)"])
+                         "solo días hábiles, como REGLA-7). CLASE es partición (suma 100 %); "
+                         "RUBRO es etiqueta transversal y NO suma con las clases.", font=F_SEC)
+    clases_mix = CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE]
+    NCL = len(clases_mix)
+    cab_mes = ["mes", "corte", "total_ot", "cerradas", "adherencia", "meta"]
+    for rb in RUBROS:                                   # 4 columnas por rubro
+        cab_mes += [f"{rb}_programadas", f"{rb}_cerradas", f"{rb}_adherencia",
+                    f"{rb}_vencidas"]
+    C_RUB = 7                                           # 1.ª columna de rubros (G)
+    C_MIXN = C_RUB + 4 * len(RUBROS)                    # 1.ª columna de mix por CONTEO
+    C_MIXH = C_MIXN + NCL + 2                           # 1.ª columna de mix por HORAS
+    cab_mes += [f"n_{c}" for c in clases_mix]
+    cab_mes += ["CONTROL — órdenes del mes", "DIFERENCIA conteo (debe ser 0)"]
+    cab_mes += [f"hh_{c}" for c in clases_mix]
+    cab_mes += ["CONTROL — horas del mes", "DIFERENCIA horas (debe ser 0)"]
     encabezados(ws, fm, cab_mes)
     o_mesk = R.col("tblOrdenes", "mes_clave")
     o_fecha = R.col("tblOrdenes", "fecha_inicio")
     o_est = R.col("tblOrdenes", "estado")
     o_clase = R.col("tblOrdenes", "clase_mantenimiento")
+    o_rubro = R.col("tblOrdenes", "rubro")
+    o_hh = R.col("tblOrdenes", "horas_efectivas")
     for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
         fr = fm + 1 + i
         celda(ws, fr, 1, f"{anio_m}-{mes_m:02d}")
@@ -3577,30 +3628,72 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         celda(ws, fr, 4, f'=COUNTIFS({base},{hab},{o_est},"Cerrada")')
         celda(ws, fr, 5, f'=IF($C{fr}=0,"",$D{fr}/$C{fr})', fmt=FMT_PCT)
         celda(ws, fr, 6, "=p_meta_adherencia", fmt="0%")
-        # Cumplimiento legal: se mide sobre TODAS las órdenes legales del mes
-        # (también las de día no hábil): un vencimiento normativo no se excusa
-        # porque cayera en domingo.
-        leg = f'{base},{o_clase},"legal"'
-        celda(ws, fr, 7, f"=COUNTIFS({leg})")
-        celda(ws, fr, 8, f'=COUNTIFS({leg},{o_est},"Cerrada")')
-        celda(ws, fr, 9, f'=IF($G{fr}=0,"",$H{fr}/$G{fr})', fmt=FMT_PCT)
-        celda(ws, fr, 10, f'=COUNTIFS({leg},{o_est},"Pendiente")')
-        for j, cl in enumerate(CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE]):
-            celda(ws, fr, 11 + j, f'=COUNTIFS({base},{o_clase},"{cl}")')
-        c_ini = get_column_letter(11)
-        c_fin = get_column_letter(10 + len(CLASES_MANTENIMIENTO) + 1)
-        col_ctrl = 11 + len(CLASES_MANTENIMIENTO) + 1
-        celda(ws, fr, col_ctrl, f"=COUNTIFS({base})")
-        celda(ws, fr, col_ctrl + 1,
-              f"=SUM({c_ini}{fr}:{c_fin}{fr})-{get_column_letter(col_ctrl)}{fr}")
+        # Cumplimiento por RUBRO: se mide sobre TODAS las órdenes del rubro en el
+        # mes, también las de día no hábil. Una calibración vencida no se excusa
+        # porque su fecha cayera en domingo, y una ruta de lubricación tampoco.
+        for j, rb in enumerate(RUBROS):
+            c0 = C_RUB + 4 * j
+            L0 = get_column_letter(c0)
+            crit = f'{base},{o_rubro},"{rb}"'
+            celda(ws, fr, c0, f"=COUNTIFS({crit})")
+            celda(ws, fr, c0 + 1, f'=COUNTIFS({crit},{o_est},"Cerrada")')
+            celda(ws, fr, c0 + 2,
+                  f'=IF(${L0}{fr}=0,"",${get_column_letter(c0 + 1)}{fr}/${L0}{fr})',
+                  fmt=FMT_PCT)
+            celda(ws, fr, c0 + 3, f'=COUNTIFS({crit},{o_est},"Pendiente")')
+        # Mix por CLASE, en conteo y en horas. Cada bloque lleva su control y su
+        # diferencia: si alguna orden se quedara sin clase, la fila se pondría en
+        # rojo en vez de desaparecer del mix.
+        for j, cl in enumerate(clases_mix):
+            celda(ws, fr, C_MIXN + j, f'=COUNTIFS({base},{o_clase},"{cl}")')
+            celda(ws, fr, C_MIXH + j, f'=SUMIFS({o_hh},{base},{o_clase},"{cl}")', fmt=FMT_HH)
+        celda(ws, fr, C_MIXN + NCL, f"=COUNTIFS({base})")
+        celda(ws, fr, C_MIXN + NCL + 1,
+              f"=SUM({get_column_letter(C_MIXN)}{fr}:{get_column_letter(C_MIXN + NCL - 1)}{fr})"
+              f"-{get_column_letter(C_MIXN + NCL)}{fr}")
+        celda(ws, fr, C_MIXH + NCL, f"=SUMIFS({o_hh},{base})", fmt=FMT_HH)
+        celda(ws, fr, C_MIXH + NCL + 1,
+              f"=ROUND(SUM({get_column_letter(C_MIXH)}{fr}:"
+              f"{get_column_letter(C_MIXH + NCL - 1)}{fr})"
+              f"-{get_column_letter(C_MIXH + NCL)}{fr},6)", fmt=FMT_HH)
     ult_mes = fm + len(esperado["meses"])
     escala_adherencia(ws, f"E{fm + 1}:E{ult_mes}")
-    escala_adherencia(ws, f"I{fm + 1}:I{ult_mes}")
-    ws.conditional_formatting.add(f"J{fm + 1}:J{ult_mes}",
-                                  CellIsRule(operator="greaterThan", formula=["0"], fill=FILL_ROJO))
-    col_dif = get_column_letter(12 + len(CLASES_MANTENIMIENTO) + 1)
-    ws.conditional_formatting.add(f"{col_dif}{fm + 1}:{col_dif}{ult_mes}",
-                                  CellIsRule(operator="notEqual", formula=["0"], fill=FILL_ROJO))
+    for j in range(len(RUBROS)):
+        La = get_column_letter(C_RUB + 4 * j + 2)
+        Lv = get_column_letter(C_RUB + 4 * j + 3)
+        escala_adherencia(ws, f"{La}{fm + 1}:{La}{ult_mes}")
+        ws.conditional_formatting.add(
+            f"{Lv}{fm + 1}:{Lv}{ult_mes}",
+            CellIsRule(operator="greaterThan", formula=["0"], fill=FILL_ROJO))
+    for c_dif in (C_MIXN + NCL + 1, C_MIXH + NCL + 1):
+        Ld = get_column_letter(c_dif)
+        ws.conditional_formatting.add(
+            f"{Ld}{fm + 1}:{Ld}{ult_mes}",
+            CellIsRule(operator="notEqual", formula=["0"], fill=FILL_ROJO))
+
+    # ── SEMANA × RUBRO (fuente del gráfico de lubricación) ─────────────────
+    # Programadas y cerradas por semana ISO y rubro. El tablero elige las semanas
+    # del mes y lee estas filas; no vuelve a contar órdenes.
+    fsr = ult_mes + 3
+    ANC["adh_sem_rubro"] = fsr
+    celda(ws, fsr - 1, 1, "SEMANA × RUBRO — programadas vs cerradas (fuente del DASHBOARD; "
+                          "no editar).", font=F_SEC)
+    cab_sr = ["semana"]
+    for rb in RUBROS:
+        cab_sr += [f"{rb}_programadas", f"{rb}_cerradas"]
+    encabezados(ws, fsr, cab_sr)
+    o_sem = R.col("tblOrdenes", "semana")
+    for k in range(CAP_SEM):
+        fr = fsr + 1 + k
+        celda(ws, fr, 1, f"='PERFIL_HH'!$O${FILA_SERIE + k}")
+        for j, rb in enumerate(RUBROS):
+            crit = f'{o_sem},$A{fr},{o_rubro},"{rb}"'
+            celda(ws, fr, 2 + 2 * j, f'=IF($A{fr}="","",COUNTIFS({crit}))')
+            celda(ws, fr, 3 + 2 * j,
+                  f'=IF($A{fr}="","",COUNTIFS({crit},{o_est},"Cerrada"))')
+        if k in ocultas_k:
+            ws.row_dimensions[fr].hidden = True
+
     grafico = LineChart()
     grafico.title = "Adherencia semanal vs meta"
     grafico.height, grafico.width = 8, 16
@@ -3877,7 +3970,10 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
          "quién puede ser técnico propio (rotación y capacidad)",
          [("B", '"ELE,MEC,AUT,OP,TERCERO"'), ("D", f'"{SI},{NO}"')]),
         ("CAT_ACTIVIDADES", "tblActividades", ACTIVIDADES,
-         "Catálogo de actividades", ("C", '"correctivo,preventivo,predictivo,legal"')),
+         "Catálogo de actividades. `rubro` es la etiqueta transversal del trabajo "
+         "(calibración / lubricación) y puede quedar VACÍA: eso es lo normal",
+         [("C", '"correctivo,preventivo,predictivo,legal"'),
+          ("F", '"' + ",".join(RUBROS) + '"', True)]),
         ("CAT_TIPOS_OT", "tblTiposOT", TIPOS_OT,
          "Traducción de tipos de OT del ERP → preventiva/correctiva (REGLA-1) y → clase "
          "de mantenimiento (mix del DASHBOARD). Un tipo sin clase cae en SIN CLASIFICAR",
@@ -3907,8 +4003,13 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             for j, v in enumerate(fila_cat, start=1):
                 celda(ws, tb.fila_ini + i, j, v, font=F_EDIT)
         agregar_tabla(ws, tb)
-        for colv, lista in ([val] if isinstance(val, tuple) else (val or [])):
-            dv = DataValidation(type="list", formula1=lista, allow_blank=False)
+        # Cada validación es (columna, lista) o (columna, lista, admite_vacío).
+        # `rubro` es el único atributo de catálogo que puede quedar en blanco.
+        for spec in ([val] if isinstance(val, tuple) else (val or [])):
+            colv, lista = spec[0], spec[1]
+            vacio = spec[2] if len(spec) > 2 else False
+            dv = DataValidation(type="list", formula1=lista, allow_blank=vacio,
+                                showErrorMessage=False)
             ws.add_data_validation(dv)
             dv.add(f"{colv}{tb.fila_ini}:{colv}{tb.fila_fin}")
         for j in range(len(tb.campos)):
@@ -4337,40 +4438,35 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                 ("{c}>1+p_tolerancia_desviacion_presupuesto", FILL_ROJO),
                 ("{c}<1-p_tolerancia_desviacion_presupuesto", FILL_AMAR)]))
 
-    # KPI 5 — MIX. Criterio elegido, por legibilidad: el DESVÍO MÁXIMO en puntos
-    # porcentuales entre el mix real del mes y su meta, y la clase que lo causa.
-    # Un solo número dice "cuán lejos estoy del mix objetivo" y, al lado, de qué
-    # clase se trata; un % de "cumplimiento compuesto" escondería la causa.
-    FG_C = 68                                  # bloque de datos del gráfico C
-    rng_pp = f"$E${FG_C + 1}:$E${FG_C + len(CLASES_MANTENIMIENTO) + 1}"
-    rng_cl = f"$A${FG_C + 1}:$A${FG_C + len(CLASES_MANTENIMIENTO) + 1}"
-    tarjeta(F2, 7, "5 · MIX DE MANTENIMIENTO",
-            f'=IF(COUNT({rng_pp})=0,"",MAX({rng_pp}))', '0.0" pp"',
-            f'=IF(COUNT({rng_pp})=0,"",'
-            f'"desvío máximo vs meta · clase: "&INDEX({rng_cl},MATCH(MAX({rng_pp}),{rng_pp},0)))',
-            "origen: ADHERENCIA › MES A MES (conteo por clase) vs metas de PARAMETROS",
-            lambda r, ref: sem_num(r, ref, [("{c}<=5", FILL_VERDE),
-                                            ("AND({c}>5,{c}<=10)", FILL_AMAR),
-                                            ("{c}>10", FILL_ROJO)]))
-
-    # KPI 6 — cumplimiento legal. Es normativo: si queda alguna orden legal
-    # vencida al corte, la tarjeta va en ROJO aunque el porcentaje sea alto.
-    celda(ws, F2 + 5, 7, "=" + del_mes(r_adh("J"), r_adh("A")), font=F_NOTA)
-    ws.cell(row=F2 + 5, column=7).number_format = "0"
-    celda(ws, F2 + 5, 8, "← órdenes legales vencidas al corte (celda de apoyo del semáforo)",
-          font=F_NOTA)
-    ref_venc = f"$G${F2 + 5}"
-    tarjeta(F2, 13, "6 · CUMPLIMIENTO LEGAL / CALIBRACIONES",
-            "=" + del_mes(r_adh("I"), r_adh("A")), "0.0%",
-            f'="legales cerradas ÷ programadas del mes  ·  vencidas: "&{ref_venc}',
-            "origen: ADHERENCIA › MES A MES (clase legal)",
-            lambda r, ref: [
-                ws.conditional_formatting.add(r, FormulaRule(
-                    formula=[f"AND(ISNUMBER({ref_venc}),{ref_venc}>0)"], fill=FILL_ROJO)),
-                ws.conditional_formatting.add(r, FormulaRule(
-                    formula=[f"AND(ISNUMBER({ref}),{ref}>=1)"], fill=FILL_VERDE)),
-                ws.conditional_formatting.add(r, FormulaRule(
-                    formula=[f"AND(ISNUMBER({ref}),{ref}<1)"], fill=FILL_AMAR))])
+    # KPI 5 y 6 — cumplimiento por RUBRO. Mismo patrón los dos: cerradas ÷
+    # programadas del mes, con una celda de apoyo con las VENCIDAS que fuerza el
+    # rojo aunque el porcentaje sea alto. Se quitó la tarjeta de MIX: un número
+    # único (el desvío máximo) no era accionable y la distribución ya se lee en
+    # su gráfico y en la tabla de al lado.
+    C_RUB_D = 7                                   # 1.ª columna de rubros en ADHERENCIA
+    for k_, (rb, titulo_rb, col_kpi) in enumerate([
+            ("lubricacion", "5 · CUMPLIMIENTO DE LUBRICACIÓN", 7),
+            ("calibracion", "6 · CUMPLIMIENTO DE CALIBRACIONES", 13)]):
+        c_adh = C_RUB_D + 4 * RUBROS.index(rb)
+        col_pct = get_column_letter(c_adh + 2)
+        col_ven = get_column_letter(c_adh + 3)
+        # celda de apoyo: vencidas del rubro al corte (alimenta el semáforo)
+        celda(ws, F2 + 5, col_kpi, "=" + del_mes(r_adh(col_ven), r_adh("A")), font=F_NOTA)
+        ws.cell(row=F2 + 5, column=col_kpi).number_format = "0"
+        celda(ws, F2 + 5, col_kpi + 1,
+              f"← {rb} vencidas al corte (celda de apoyo del semáforo)", font=F_NOTA)
+        ref_venc = f"${get_column_letter(col_kpi)}${F2 + 5}"
+        tarjeta(F2, col_kpi, titulo_rb,
+                "=" + del_mes(r_adh(col_pct), r_adh("A")), "0.0%",
+                f'="{rb} cerradas ÷ programadas del mes  ·  vencidas: "&{ref_venc}',
+                f"origen: ADHERENCIA › MES A MES (rubro {rb})",
+                lambda r, ref, rv=ref_venc: [
+                    ws.conditional_formatting.add(r, FormulaRule(
+                        formula=[f"AND(ISNUMBER({rv}),{rv}>0)"], fill=FILL_ROJO)),
+                    ws.conditional_formatting.add(r, FormulaRule(
+                        formula=[f"AND(ISNUMBER({ref}),{ref}>=1)"], fill=FILL_VERDE)),
+                    ws.conditional_formatting.add(r, FormulaRule(
+                        formula=[f"AND(ISNUMBER({ref}),{ref}<1)"], fill=FILL_AMAR))])
 
     # ---- bloques de datos de los gráficos --------------------------------
     # Viven en la propia hoja, debajo y a la vista (no ocultos): son la fuente
@@ -4414,34 +4510,70 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         celda(ws, fr, 3, "=" + del_mes(r_per(get_column_letter(5 + 2 * j)), r_per("A")),
               fmt=FMT_HH)
 
-    # C) mix real vs meta por clase. El % real sale de los conteos por clase del
-    #    bloque MES A MES de ADHERENCIA; la meta, de PARAMETROS.
-    celda(ws, FG_C - 1, 1, "C · mix de mantenimiento: real vs meta (en % de las órdenes del mes)",
-          font=F_NOTA)
-    encabezados(ws, FG_C, ["clase", "real %", "meta %", "órdenes", "desvío |pp|"])
+    # C) TABLA DEL MIX — va AL LADO del gráfico C (no abajo con el resto de
+    #    bloques) porque es un entregable en sí, no solo el alimento del gráfico.
+    #    El mix se mide por HORAS de mano de obra: es lo coherente con una
+    #    herramienta de capacidad y es a lo que se refieren los benchmarks. El %
+    #    por CONTEO va al lado como dato secundario, porque una ruta de
+    #    predictivo son muchas órdenes cortas y un overhaul es una sola orden
+    #    larga: las dos lecturas juntas evitan malinterpretar el número.
+    #    La comparación con la meta se hace SIEMPRE contra el % por horas.
+    FG_C, COL_C = 34, 10                       # fila y columna (J) de la tabla
+    LC = get_column_letter(COL_C)
+    celda(ws, FG_C - 1, COL_C, "C · MIX DE MANTENIMIENTO — real vs meta (la meta se compara "
+                               "contra el % por HORAS)", font=F_SEC)
+    encabezados(ws, FG_C, ["clase", "% real (horas)", "% meta", "desviación (pp)",
+                           "% real (conteo)", "horas", "órdenes"], col_ini=COL_C)
     metas_clase = {"predictivo": "p_meta_pct_predictivo", "preventivo": "p_meta_pct_preventivo",
                    "correctivo_programado": "p_meta_pct_correctivo_programado",
-                   "emergencia": "p_meta_pct_emergencia", "legal": "p_meta_pct_legal"}
-    tot_mix = del_mes(r_adh(get_column_letter(col_mix0 + len(CLASES_MANTENIMIENTO) + 1)),
-                      r_adh("A"))
-    for j, cl in enumerate(CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE]):
+                   "emergencia": "p_meta_pct_emergencia"}
+    clases_mix_d = CLASES_MANTENIMIENTO + [SIN_CLASIFICAR_CLASE]
+    NCL_D = len(clases_mix_d)
+    C_MIXN_D = 7 + 4 * len(RUBROS)             # 1.ª columna de mix por conteo en ADHERENCIA
+    C_MIXH_D = C_MIXN_D + NCL_D + 2            # 1.ª columna de mix por horas
+    tot_n = del_mes(r_adh(get_column_letter(C_MIXN_D + NCL_D)), r_adh("A"))
+    tot_h = del_mes(r_adh(get_column_letter(C_MIXH_D + NCL_D)), r_adh("A"))
+    Lp, Lm, Ld, Lc, Lh, Lo = (get_column_letter(COL_C + i) for i in range(1, 7))
+    for j, cl in enumerate(clases_mix_d):
         fr = FG_C + 1 + j
-        celda(ws, fr, 1, cl)
-        celda(ws, fr, 4, "=" + del_mes(r_adh(get_column_letter(col_mix0 + j)), r_adh("A")))
-        celda(ws, fr, 2, f'=IF(N({tot_mix})=0,"",$D{fr}/{tot_mix})', fmt=FMT_PCT)
+        celda(ws, fr, COL_C, cl)
+        celda(ws, fr, COL_C + 5, "=" + del_mes(r_adh(get_column_letter(C_MIXH_D + j)),
+                                               r_adh("A")), fmt=FMT_HH)
+        celda(ws, fr, COL_C + 6, "=" + del_mes(r_adh(get_column_letter(C_MIXN_D + j)),
+                                               r_adh("A")))
+        celda(ws, fr, COL_C + 1, f'=IF(N({tot_h})=0,"",${Lh}{fr}/{tot_h})', fmt=FMT_PCT)
         # SIN CLASIFICAR no tiene meta: su objetivo es 0 (no debería haber nada).
-        celda(ws, fr, 3, f"={metas_clase[cl]}/100" if cl in metas_clase else "=0", fmt=FMT_PCT)
-        celda(ws, fr, 5, f'=IF($B{fr}="","",ABS($B{fr}-$C{fr})*100)', fmt="0.0")
-    fmix = FG_C + 1 + len(CLASES_MANTENIMIENTO) + 1
-    celda(ws, fmix, 1, "TOTAL (control)", font=F_SEC)
-    celda(ws, fmix, 2, f'=IF(N({tot_mix})=0,"",SUM($B${FG_C + 1}:$B${fmix - 1}))', fmt=FMT_PCT)
-    celda(ws, fmix, 4, f'=SUM($D${FG_C + 1}:$D${fmix - 1})')
-    celda(ws, fmix + 1, 1, "DIFERENCIA vs órdenes del mes (debe ser 0)", font=F_NOTA)
-    celda(ws, fmix + 1, 4, f'=$D{fmix}-N({tot_mix})')
-    ws.conditional_formatting.add(f"D{fmix + 1}", CellIsRule(
-        operator="notEqual", formula=["0"], fill=FILL_ROJO))
-    celda(ws, fmix + 2, 1,
+        celda(ws, fr, COL_C + 2, f"={metas_clase[cl]}/100" if cl in metas_clase else "=0",
+              fmt=FMT_PCT)
+        celda(ws, fr, COL_C + 3, f'=IF(${Lp}{fr}="","",(${Lp}{fr}-${Lm}{fr})*100)', fmt="+0.0;-0.0;0.0")
+        celda(ws, fr, COL_C + 4, f'=IF(N({tot_n})=0,"",${Lo}{fr}/{tot_n})', fmt=FMT_PCT)
+    fmix = FG_C + 1 + NCL_D
+    celda(ws, fmix, COL_C, "TOTAL (control)", font=F_SEC)
+    celda(ws, fmix, COL_C + 1,
+          f'=IF(N({tot_h})=0,"",SUM(${Lp}${FG_C + 1}:${Lp}${fmix - 1}))', fmt=FMT_PCT)
+    celda(ws, fmix, COL_C + 2,
+          f'=SUM(${Lm}${FG_C + 1}:${Lm}${fmix - 1})', fmt=FMT_PCT)
+    celda(ws, fmix, COL_C + 4,
+          f'=IF(N({tot_n})=0,"",SUM(${Lc}${FG_C + 1}:${Lc}${fmix - 1}))', fmt=FMT_PCT)
+    celda(ws, fmix, COL_C + 5, f'=SUM(${Lh}${FG_C + 1}:${Lh}${fmix - 1})', fmt=FMT_HH)
+    celda(ws, fmix, COL_C + 6, f'=SUM(${Lo}${FG_C + 1}:${Lo}${fmix - 1})')
+    celda(ws, fmix + 1, COL_C, "DIFERENCIA vs el mes (debe ser 0)", font=F_NOTA)
+    celda(ws, fmix + 1, COL_C + 5, f'=ROUND(${Lh}{fmix}-N({tot_h}),6)', fmt=FMT_HH)
+    celda(ws, fmix + 1, COL_C + 6, f'=${Lo}{fmix}-N({tot_n})')
+    for cdif in (COL_C + 5, COL_C + 6):
+        ws.conditional_formatting.add(f"{get_column_letter(cdif)}{fmix + 1}", CellIsRule(
+            operator="notEqual", formula=["0"], fill=FILL_ROJO))
+    # Semáforo de la desviación en puntos porcentuales (sobre el % por horas).
+    rng_d = f"{Ld}{FG_C + 1}:{Ld}{fmix - 1}"
+    for expr, fill in (("ABS({c})<=5", FILL_VERDE), ("AND(ABS({c})>5,ABS({c})<=10)", FILL_AMAR),
+                       ("ABS({c})>10", FILL_ROJO)):
+        ws.conditional_formatting.add(rng_d, FormulaRule(
+            formula=[f"AND(ISNUMBER(${Ld}{FG_C + 1}),"
+                     f"{expr.format(c='$' + Ld + str(FG_C + 1))})"], fill=fill))
+    celda(ws, fmix + 2, COL_C,
           f"=PARAMETROS!$B${FILA_PARAM['cuadre_metas_mix']}", font=F_NOTA)
+    celda(ws, fmix + 3, COL_C, "RUBRO (calibración, lubricación) es etiqueta transversal: NO "
+                               "entra en este mix, se mide en sus tarjetas.", font=F_NOTA)
 
     # D) OPEX plan vs real por mes, separando fijo y variable. Lee las filas de
     #    subtotales de PRESUPUESTO; los meses posteriores al elegido se dejan en
@@ -4461,7 +4593,26 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             celda(ws, fr, 2 + j,
                   f'=IF({m}>{mes_num},"",PRESUPUESTO!${cl_m}${ANC[clave]})', fmt=FMT_DINERO)
 
-    # ---- 4 gráficos ------------------------------------------------------
+    # E) lubricación por semana del mes. Reusa las MISMAS semanas del bloque A
+    #    (una sola definición de "semanas del mes") y lee las programadas y
+    #    cerradas del bloque SEMANA × RUBRO de ADHERENCIA.
+    FG_E = 95
+    fsr0 = ANC["adh_sem_rubro"] + 1
+    fsr1 = ANC["adh_sem_rubro"] + CAP_SEM
+    col_lub = 2 + 2 * RUBROS.index("lubricacion")       # dentro del bloque semanal
+    celda(ws, FG_E - 1, 1, "E · lubricación por semana del mes elegido", font=F_NOTA)
+    encabezados(ws, FG_E, ["semana", "programadas", "cerradas"])
+    for k in range(6):
+        fr = FG_E + 1 + k
+        fa_ = FG_A + 1 + k
+        celda(ws, fr, 1, f'=IF($A{fa_}="","",$A{fa_})')
+        for j in range(2):
+            col_src = get_column_letter(col_lub + j)
+            celda(ws, fr, 2 + j,
+                  f'=IF($A{fr}="","",IFERROR(INDEX(ADHERENCIA!${col_src}${fsr0}:'
+                  f'${col_src}${fsr1},MATCH($A{fr},ADHERENCIA!$A${fsr0}:$A${fsr1},0)),""))')
+
+    # ---- 5 gráficos ------------------------------------------------------
     # Ninguno lleva máximo de eje fijo (autoescala al cambiar de mes) y los dos
     # ejes van visibles con su escala.
     def ejes(ch, tit_x, tit_y, minimo=0):
@@ -4509,19 +4660,23 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ejes(gB, "Especialidad", "HH")
     ws.add_chart(gB, "J18")
 
+    # C se alimenta de la tabla del mix (columnas % real horas y % meta), que
+    # queda justo a su derecha para poder leer el número exacto junto a la barra.
     gC = BarChart()
     gC.type, gC.gapWidth = "col", 60
-    gC.title = "C · Mix de mantenimiento: real vs meta"
+    gC.title = "C · Mix de mantenimiento: real (horas) vs meta"
     gC.height, gC.width = 8, 15
-    gC.add_data(Reference(ws, min_col=2, max_col=3, min_row=FG_C,
-                          max_row=FG_C + len(CLASES_MANTENIMIENTO) + 1), titles_from_data=True)
-    gC.set_categories(Reference(ws, min_col=1, min_row=FG_C + 1,
-                                max_row=FG_C + len(CLASES_MANTENIMIENTO) + 1))
+    gC.add_data(Reference(ws, min_col=COL_C + 1, max_col=COL_C + 2, min_row=FG_C,
+                          max_row=FG_C + NCL_D), titles_from_data=True)
+    gC.set_categories(Reference(ws, min_col=COL_C, min_row=FG_C + 1,
+                                max_row=FG_C + NCL_D))
     gC.series[0].graphicalProperties.solidFill = "4472C4"
     gC.series[1].graphicalProperties.solidFill = "ED7D31"
-    ejes(gC, "Clase de mantenimiento", "% de las órdenes del mes")
+    ejes(gC, "Clase de mantenimiento", "% de las HH del mes")
     ws.add_chart(gC, "A34")
 
+    # D se mueve a la derecha de la tabla del mix para dejarle sitio; ni su
+    # contenido ni su fuente cambian.
     gD = BarChart()
     gD.type, gD.gapWidth = "col", 40
     gD.title = "D · OPEX plan vs real por mes (fijo y variable)"
@@ -4532,7 +4687,22 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     for si, color in enumerate(("1F4E78", "A9C4E8", "C55A11", "F4B183")):
         gD.series[si].graphicalProperties.solidFill = color
     ejes(gD, "Mes", '=p_moneda')
-    ws.add_chart(gD, "J34")
+    ws.add_chart(gD, "S34")
+
+    # E · lubricación por semana del mes: programadas vs cerradas. Sin florituras:
+    # se trata de ver si el plan se cumple o se va postergando semana a semana.
+    gE = BarChart()
+    gE.type, gE.gapWidth = "col", 60
+    gE.title = "E · Lubricación por semana: programadas vs cerradas"
+    gE.height, gE.width = 8, 15
+    gE.add_data(Reference(ws, min_col=2, max_col=3, min_row=FG_E, max_row=FG_E + 6),
+                titles_from_data=True)
+    gE.set_categories(Reference(ws, min_col=1, min_row=FG_E + 1, max_row=FG_E + 6))
+    gE.series[0].graphicalProperties.solidFill = "A9C4E8"
+    gE.series[1].graphicalProperties.solidFill = "1F4E78"
+    gE.series[1].dLbls = DataLabelList(showVal=True)
+    ejes(gE, "Semana ISO", "Órdenes de lubricación")
+    ws.add_chart(gE, "S18")
 
     # ---- selector de mes: rango + nombre definido (misma técnica que 7.1) --
     COL_MES = 24                                   # columna X, fuera del tablero
@@ -4553,6 +4723,52 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ws.column_dimensions[colw].width = w
     ws.row_dimensions[1].height = 24
     ws.sheet_view.showGridLines = False
+
+    # Hojas que se ocultan al final (se necesita la lista antes, para saber a
+    # cuáles NO ponerles el botón de vuelta).
+    OCULTAS = ([h for h in wb.sheetnames if h.startswith("CAT_")]
+               + ["GUIA_IMPORTAR_ORDENES", "INICIO", "_COMPATIBILIDAD", "_BANCO_PRUEBA"])
+
+    # ------------------------------------- BOTÓN DE VUELTA AL TABLERO
+    # Problema real al presentar: desde el tablero se navega a una hoja, pero
+    # para volver había que buscar la pestaña a mano. Cada hoja visible (salvo el
+    # propio DASHBOARD) recibe el mismo enlace, en la MISMA columna A y siempre
+    # DENTRO de la zona congelada, para que quede a la vista sin desplazarse.
+    # Se busca una fila totalmente vacía de esa zona: nunca se pisa contenido.
+    def boton_volver(ws_):
+        fp = ws_.freeze_panes
+        # filas congeladas (las de arriba); sin inmovilizar, se usan las 3
+        # primeras, que en todas estas hojas son título / hueco / cabecera.
+        n_cong = 3
+        if fp:
+            digitos = "".join(c for c in str(fp) if c.isdigit())
+            if digitos:
+                n_cong = int(digitos) - 1
+        combinadas = set()
+        for rango in ws_.merged_cells.ranges:
+            for fila_ in range(rango.min_row, rango.max_row + 1):
+                for col_ in range(rango.min_col, rango.max_col + 1):
+                    combinadas.add((fila_, col_))
+        for fila_ in range(2, max(n_cong, 3) + 1):
+            # Basta con que A y B estén libres: el rótulo cabe en la columna A
+            # (ancha en todas estas hojas) y B le deja aire. Exigir la fila
+            # entera vacía dejaba fuera hojas como PLAN_SEMANAL, que tiene
+            # bloques auxiliares a la derecha pero la izquierda despejada.
+            vacia = all(ws_.cell(row=fila_, column=c_).value is None for c_ in (1, 2))
+            if vacia and (fila_, 1) not in combinadas:
+                celda(ws_, fila_, 1, '=HYPERLINK("#DASHBOARD!A1","◂ VOLVER AL TABLERO")',
+                      font=F_BOTON, fill=FILL_GRIS)
+                return fila_
+        return None
+
+    sin_boton = []
+    for nombre_h in wb.sheetnames:
+        if nombre_h == "DASHBOARD" or nombre_h in OCULTAS:
+            continue
+        if boton_volver(wb[nombre_h]) is None:
+            sin_boton.append(nombre_h)
+    # Si alguna hoja no tuviera hueco, se avisa en vez de pisar una celda.
+    assert not sin_boton, f"sin sitio para el botón de vuelta: {sin_boton}"
 
     # ------------------------------------------------- ORDEN DE LAS HOJAS
     # 7.1: el libro se ordena por USO, no por historia. (A) lo que se muestra,
@@ -4580,8 +4796,6 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # HIGIENE: las hojas que se consultan una vez al año se ocultan. `hidden`
     # (no `veryHidden`): el usuario las recupera con clic derecho en cualquier
     # pestaña → Mostrar. PARAMETROS queda VISIBLE porque se ajusta a menudo.
-    OCULTAS = ([h for h in wb.sheetnames if h.startswith("CAT_")]
-               + ["GUIA_IMPORTAR_ORDENES", "INICIO", "_COMPATIBILIDAD", "_BANCO_PRUEBA"])
     for nombre in OCULTAS:
         if nombre in wb.sheetnames:
             wb[nombre].sheet_state = "hidden"

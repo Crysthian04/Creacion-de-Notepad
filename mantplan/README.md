@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.3.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.4.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -701,22 +701,23 @@ inmovilizado. Es **capa visual y de solo lectura**: no implementa ninguna regla 
 no tiene números propios. Cada tarjeta es un `INDEX`/`MATCH` a la fila del mes en
 la hoja que ya calcula ese dato, o una acumulación de celdas que ya están en
 `PRESUPUESTO`. Para que eso fuera posible sin duplicar lógica, tres hojas fuente
-publican un bloque mensual nuevo —`ADHERENCIA` (adherencia, cumplimiento legal y
-mix), `PERFIL_HH` (carga vs capacidad productiva) y `BACKLOG` (pendientes al
+publican un bloque mensual nuevo —`ADHERENCIA` (adherencia, cumplimiento por
+rubro y mix por clase, en conteo y en horas), `PERFIL_HH` (carga vs capacidad productiva) y `BACKLOG` (pendientes al
 corte)— con **los mismos criterios** que sus bloques semanales de siempre.
 
 **Seis KPI**, todos del mes seleccionado: adherencia al programa · % de carga de
-capacidad · semanas de backlog · ejecución OPEX acumulada · mix de mantenimiento
-· cumplimiento legal. Cada uno lleva su meta al lado y semáforo por formato
+capacidad · semanas de backlog · ejecución OPEX acumulada · cumplimiento de
+lubricación · cumplimiento de calibraciones. Cada uno lleva su meta al lado y semáforo por formato
 condicional. Dos matices que el tablero dice en pantalla, porque se malinterpretan
 solos: la capacidad es **productiva** (× `p_factor_productividad`), no tiempo de
-presencia, así que nadie debería exigir el 100 %; y el cumplimiento legal va en
+presencia, así que nadie debería exigir el 100 %; y los cumplimientos de lubricación y calibración van en
 **rojo si hay vencidas** aunque el resto esté verde, porque es normativo y no se
 compensa con lo demás.
 
-**Cuatro gráficos**, alimentados por bloques que dependen del selector de mes:
-cumplimiento semanal vs meta, carga por especialidad, mix real vs meta y OPEX
-plan-real por mes separando fijo y variable. Ninguno lleva máximo de eje fijo
+**Cinco gráficos**, alimentados por bloques que dependen del selector de mes:
+cumplimiento semanal vs meta, carga por especialidad, mix real vs meta (por
+horas, con su tabla al lado), OPEX plan-real por mes separando fijo y variable, y
+lubricación por semana. Ninguno lleva máximo de eje fijo
 —autoescalan al cambiar de mes— y los dos ejes van visibles.
 
 **Corte del mes en curso.** El tablero se ancla al parámetro `fecha_datos`, **no
@@ -738,31 +739,80 @@ agregados por especialidad; el detalle sigue en `SEGUIMIENTO_HH` para el
 supervisor) y nada de «horas estimadas vs reales», que es un indicador de calidad
 de la planificación y no de desempeño de personas.
 
-### Clase de mantenimiento y metas de mix
+### Clase y rubro: dos dimensiones que no se mezclan
 
-`CAT_TIPOS_OT` gana el atributo **`clase_mantenimiento`** con cinco valores:
-`predictivo · preventivo · correctivo_programado · emergencia · legal`. Va en el
-catálogo de tipos de OT y no en el de actividades porque el corte que interesa
-—correctivo **programado** vs **emergencia**— solo lo da el tipo de OT: la
-actividad («Reparación de falla») es la misma en los dos casos. Es la decisión
-inversa a la de la categoría de presupuesto, que sí vive en la actividad porque
-describe *qué* se gasta; el criterio es el mismo: cada atributo en el catálogo que
-realmente lo determina. **Onboardear otra empresa = mapear sus tipos de OT**, sin
+**CLASE** (`clase_mantenimiento`, atributo de `CAT_TIPOS_OT`) es la **estrategia**
+con la que se ataca la falla, y es una partición: sus porcentajes suman 100. Son
+cuatro — `predictivo`, `preventivo`, `correctivo_programado`, `emergencia` — y
+ninguna es «legal»: **una calibración obligatoria es mantenimiento preventivo**
+hecho por exigencia normativa, no una estrategia distinta. Va en el tipo de OT
+porque es el único catálogo que distingue un correctivo **programado** de una
+**emergencia**: la actividad («Reparación de falla») es la misma en los dos casos.
+Si un tipo de OT no está en catálogo o no trae clase, la orden cae en
+`SIN CLASIFICAR`, visible en el mix.
+
+**RUBRO** (`rubro`, atributo de `CAT_ACTIVIDADES`) es una **etiqueta transversal**
+del trabajo: `calibracion` o `lubricacion`. **Puede ir vacía, y lo normal es que
+lo esté** — eso no es «sin clasificar», es que la mayoría del trabajo no es ni
+calibración ni lubricación. No es partición: una orden puede ser
+`clase=preventivo` **y** `rubro=calibracion` a la vez; cuenta en el preventivo del
+mix y además alimenta su propia tarjeta de cumplimiento. Va en la actividad
+porque es la actividad la que dice qué trabajo se hace: el tipo de OT no
+distingue una lubricación de una inspección.
+
+Es el mismo criterio de siempre — cada atributo en el catálogo que realmente lo
+determina — y por eso onboardear otra empresa sigue siendo mapear catálogos, sin
 tocar código.
 
-Cada orden hereda la clase del catálogo. Si su tipo no está en catálogo o no trae
-clase, cae en **`SIN CLASIFICAR`** y se ve en el mix: igual que en el presupuesto,
-el trabajo no desaparece en silencio.
+**Metas de mix** (`PARAMETROS`, editables): 60 % predictivo, 25 % preventivo,
+10 % correctivo programado, 5 % emergencia. Un indicador de cuadre avisa si los
+cuatro no suman 100.
 
-Las metas de distribución viven en `PARAMETROS` y son editables: 25 % predictivo,
-40 % preventivo, 20 % correctivo programado, 5 % emergencia, 10 % legal. Un
-indicador de cuadre avisa si los cinco no suman 100.
+> **No son normativos.** No aparecen en EN 15341 ni en VDI 2893: son convención de
+> industria, y cada planta ajusta los suyos según criticidad, edad de activos y
+> estrategia. Por eso son parámetros y no constantes.
 
-> **Estos porcentajes no son normativos.** No aparecen en EN 15341 ni en
-> VDI 2893: son convención de industria, y cada planta ajusta los suyos según su
-> criticidad, su edad de activos y su estrategia. Por eso son parámetros y no
-> constantes, y por eso el libro no cita códigos de indicador de ninguna norma:
-> usa el nombre del indicador.
+### El mix se mide por horas (con el conteo al lado)
+
+La **tabla del mix** va junto al gráfico C y trae, por clase:
+`% real (horas) · % meta · desviación (pp) · % real (conteo)`, más las horas y las
+órdenes en crudo. La comparación con la meta se hace **contra el % por horas** —
+es lo coherente con una herramienta de capacidad, y es a lo que se refieren los
+benchmarks—, pero el % por conteo se muestra al lado porque las dos lecturas
+difieren y conviene verlo: una ruta de predictivo son muchas órdenes cortas y un
+overhaul es una sola orden larga. En el dataset de julio el predictivo es el
+27,6 % de las órdenes y el 24,7 % de las horas; en el banco de marzo la
+emergencia es el 29,8 % de las órdenes y el **37,8 %** de las horas.
+
+### Las seis tarjetas
+
+`adherencia · carga · backlog · OPEX · lubricación · calibraciones`.
+
+Las dos últimas comparten patrón: cerradas ÷ programadas del mes, con una celda
+de apoyo que trae las **vencidas al corte** y fuerza el rojo aunque el porcentaje
+sea alto. Se quitó la tarjeta de mix: un número único (el desvío máximo) decía
+cuánto te desvías pero no qué hacer, y la distribución ya se lee en su gráfico y
+en la tabla de al lado.
+
+Hay además un **quinto gráfico**: lubricación por semana del mes, programadas vs
+cerradas. Sin florituras: sirve para ver si el plan se cumple o se va
+postergando. Reutiliza las mismas semanas del gráfico de cumplimiento semanal, de
+modo que «semanas del mes» está definido una sola vez en todo el tablero.
+
+### Volver al tablero desde cualquier hoja
+
+Las 19 hojas visibles llevan, en la columna A de la primera fila libre de su zona
+congelada, el mismo enlace:
+
+```
+=HYPERLINK("#DASHBOARD!A1","◂ VOLVER AL TABLERO")
+```
+
+Queda a la vista sin desplazarse. En 18 hojas cae en `A2`; en `PRESUPUESTO`, cuyas
+filas 2–4 son notas, cae en `A5`, también dentro de sus paneles inmovilizados. El
+generador busca una fila con `A` y `B` libres dentro de la zona congelada y, si no
+la encontrara, **aborta** con el nombre de la hoja en vez de pisar una celda.
+
 
 ### Hojas ocultas y cómo volver a mostrarlas
 
@@ -1017,9 +1067,9 @@ categoría) · `EQUIPOS_CRITICOS` · `SEGUIMIENTO_HH` (horas reales técnico ×
 semana + déficit por VAC) · `SEGUIMIENTO_MENSUAL` (acumulado técnico × mes, base
 del bono) · `EXPORTAR` (correo semanal en una celda, 4 selectores).
 
-**B. Trabajo diario** — `ORDENES` (`tblOrdenes`, 1.200 filas × 46 columnas: 12
-importadas A:L, 5 editables en azul, 29 calculadas incl. `es_habil`,
-`backlog_habiles`, `clase_mantenimiento` y `mes_clave`; `id_operacion` al final) ·
+**B. Trabajo diario** — `ORDENES` (`tblOrdenes`, 1.200 filas × 47 columnas: 12
+importadas A:L, 5 editables en azul, 30 calculadas incl. `es_habil`,
+`backlog_habiles`, `clase_mantenimiento`, `rubro` y `mes_clave`; `id_operacion` al final) ·
 `ASIGNACIONES` (448 filas; rotación
 derivada `n_ciclo`/`posicion_ciclo`, `en_vacaciones`, `turno_manual`/`turno`
 efectivo, `supervisor`, `trabaja_domingo`, `fecha`, REGLA-5 y franja horaria) ·

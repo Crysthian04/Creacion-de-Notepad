@@ -1,6 +1,193 @@
-# VERIFICACION.md — MantPlan v3.3.0
+# VERIFICACION.md — MantPlan v3.4.0
 
-## 0. DASHBOARD — capstone del entregable A
+## 0. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
+
+Tirada de ajustes sobre el DASHBOARD. **No toca** las 10 reglas, la rotación,
+VAC, el seguimiento, la capacidad ni el banco (comprobado en el punto f).
+
+### 1) CLASE y RUBRO ya son dos dimensiones distintas
+
+`clase_mantenimiento` mezclaba dos cosas. Ahora son dos atributos independientes,
+cada uno en el catálogo que de verdad lo determina:
+
+| | CLASE (`CAT_TIPOS_OT`) | RUBRO (`CAT_ACTIVIDADES`) |
+|---|---|---|
+| Qué es | la **estrategia** con la que se ataca la falla | una **etiqueta transversal** del trabajo |
+| Valores | predictivo · preventivo · correctivo_programado · emergencia | calibracion · lubricacion |
+| ¿Partición? | **sí**: sus porcentajes suman 100 | **no**: puede ir vacía, y lo normal es que lo esté |
+| Vacío | cae en `SIN CLASIFICAR`, visible en el mix | en blanco, y eso **no** es «sin clasificar» |
+
+**`legal` desaparece como clase.** Una calibración obligatoria es mantenimiento
+**preventivo** hecho por exigencia normativa, no una estrategia aparte: tenerla
+como quinta clase deformaba el mix hacia abajo el preventivo y mezclaba «cómo
+ataco la falla» con «de qué trabajo se trata». `TIPO-P3` se remapea a
+`preventivo` y conserva su descripción («Orden de calibración / verificación
+legal»), así que ningún dato de entrada cambia de código.
+
+El rubro va en la **actividad** porque es la actividad la que dice qué trabajo se
+hace: el tipo de OT no distingue una lubricación de una inspección. Misma regla
+que se viene aplicando: cada atributo en el catálogo que lo determina.
+
+**Metas de mix actualizadas** en `PARAMETROS`, editables: 60 predictivo · 25
+preventivo · 10 correctivo programado · 5 emergencia. `meta_pct_legal` se
+elimina. El indicador de cuadre se conserva y ahora suma cuatro:
+`cuadra: 100 %` en el libro entregado.
+
+> Siguen sin ser normativos: no están en EN 15341 ni en VDI 2893. Son convención
+> de industria, por eso son parámetros y no constantes.
+
+### 2) Tarjeta 5: fuera el mix, entra lubricación
+
+Se quitó «5 · MIX DE MANTENIMIENTO». Un número único —el desvío máximo— no era
+accionable: decía *cuánto* te desvías pero no *qué hacer*, y la distribución ya
+se ve en su gráfico. En su lugar, «5 · CUMPLIMIENTO DE LUBRICACIÓN» con
+**exactamente el mismo patrón** que la tarjeta 6: cerradas ÷ programadas del mes,
+celda de apoyo con las vencidas al corte y rojo forzado si hay alguna. Las seis
+tarjetas quedan: adherencia · carga · backlog · OPEX · **lubricación** ·
+**calibraciones**.
+
+La tarjeta 6 pasa de medir la clase `legal` a medir el **rubro `calibracion`**,
+que es lo que siempre quiso decir.
+
+### 3) El mix se mide por HORAS, con la lectura por conteo al lado
+
+Coherente con una herramienta de capacidad, y es a lo que se refieren los
+benchmarks. La **tabla del mix va al lado del gráfico C** (celda `J34`), con una
+fila por clase:
+
+`clase · % real (horas) · % meta · desviación (pp) · % real (conteo) · horas · órdenes`
+
+La comparación con la meta se hace **siempre contra el % por horas**; el % por
+conteo va como dato secundario y no es decorativo: en el default de julio, el
+predictivo es el **27,6 %** de las órdenes pero el **24,7 %** de las horas, y en
+el banco de marzo la emergencia es el **29,8 %** de las órdenes y el **37,8 %**
+de las horas. Una ruta de predictivo son muchas órdenes cortas; un overhaul es
+una sola orden larga. Ver las dos lecturas juntas evita concluir de más.
+
+Semáforo por formato condicional sobre la desviación en puntos porcentuales
+(verde ≤ 5 pp, amarillo ≤ 10, rojo > 10), y el signo se conserva (`+`/`−`) para
+que se lea si sobra o falta.
+
+### 4) Gráfico nuevo: lubricación por semana
+
+Barras por semana ISO del mes: **programadas vs cerradas**. Sin florituras: se
+trata de ver si el plan se cumple o se va postergando. Se alimenta de un bloque
+nuevo `SEMANA × RUBRO` de `ADHERENCIA` y reutiliza **las mismas semanas** que el
+gráfico A, así que hay una sola definición de «semanas del mes» en todo el
+tablero.
+
+Para hacerle sitio sin reorganizar nada, el gráfico D se movió de `J34` a `S34` y
+el E se ancló en `S18`. Es el único movimiento de layout, y era necesario: la
+tabla del mix tenía que quedar pegada al gráfico C.
+
+### 5) Botón de vuelta al tablero en todas las hojas
+
+Problema real detectado presentando: se navegaba del tablero a una hoja y para
+volver había que buscar la pestaña. Ahora **las 19 hojas visibles** (todas menos
+el propio `DASHBOARD`) llevan el mismo enlace, con el mismo estilo:
+
+```
+=HYPERLINK("#DASHBOARD!A1","◂ VOLVER AL TABLERO")
+```
+
+Colocación: **columna A**, en la primera fila libre de la zona congelada, así
+queda a la vista sin desplazarse. En 18 hojas cae en `A2`; en `PRESUPUESTO`, cuyo
+encabezado ocupa las filas 2–4 con notas, cae en `A5` — también dentro de sus
+paneles inmovilizados (`C7`). El generador **no adivina**: busca una fila con `A`
+y `B` libres dentro de la zona congelada y, si no la encontrara, aborta la
+generación con el nombre de la hoja en vez de pisar una celda.
+
+---
+
+### (a) Reconciliación intacta tras quitar `legal`
+
+Las 4 clases + `SIN CLASIFICAR` siguen sumando el 100 % del mes, y ahora se
+comprueba **por partida doble**: en conteo y en horas, en cuatro sitios (las dos
+columnas DIFERENCIA del bloque de `ADHERENCIA` y las dos de la tabla del tablero,
+todas en 0). Ejemplo del banco, 2026-03: 28 + 87 + 234 + 219 + 12 = **580 HH** =
+horas del mes; y 84 órdenes por el otro lado. Los `SIN CLASIFICAR` (12 HH) siguen
+visibles, no se disuelven.
+
+### (b) Doble dimensión: la calibración es preventivo Y calibración
+
+Verificado en todos los meses probados: **cero** órdenes de rubro `calibracion`
+con una clase distinta de `preventivo`, y el preventivo del mix siempre contiene
+al menos esas órdenes. El caso con datos es el banco 2026-12: **10 calibraciones**
+que cuentan dentro del preventivo del mix (150 HH) y a la vez alimentan la
+tarjeta 6, que marca 0 % con 10 vencidas → **rojo**. Las dos dimensiones
+conviven sin contarse dos veces en el mix.
+
+### (c) La tarjeta de lubricación coincide con su origen y responde al mes
+
+| | mes | lubricación | calibración |
+|---|---|---:|---:|
+| Default | 2026-02 | — (sin órdenes) | — |
+| Default | 2026-07 (corte 26) | **70 %** · 3 vencidas | — |
+| Default | 2026-08 | **0 %** · 14 vencidas | **0 %** · 2 vencidas |
+| Banco | 2026-03 | **87,5 %** | **75 %** · 1 vencida |
+| Banco | 2026-11 (corte día 1) | — | — |
+| Banco | 2026-12 | **0 %** · 10 vencidas | **0 %** · 10 vencidas |
+
+Cada valor se compara contra la celda de `ADHERENCIA` de la que sale **y** contra
+el motor Python, junto con programadas, cerradas y vencidas, incluida la celda de
+apoyo del semáforo.
+
+### (d) La tabla del mix cuadra en las dos lecturas
+
+Por cada mes y cada clase se verifican: horas, órdenes, % por horas, % por conteo
+y desviación en pp contra las metas de `PARAMETROS`. Los totales dan **100 %** en
+las dos columnas de porcentaje, las metas suman **100 %**, y las cuatro celdas de
+DIFERENCIA quedan en **0**.
+
+### (e) Botón de vuelta
+
+19 / 19 hojas visibles, todas apuntando a `DASHBOARD!A1`, todas dentro de su zona
+congelada y **ninguna pisando contenido** (se comprueba que la celda vecina siga
+libre). Comprobado en los dos datasets.
+
+### (f) Recálculo y motor ↔ Excel
+
+| | fórmulas | errores | comparaciones | fallos |
+|---|---:|---:|---:|---:|
+| Default (compatible, ancla 2026-07-27) | 80.730 | **0** | 15.643 | **0** |
+| Banco §7 (compatible, 1.000 órdenes) | 152.180 | **0** | 63.177 | **0** |
+| DASHBOARD, default (3 meses × recálculo) | — | **0** | 202 | **0** |
+| DASHBOARD, banco (3 meses × recálculo) | — | **0** | 186 | **0** |
+
+**Nada del motor previo cambió de valor.** Comparado con el commit anterior
+(`47e804f`), en las 200 órdenes del default solo se mueven dos campos: `rubro`
+(columna **nueva**) y `clase_mantenimiento` en **exactamente 4 órdenes** — las
+cuatro calibraciones que pasan de `legal` a `preventivo`, que es el cambio
+pedido. En `adherencia`, la única novedad es la dimensión `rubro`: **todas** las
+claves preexistentes conservan su valor. La prueba obligatoria de `activo` (28
+bloques) sigue en 0 diferencias, y los tests de override de turno, precedencia
+VAC y presupuesto pasan sin cambios.
+
+Los 16 contadores de `VALIDACION` del banco siguen cuadrando con el manifiesto y
+la reconciliación del presupuesto sigue en 12/12 meses.
+
+### Restricciones duras, otra vez sobre los archivos finales
+
+0 VBA · 0 `OFFSET` · 0 `INDIRECT` · 0 referencias de columna completa · **8
+marcos de gráfico y 0 formas, conectores o imágenes** (las tarjetas y la tabla
+del mix son celdas) · 31 hojas, 20 visibles (32 en el banco) · los 5 gráficos con
+autoescala y ambos ejes visibles.
+
+### Qué NO se verificó / supuestos
+
+(i) Solo se recalculan las variantes **compatibles**. (ii) El aspecto visual no
+se verifica por programa: se comprueba la estructura (celdas, combinaciones,
+reglas de formato condicional, anclaje de gráficos), no el render; el usuario
+ajustará tamaños y estética. (iii) El botón de vuelta se comprueba por su
+fórmula, su fila y que no pise la celda vecina, no haciendo clic. (iv) Los
+rubros del dataset son de demostración: `calibracion` sale de «Certificación
+legal» y `lubricacion` de «Lubricación programada»; en una planta real se mapea
+en el catálogo. (v) Un rubro vacío es lo normal y no se reporta como incidencia
+en ningún sitio. (vi) El recálculo independiente lo corre el usuario.
+
+---
+
+## 0-bis. DASHBOARD — capstone del entregable A
 
 Hoja de presentación en el **puesto #1**, activa al abrir, con paneles
 inmovilizados. Es capa **visual y de solo lectura**: no implementa ninguna
@@ -246,7 +433,7 @@ una semana con la **dotación activa actual**; no proyecta altas ni bajas.
 
 ---
 
-## 0-bis. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
+## 0-ter. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
 
 Tirada de correcciones. **No toca las 10 reglas, el presupuesto, VAC, el
 seguimiento ni el banco**: con los 16 técnicos activos el motor devuelve
@@ -500,7 +687,7 @@ DASHBOARD.** (vii) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-ter. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
+## 0-quater. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
 
 Hoja **derivada** nueva (`PRESUPUESTO`), colocada en el grupo de presentación
 justo después de `COSTOS`. **No toca las 10 reglas, la rotación, VAC, el
@@ -605,7 +792,7 @@ mide contra el día de apertura, igual que las columnas de envejecimiento.
 
 ---
 
-## 0-quater. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+## 0-quinquies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
 
 Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
 rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los
