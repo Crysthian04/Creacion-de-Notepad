@@ -1,6 +1,228 @@
-# VERIFICACION.md — MantPlan v3.5.0
+# VERIFICACION.md — MantPlan v3.6.0
 
-## 0. Plantilla de producción e instructivo de uso
+## 0. Listas robustas, señalización de columnas calculadas y cierre
+
+Última tirada del entregable A. **No toca** las 10 reglas, el motor, el dashboard
+ni el banco (punto g).
+
+### El defecto de fondo, y por qué era bloqueante
+
+Las listas de los desplegables se escribían **al generar el archivo**, con los
+valores del dataset de ejemplo, o dimensionadas al tamaño de los datos de ese
+momento. No crecían nunca. En la plantilla —8 órdenes de ejemplo— el selector de
+meses tenía **2 entradas** y el de semanas **4**: al pegar un año real, el usuario
+**no podía seleccionar sus propios meses** y el tablero quedaba inservible justo
+al empezar a usarse. En 7.2 estos desplegables pasaron de literales a rangos, pero
+varios de esos rangos eran **copias estáticas**: el problema se había movido, no
+eliminado.
+
+### (1) Meses y semanas: ventana de calendario completa
+
+Dejan de depender de los datos.
+
+| lista | contenido | entradas |
+|---|---|---:|
+| `lista_meses_dash` | 3 últimos meses del año anterior + los 12 del año de la fecha de datos + 3 primeros del siguiente | **18**, siempre |
+| `lista_semanas_plan` | `(todos)` + 2 últimas semanas ISO del año anterior + el año ISO completo + 2 primeras del siguiente | **58** (año de 53 semanas) |
+
+Contiguas, ordenadas, sin huecos, en texto `AAAA-MM` y `AAAA-Snn` — nunca fechas
+reales, porque el `MATCH` compara texto.
+
+Los bloques mensuales de `ADHERENCIA`, `PERFIL_HH` y `BACKLOG` pasan a cubrir la
+**misma** ventana de 18 meses. Sin eso, el arreglo habría quedado a medias: el mes
+sería seleccionable pero no tendría fila que leer.
+
+### (2) Auditoría completa de listas
+
+Barrido de **todas** las listas del libro, no solo las señaladas:
+
+| lista | origen | antes | ahora | holgura |
+|---|---|---|---|---:|
+| `lista_areas` | `CAT_CENTROS_COSTO.area` (distintos) | **texto fijo** | fórmula | 25 |
+| `lista_subareas` | `CAT_CENTROS_COSTO`, sub-área **efectiva** | **texto fijo** | fórmula | 25 |
+| `lista_f_area` | ídem + `(todos)` | **texto fijo** | fórmula | 26 |
+| `lista_f_subarea` | ídem + `(todos)` | **texto fijo** | fórmula | 26 |
+| `lista_f_coordinador` | `CAT_CENTROS_COSTO.coordinador` | **texto fijo** | fórmula | 26 |
+| `lista_f_especialidad` | `CAT_PUESTOS.especialidad` | **texto fijo** | fórmula | 21 |
+| `lista_esp_propias` | `CAT_PUESTOS` filtrando `es_especialidad_propia` | **texto fijo** | fórmula | 20 |
+| `lista_ceco` | `CAT_CENTROS_COSTO.codigo` | fórmula, tamaño fijo | fórmula | 25 |
+| `lista_puestos` | `CAT_PUESTOS.codigo` | fórmula, tamaño fijo | fórmula | 20 |
+| `lista_actividades` | `CAT_ACTIVIDADES.codigo` | fórmula, tamaño fijo | fórmula | 23 |
+| `lista_tipos_ot` | `CAT_TIPOS_OT.codigo` | fórmula, tamaño fijo | fórmula | 20 |
+| `lista_supervisores` | `CAT_SUPERVISORES.nombre` | fórmula, tamaño fijo | fórmula | 18 |
+| `lista_motivos_ausencia` | `CAT_MOTIVOS_AUSENCIA.motivo` | fórmula, tamaño fijo | fórmula | 18 |
+| `lista_f_turno` | `CAT_TURNOS.turno` + `(todos)` | fórmula, tamaño fijo | fórmula | 20 |
+| `lista_turnos` | `CAT_TURNOS` + códigos no disponibles | fórmula (ya correcta) | sin cambios | — |
+| `lista_tecnicos` | `TECNICOS`, activos compactados | fórmula (ya correcta) | sin cambios | 16 |
+| `lista_meses_dash` | **calendario** (18 meses) | datos | calendario | fija |
+| `lista_semanas_plan` | **calendario** (año ISO) | datos | calendario | fija |
+| `lista_dias` | dominio fijo | texto | **texto (correcto)** | — |
+| `lista_no_disponible` | dominio fijo | texto | **texto (correcto)** | — |
+
+Cada lista derivada de catálogo tiene tres piezas: una **columna de orden** en la
+hoja del catálogo, que numera los valores **distintos** que entran (aplicando el
+filtro si lo hay); una columna en `PARAMETROS` que los **compacta** con
+`INDEX`/`MATCH` sin dejar huecos; y un **rango con nombre acotado con `INDEX`** al
+número real de entradas, para que el desplegable no muestre opciones en blanco.
+`INDEX` no es volátil y no está entre las funciones prohibidas —a diferencia de
+`OFFSET`, que sí lo está—, así que el rango es dinámico sin romper la higiene.
+
+Los catálogos llevan **15 filas vacías de holgura** dentro de su tabla.
+
+### (a) La plantilla ofrece el calendario completo pese a no tener datos
+
+Es la prueba clave del arreglo, sobre el libro entregado:
+
+```
+PLANTILLA con 8 órdenes en 2 meses:
+  el selector ofrece 18 meses (2025-10 … 2027-03) y 58 semanas (2025-S51 … 2027-S02)
+```
+
+Nueve veces más meses que meses con datos.
+
+### (b) Caso real simulado: un mes que no estaba en los datos
+
+Se toma **2026-09**, que no tiene ninguna orden de ejemplo, y se comprueba en dos
+tiempos sobre el libro recalculado:
+
+1. **Antes de cargar nada**: el mes **ya era seleccionable** (está en la ventana),
+   y el tablero lo muestra con los KPI **en blanco**, con 0 errores de fórmula.
+2. Se pegan **3 órdenes** de ese mes en `ORDENES`, como haría el usuario, y se
+   recalcula: 0 errores, `ADHERENCIA` cuenta las **3** órdenes en la fila del mes,
+   y el KPI del tablero deja de estar en blanco y **coincide con su hoja de
+   origen**.
+
+Antes de este cambio, ese mes ni siquiera habría aparecido en el desplegable.
+
+### (c) Prueba real de catálogos, no por inspección
+
+Se abre el libro entregado, se añade **una fila a `CAT_CENTROS_COSTO`** (`CC-999`,
+área `TALLER`, sub-área `Banco de pruebas`, coordinador `Coordinador Z`) y **una
+especialidad propia a `CAT_PUESTOS`** (`PU-INS` / `INSTRUM`, marcada como propia),
+y se **recalcula**:
+
+| lista | antes | después | incluye el valor nuevo | huecos |
+|---|---:|---:|---|---|
+| `lista_ceco` | 10 | **11** | `CC-999` | no |
+| `lista_areas` | 3 | **4** | `TALLER` | no |
+| `lista_f_area` | 4 | **5** | `TALLER` | no |
+| `lista_f_coordinador` | 4 | **5** | `Coordinador Z` | no |
+| `lista_subareas` | 6 | **7** | `Banco de pruebas` | no |
+| `lista_f_subarea` | 7 | **8** | `Banco de pruebas` | no |
+| `lista_puestos` | 5 | **6** | `PU-INS` | no |
+| `lista_f_especialidad` | 6 | **7** | `INSTRUM` | no |
+| `lista_esp_propias` | 3 | **4** | `INSTRUM` | no |
+
+**0 errores** en el recálculo. Ninguna lista muestra opciones en blanco, y el
+valor nuevo no contamina las listas que no le corresponden. La sub-área efectiva
+funciona con la herencia: `Banco de pruebas` aparece porque el CECO la declara; si
+se hubiera dejado vacía, aparecería `TALLER`.
+
+### (d) Los rangos coinciden con las entradas escritas
+
+`lista_meses_dash` → `DASHBOARD!$X$3:$X$20` (18 celdas, 18 entradas).
+`lista_semanas_plan` → `PLAN_SEMANAL!$X$3:$X$60` (58 celdas, 58 entradas).
+Las 9 listas de catálogo de la prueba (c) cubren **exactamente** sus celdas
+escritas: ni cortas —entradas invisibles— ni con celdas fuera del rango.
+
+### (e) Un mes sin datos: blanco, no error
+
+Mes `2026-09` sin órdenes, recalculado: **0 errores**; adherencia, carga,
+lubricación y calibración **en blanco**. Las fórmulas ya usaban `IFERROR(…;"")` y
+se confirma que siguen haciéndolo tras el cambio.
+
+**Blanco = no hay dato; cero = hubo trabajo y no se cumplió.** La distinción se
+mantiene: en el mismo mes vacío, backlog y ejecución OPEX **sí** muestran número,
+y es correcto — el backlog es acumulado hasta el corte y el OPEX es una
+acumulación anual, así que no dependen de que ese mes tenga órdenes.
+
+La nota está en pantalla, en el `DASHBOARD` y en el `INSTRUCTIVO`.
+
+### (f) Señalización de columnas calculadas
+
+**Criterio:** una celda es calculada si **contiene una fórmula**. No hay lista de
+columnas que mantener ni que pueda quedar desfasada; si una columna deja de
+calcularse, deja de marcarse sola.
+
+| hoja | celdas marcadas | encabezados en rojo | reglas de formato condicional |
+|---|---:|---:|---:|
+| `ORDENES` | 35.760 | 30 | 3 |
+| `PLAN_SEMANAL` | 16.882 | 5 | 0 |
+| `ASIGNACIONES` | 5.824 | 13 | 0 |
+| `PERFIL_HH` | 2.898 | 11 | 3 |
+| `ADHERENCIA` | 1.518 | 8 | 25 |
+| `PRESUPUESTO` | 692 | 17 | 3 |
+| `SEGUIMIENTO_HH` | 344 | 5 | 0 |
+| `BACKLOG` | 150 | 6 | 4 |
+| `SEGUIMIENTO_MENSUAL` | 128 | 4 | 0 |
+| `COSTOS` | 91 | 3 | 0 |
+| `TECNICOS` | 32 | 0 | 0 |
+| `VALIDACION` | 16 | 1 | 1 |
+
+- El **azul** de lo editable sigue intacto: las 5 columnas editables de `ORDENES`
+  lo conservan, y `turno_manual` de `ASIGNACIONES` **no** aparece marcada como
+  calculada, que es lo correcto.
+- El **formato condicional previo sigue vivo** (25 reglas en `ADHERENCIA`, 4 en
+  `BACKLOG`, 3 en `PERFIL_HH`, `ORDENES` y `PRESUPUESTO`) y se pinta **por
+  encima** del relleno estático, así que donde hay conflicto gana el semáforo.
+- **Leyenda**: completa en `INSTRUCTIVO` y corta al final de la fila de título de
+  las siete hojas mixtas.
+- Las hojas **no se protegen** y no se bloquea ninguna celda.
+- El encabezado usa **rojo claro** (`#FFC7CE`) y no rojo puro: los encabezados van
+  sobre una banda azul oscuro, donde el rojo puro sería ilegible. El relleno de
+  celda (`#FDF3F3`) queda como un gris muy tenue al imprimir en blanco y negro:
+  se distingue del blanco sin estorbar la lectura.
+- `TECNICOS` marca sus 32 celdas calculadas pero **0 encabezados**: sus dos
+  columnas auxiliares no llevan la banda azul, sino el estilo de nota. Es
+  coherente y queda declarado.
+
+### (g) Recálculo y motor ↔ Excel, en los tres datasets
+
+| | fórmulas | errores | comparaciones | fallos |
+|---|---:|---:|---:|---:|
+| Plantilla (compatible) | 81.253 | **0** | — | — |
+| Demo (compatible, ancla 2026-07-27) | 81.664 | **0** | 15.643 | **0** |
+| Banco §7 (compatible, 1.000 órdenes) | 153.028 | **0** | 63.177 | **0** |
+| Ventana de calendario (a)(b)(d)(e)(f) | — | **0** | 32 | **0** |
+| Crecimiento de catálogos (c) | — | **0** | 38 | **0** |
+| Plantilla (a)–(e) de la tirada anterior | — | **0** | 40 | **0** |
+| DASHBOARD sobre el demo | — | **0** | 67 | **0** |
+
+Las pruebas de regresión —`activo`, override de turno, presupuesto— pasan sin
+cambios. **Nada más del motor cambió de valor**: los bloques mensuales cubren más
+meses, pero cada fila calcula lo mismo que antes; las 15.643 y 63.177
+comparaciones motor↔Excel siguen en cero desviaciones.
+
+> **Dos fallos encontrados durante esta tirada, ambos por la verificación y no por
+> lectura del código.** (1) La columna de orden de `lista_f_turno` cayó sobre la
+> columna auxiliar que `CAT_TURNOS` ya usaba para `lista_turnos`, y la
+> sobreescribió: el filtro de turno quedó con una sola entrada. Se corrigió
+> calculando la primera columna libre **real** de cada hoja y moviendo el bloque
+> de listas a después de que `CAT_TURNOS` escriba la suya. (2) Antes de eso, el
+> bloque se había insertado en un punto donde los catálogos todavía no existían.
+> Ninguno de los dos se ve leyendo el generador; los dos aparecen al mirar el
+> libro recalculado.
+
+### Qué NO se verificó / supuestos
+
+(i) Solo se recalculan las variantes **compatibles**: LibreOffice no evalúa
+`XLOOKUP`. (ii) **Lo que no se puede comprobar por programa es el render del
+desplegable**: se verifica que el rango con nombre resuelve al número exacto de
+entradas no vacías, no que Excel dibuje la lista sin líneas en blanco. El rango
+acotado con `INDEX` es la técnica estándar para eso, pero su comportamiento
+visual en cada versión de Excel y de LibreOffice queda fuera de lo verificable
+aquí. (iii) La holgura es de 15 filas por catálogo: si alguien necesita más de 15
+centros de costo nuevos de golpe, hay que ampliar la tabla —el `INSTRUCTIVO` no lo
+menciona, y es una limitación real. (iv) El contraste al imprimir en blanco y
+negro se razona sobre el valor del color (`#FDF3F3` ≈ gris 98 %), no se ha
+impreso. (v) La ventana de 18 meses se ancla al **año** de la fecha de datos: un
+libro cuya fecha de datos sea de enero ofrece 3 meses del año anterior, que puede
+ser poco si se quiere mirar más atrás; se amplía cambiando dos constantes.
+(vi) El recálculo independiente lo corre el usuario.
+
+---
+
+## 0-bis. Plantilla de producción e instructivo de uso
 
 Última tirada del entregable A. **No toca** las 10 reglas, el motor, el dashboard
 ni el banco: los tres datasets salen del mismo código y se verifican por separado
@@ -160,7 +382,7 @@ independiente lo corre el usuario.
 
 ---
 
-## 0-bis. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
+## 0-ter. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
 
 Tirada de ajustes sobre el DASHBOARD. **No toca** las 10 reglas, la rotación,
 VAC, el seguimiento, la capacidad ni el banco (comprobado en el punto f).
@@ -347,7 +569,7 @@ en ningún sitio. (vi) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-ter. DASHBOARD — capstone del entregable A
+## 0-quater. DASHBOARD — capstone del entregable A
 
 Hoja de presentación en el **puesto #1**, activa al abrir, con paneles
 inmovilizados. Es capa **visual y de solo lectura**: no implementa ninguna
@@ -593,7 +815,7 @@ una semana con la **dotación activa actual**; no proyecta altas ni bajas.
 
 ---
 
-## 0-quater. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
+## 0-quinquies. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
 
 Tirada de correcciones. **No toca las 10 reglas, el presupuesto, VAC, el
 seguimiento ni el banco**: con los 16 técnicos activos el motor devuelve
@@ -847,7 +1069,7 @@ DASHBOARD.** (vii) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-quinquies. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
+## 0-sexies. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
 
 Hoja **derivada** nueva (`PRESUPUESTO`), colocada en el grupo de presentación
 justo después de `COSTOS`. **No toca las 10 reglas, la rotación, VAC, el
@@ -952,7 +1174,7 @@ mide contra el día de apertura, igual que las columnas de envejecimiento.
 
 ---
 
-## 0-sexies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+## 0-septies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
 
 Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
 rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los

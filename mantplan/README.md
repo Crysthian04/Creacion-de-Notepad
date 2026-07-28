@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.5.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.6.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -874,6 +874,56 @@ tocar y por qué · los problemas frecuentes con su causa · y **lo que la
 herramienta no puede calcular** (MTBF, MTTR, disponibilidad, OEE, indicadores de
 repuestos) con el motivo de cada uno, para que nadie los pida esperando un número
 que sería inventado.
+
+### Listas que crecen con el usuario, no con el ejemplo
+
+Es el arreglo con más consecuencias prácticas de todo el proyecto. Las listas de
+los desplegables se escribían al generar el archivo con los valores del dataset
+de ejemplo. Al cargar sus propios datos, el usuario seguía viendo «Coordinador
+A/B/C» para siempre, no podía filtrar por sus áreas, y —lo peor— en la plantilla
+el selector de meses tenía 2 entradas: al pegar un año real **no podía
+seleccionar sus propios meses** y el tablero quedaba inservible.
+
+**Meses y semanas: ventana de calendario, no «lo que hay».** El selector de mes
+ofrece siempre **18 meses** (los 3 últimos del año anterior, los 12 del año de la
+fecha de datos y los 3 primeros del siguiente) y el de semana, **el año ISO
+completo** más 2 antes y 2 después. Se generan igual haya 8 órdenes o 100.000. Los
+bloques mensuales de `ADHERENCIA`, `PERFIL_HH` y `BACKLOG` cubren la **misma**
+ventana: si cubrieran solo los meses con datos, un mes recién cargado sería
+seleccionable pero no tendría fila que leer.
+
+Un mes sin datos muestra los KPI **en blanco**, no un error y no un cero. La
+distinción importa: **blanco = no hay dato; cero = hubo trabajo y no se cumplió.**
+
+**Catálogos: fórmula, holgura y compactación.** Cada lista derivada de un catálogo
+es ahora una fórmula contra él, con tres piezas: una columna de orden en la propia
+hoja del catálogo (que numera los valores distintos que entran, aplicando el
+filtro si lo hay), una columna en `PARAMETROS` que los compacta con `INDEX`/`MATCH`
+sin dejar huecos, y un rango con nombre acotado con `INDEX` al número **real** de
+entradas, para que el desplegable no muestre opciones en blanco. Cada catálogo
+lleva 15 filas vacías de holgura dentro de su tabla: añadir un centro de costo es
+escribir una fila, sin tocar rangos ni fórmulas.
+
+Quedan literales solo los dominios que no dependen de nada: días de la semana,
+`sí/no`, `lunes/domingo` y los vocabularios propios de las hojas `CAT_*`.
+
+### Dos colores, dos significados
+
+El libro ya marcaba en **azul** lo editable, pero no marcaba lo que **no** hay que
+tocar. Ahora las columnas calculadas llevan relleno **rojo muy claro** (`#FDF3F3`,
+casi blanco) y su encabezado en rojo claro sobre la banda azul. No hay un tercer
+color: azul = usted escribe aquí, rojo claro = se calcula solo.
+
+«Calculada» se decide por una sola regla: **la celda contiene una fórmula**. No
+hay lista que mantener ni que pueda quedar desfasada; si una columna deja de
+calcularse, deja de marcarse sola.
+
+Las hojas **no se protegen** y no se bloquea ninguna celda: la señal es visual.
+Bloquear rompería el pegado masivo del ERP y contradiría el principio de la
+herramienta, que avisa pero nunca bloquea. El formato condicional (semáforos,
+cuadres, alertas) se pinta por encima del relleno, así que no hay conflicto. La
+leyenda está completa en `INSTRUCTIVO` y en versión corta al final de la fila de
+título de las hojas mixtas.
 
 ### 10. Higiene de fórmulas
 

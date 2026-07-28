@@ -48,7 +48,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.5.0"
+VERSION = "3.6.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -200,6 +200,40 @@ def _fecha_ancla_year(hoy):
 
 # Parte B: excepciones que rompen el patrón. area vacía = toda la planta;
 # sub_area vacía = toda el área. Las fechas se fijan al año del ancla.
+# ── VENTANA DE CALENDARIO ──────────────────────────────────────────────────
+# Los selectores de mes y de semana NO se derivan de los datos: se generan como
+# calendario completo alrededor del año de la fecha de datos. Si dependieran de
+# los datos, la plantilla (8 órdenes de ejemplo) ofrecería 2 meses y 4 semanas, y
+# al pegar un año real el usuario NO podría seleccionar sus propios meses: el
+# tablero quedaría inservible justo cuando empieza a usarse de verdad.
+# Filas VACÍAS que cada catálogo lleva de más, dentro de su tabla, para que el
+# usuario pueda añadir los suyos sin tocar rangos ni fórmulas. Las listas
+# derivadas compactan los huecos, así que no ensucian ningún desplegable.
+HOLGURA_CAT = 15
+
+MESES_ANTES, MESES_DESPUES = 3, 3        # 3 + 12 + 3 = 18 entradas siempre
+SEMANAS_ANTES, SEMANAS_DESPUES = 2, 2
+
+
+def ventana_meses(anio):
+    """18 meses contiguos: los 3 últimos del año anterior, los 12 del año y los
+    3 primeros del siguiente. Siempre la misma cantidad, haya datos o no."""
+    meses = [(anio - 1, m) for m in range(13 - MESES_ANTES, 13)]
+    meses += [(anio, m) for m in range(1, 13)]
+    meses += [(anio + 1, m) for m in range(1, MESES_DESPUES + 1)]
+    return meses
+
+
+def ventana_semanas(anio):
+    """Todas las semanas ISO del año (52 o 53) más las 2 últimas del anterior y
+    las 2 primeras del siguiente, en etiquetas AAAA-Snn."""
+    n_ant = semanas_iso_del_anio(anio - 1)
+    sems = [f"{anio - 1}-S{n:02d}" for n in range(n_ant - SEMANAS_ANTES + 1, n_ant + 1)]
+    sems += [f"{anio}-S{n:02d}" for n in range(1, semanas_iso_del_anio(anio) + 1)]
+    sems += [f"{anio + 1}-S{n:02d}" for n in range(1, SEMANAS_DESPUES + 1)]
+    return sems
+
+
 def feriados_del_anio(y):
     """Los ~12 feriados generales del año (área y sub-área vacías). Es lo único
     del calendario que sirve tal cual en una planta real; el resto de
@@ -2298,6 +2332,13 @@ FILL_ROJO = PatternFill("solid", fgColor="FFC7CE")
 # DASHBOARD: las tarjetas se dibujan con CELDAS (combinadas, relleno y bordes),
 # nunca con formas ni objetos de dibujo, para que se vean igual en Excel 2016 y
 # en LibreOffice y para que el libro siga siendo un .xlsx sin objetos.
+# Convención de color, complementaria al AZUL de lo editable:
+#   azul  = tú escribes aquí        rojo muy claro = esto se calcula solo
+# El relleno es casi blanco a propósito: tiene que leerse como "no tocar" sin
+# ensuciar la vista ni estorbar la lectura de los números, y sigue distinguiéndose
+# en blanco y negro (queda un gris muy tenue).
+FILL_CALC = PatternFill("solid", fgColor="FDF3F3")
+F_HDR_CALC = Font(name="Arial", size=10, bold=True, color="FFC7CE")
 FILL_EJEMPLO = PatternFill("solid", fgColor="FFF2CC")   # aviso: fila de ejemplo
 FILL_TARJETA = PatternFill("solid", fgColor="F7F9FC")
 FILL_BANDA = PatternFill("solid", fgColor="1F4E78")
@@ -2387,6 +2428,12 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # referencia celdas concretas en vez de recalcular nada.
     ANC = {}
     ES_PLANTILLA = datos.get("es_plantilla", False)
+    # Ventana de calendario: 18 meses y el año ISO completo, SIEMPRE. Los bloques
+    # mensuales de ADHERENCIA / PERFIL_HH / BACKLOG cubren la MISMA ventana que el
+    # selector; si cubrieran solo los meses con datos, un mes recién cargado sería
+    # seleccionable pero no tendría fila que leer.
+    MESES_VENTANA = ventana_meses(datos["hoy"].year)
+    SEMANAS_VENTANA = ventana_semanas(datos["hoy"].year)
     hoy = datos["hoy"]
     semanas = datos["semanas"]
     n_ord, n_ejec, n_asig = len(datos["ordenes"]), len(datos["ejecucion"]), len(datos["asignaciones"])
@@ -2407,26 +2454,26 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         "tblExcepciones": Tabla("tblExcepciones", "CALENDARIO", 14, CAMPOS_EXCEPCIONES, CAP_EXCEPCIONES),
         "tblCECO": Tabla("tblCECO", "CAT_CENTROS_COSTO", 3,
                          ["codigo", "descripcion", "planta", "area", "sub_area", "linea", "coordinador"],
-                         len(CENTROS_COSTO)),
+                         len(CENTROS_COSTO) + HOLGURA_CAT),
         "tblPuestos": Tabla("tblPuestos", "CAT_PUESTOS", 3,
                             ["codigo", "especialidad", "descripcion",
-                             "es_especialidad_propia"], len(PUESTOS)),
+                             "es_especialidad_propia"], len(PUESTOS) + HOLGURA_CAT),
         "tblActividades": Tabla("tblActividades", "CAT_ACTIVIDADES", 3,
                                 ["codigo", "descripcion", "tipo",
                                  "categoria_presupuesto", "clasificacion", "rubro"],
-                                len(ACTIVIDADES)),
+                                len(ACTIVIDADES) + HOLGURA_CAT),
         "tblTiposOT": Tabla("tblTiposOT", "CAT_TIPOS_OT", 3,
                             ["codigo", "descripcion", "clasificacion",
-                             "clase_mantenimiento"], len(TIPOS_OT)),
+                             "clase_mantenimiento"], len(TIPOS_OT) + HOLGURA_CAT),
         "tblEstados": Tabla("tblEstados", "CAT_ESTADOS_ERP", 3,
-                            ["estado_sistema", "estado_normalizado"], len(ESTADOS_ERP)),
+                            ["estado_sistema", "estado_normalizado"], len(ESTADOS_ERP) + HOLGURA_CAT),
         "tblTurnos": Tabla("tblTurnos", "CAT_TURNOS", 3,
-                           ["turno", "nombre", "hora_inicio", "hora_fin", "tipo"], len(TURNOS_CAT)),
+                           ["turno", "nombre", "hora_inicio", "hora_fin", "tipo"], len(TURNOS_CAT) + HOLGURA_CAT),
         # 7.2: supervisores y motivos de ausencia pasan a catálogo
         "tblSupervisores": Tabla("tblSupervisores", "CAT_SUPERVISORES", 3,
-                                 ["codigo", "nombre", "especialidad"], len(SUPERVISORES)),
+                                 ["codigo", "nombre", "especialidad"], len(SUPERVISORES) + HOLGURA_CAT),
         "tblMotivos": Tabla("tblMotivos", "CAT_MOTIVOS_AUSENCIA", 3,
-                            ["motivo"], len(MOTIVOS_AUSENCIA)),
+                            ["motivo"], len(MOTIVOS_AUSENCIA) + HOLGURA_CAT),
     }
     R = Refs(refs, TAB)
     O = TAB["tblOrdenes"]
@@ -2496,9 +2543,14 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
          "datos, y lo dice en pantalla.", ""),
         ("", ""),
         ("E. QUÉ NO TOCAR", "sec"),
-        ("Color de las celdas: el TEXTO AZUL es lo editable. El texto negro es una columna "
-         "CALCULADA: si escribe encima, borra la fórmula de esa fila y esa fila deja de "
-         "actualizarse, en silencio.", ""),
+        ("DOS COLORES, DOS SIGNIFICADOS. AZUL = usted escribe aquí. ROJO MUY CLARO "
+         "(relleno casi blanco, con el encabezado en rojo) = la celda se calcula sola: "
+         "si escribe encima, borra la fórmula de esa fila y esa fila deja de actualizarse, "
+         "en silencio. No hay un tercer color: lo que no es azul ni rojo claro es una "
+         "etiqueta o un texto de apoyo.", "aviso"),
+        ("Las hojas NO están protegidas a propósito: la señal es visual. Bloquear celdas "
+         "rompería el pegado masivo del ERP y contradiría el principio de la herramienta, "
+         "que avisa pero nunca bloquea.", ""),
         ("No toque las hojas derivadas (ADHERENCIA, PERFIL_HH, BACKLOG, COSTOS, "
          "SEGUIMIENTO_*, EQUIPOS_CRITICOS, DASHBOARD): se recalculan solas desde ORDENES, "
          "ASIGNACIONES y los catálogos. Cualquier cambio ahí se pierde al recalcular.", ""),
@@ -2517,7 +2569,11 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ("Aparecen órdenes que no reconozco → quedaron filas de ejemplo, o filas de una "
          "importación anterior más larga. Bórrelas (ver la advertencia del punto B).", ""),
         ("El tablero está casi vacío → no hay datos cargados del mes elegido en el selector, "
-         "o el mes en curso todavía no tiene órdenes anteriores a la fecha de datos.", ""),
+         "o el mes en curso todavía no tiene órdenes anteriores a la fecha de datos. El selector "
+         "muestra el calendario completo (18 meses, y el año ISO entero en las semanas), no solo "
+         "los meses con datos: así puede elegir su mes ANTES de cargarlo. Un mes sin datos sale "
+         "en BLANCO — blanco significa «no hay dato», cero significa «hubo trabajo y no se "
+         "cumplió», y no son lo mismo.", ""),
         ("Un técnico no aparece en las listas → está marcado activo = no en TECNICOS.", ""),
         ("Un técnico aparece sin turno y con 0 h → está de vacaciones (PLAN_VACACIONES) o "
          "inactivo. El hueco se deja a la vista a propósito.", ""),
@@ -2657,55 +2713,6 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                      "añadir valores", font=F_SEC)
     col_aux = [11]                       # K en adelante
 
-    def lista_aux(nombre, titulo, valores, formulas=None):
-        """Escribe una lista en una columna libre y registra su nombre definido."""
-        c = col_aux[0]
-        celda(ws, 4, c, titulo, font=F_NOTA)
-        for i, v in enumerate(valores):
-            celda(ws, 5 + i, c, formulas[i] if formulas else v)
-        L_ = get_column_letter(c)
-        wb.defined_names.add(DefinedName(
-            nombre, attr_text=f"PARAMETROS!${L_}$5:${L_}${4 + len(valores)}"))
-        ws.column_dimensions[L_].width = 22
-        col_aux[0] += 1
-        return nombre
-
-    TODOS = "(todos)"
-    ct = TAB["tblTurnos"]
-    lista_aux("lista_f_turno", "filtro turno", [TODOS] + list(TURNOS),
-              formulas=[f'="{TODOS}"'] + [f"=CAT_TURNOS!$A${ct.fila_ini + i}"
-                                          for i in range(len(TURNOS_CAT))])
-    areas_cat = list(dict.fromkeys(c[CECO_AREA] for c in CENTROS_COSTO))
-    coords_cat = list(dict.fromkeys(c[CECO_COORD] for c in CENTROS_COSTO))
-    lista_aux("lista_f_area", "filtro área", [TODOS] + areas_cat)
-    lista_aux("lista_areas", "áreas (CAT_CENTROS_COSTO)", areas_cat)
-    lista_aux("lista_f_coordinador", "filtro coordinador", [TODOS] + coords_cat)
-    lista_aux("lista_f_subarea", "filtro sub-área", [TODOS] + SUBAREAS)
-    lista_aux("lista_subareas", "sub-áreas (CAT_SUBAREAS)", SUBAREAS)
-    lista_aux("lista_f_especialidad", "filtro especialidad", [TODOS] + list(ESPECIALIDADES))
-    # Especialidades de PERSONAL PROPIO: derivadas del atributo del catálogo
-    # (es_especialidad_propia), no de una lista paralela hardcodeada.
-    lista_aux("lista_esp_propias", "especialidad propia (CAT_PUESTOS)", ESPECIALIDADES_PROPIAS)
-    cc = TAB["tblCECO"]
-    lista_aux("lista_ceco", "centros de costo", [c[0] for c in CENTROS_COSTO],
-              formulas=[f"=CAT_CENTROS_COSTO!$A${cc.fila_ini + i}"
-                        for i in range(len(CENTROS_COSTO))])
-    cp = TAB["tblPuestos"]
-    lista_aux("lista_puestos", "puestos de trabajo", [p[0] for p in PUESTOS],
-              formulas=[f"=CAT_PUESTOS!$A${cp.fila_ini + i}" for i in range(len(PUESTOS))])
-    ca = TAB["tblActividades"]
-    lista_aux("lista_actividades", "actividades", [a[0] for a in ACTIVIDADES],
-              formulas=[f"=CAT_ACTIVIDADES!$A${ca.fila_ini + i}" for i in range(len(ACTIVIDADES))])
-    cti = TAB["tblTiposOT"]
-    lista_aux("lista_tipos_ot", "tipos de OT", [t[0] for t in TIPOS_OT],
-              formulas=[f"=CAT_TIPOS_OT!$A${cti.fila_ini + i}" for i in range(len(TIPOS_OT))])
-    cs = TAB["tblSupervisores"]
-    lista_aux("lista_supervisores", "supervisores", [s[1] for s in SUPERVISORES],
-              formulas=[f"=CAT_SUPERVISORES!$B${cs.fila_ini + i}" for i in range(len(SUPERVISORES))])
-    cmo = TAB["tblMotivos"]
-    lista_aux("lista_motivos_ausencia", "motivos de ausencia", [m[0] for m in MOTIVOS_AUSENCIA],
-              formulas=[f"=CAT_MOTIVOS_AUSENCIA!$A${cmo.fila_ini + i}"
-                        for i in range(len(MOTIVOS_AUSENCIA))])
     # 7.2: lista_tecnicos = columna K de TECNICOS (activos compactados), no la
     # columna de nombres: un técnico con activo=no no aparece en los desplegables.
     _T = TAB["tblTecnicos"]
@@ -3523,7 +3530,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     a_fecha = R.col("tblAsignaciones", "fecha")
     a_esp = R.col("tblAsignaciones", "especialidad")
     a_disp = R.col("tblAsignaciones", "horas_disponibles")
-    for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
+    for i, (anio_m, mes_m) in enumerate(MESES_VENTANA):
         fr = fpm + 1 + i
         celda(ws, fr, 1, f"{anio_m}-{mes_m:02d}")
         celda(ws, fr, 2, "=" + _mes_corte(f"$A{fr}"), fmt=FMT_FECHA)
@@ -3546,7 +3553,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
               f"=IF({get_column_letter(ctc)}{fr}=0,\"\","
               f"{get_column_letter(ctp)}{fr}/{get_column_letter(ctc)}{fr})", fmt=FMT_PCT)
     col_pct = get_column_letter(6 + 2 * len(esp_mes))
-    semaforo_carga(ws, f"{col_pct}{fpm + 1}:{col_pct}{fpm + len(esperado['meses'])}")
+    semaforo_carga(ws, f"{col_pct}{fpm + 1}:{col_pct}{fpm + len(MESES_VENTANA)}")
 
     for colw, w in (("A", 13), ("B", 13), ("C", 13), ("D", 14), ("E", 14), ("F", 14),
                     ("G", 14), ("H", 12), ("I", 11), ("N", 13), ("O", 18)):
@@ -3565,8 +3572,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # ahí por nombre definido. El resto de selectores salen de catálogo (turno de
     # CAT_TURNOS, área/sub-área/coordinador de CAT_CENTROS_COSTO, especialidad de
     # CAT_PUESTOS) o de un dominio fijo (día), así que siguen como lista literal.
-    semanas_datos = sorted(set(esperado["serie_semanas"])
-                           | {a["semana"] for a in datos["asignaciones"]})
+    semanas_datos = SEMANAS_VENTANA
     COL_AUX = 24                                      # columna X
     celda(ws, 2, COL_AUX, "semanas con datos (validación) — no editar", font=F_NOTA)
     celda(ws, 3, COL_AUX, "(todos)")
@@ -3828,7 +3834,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     o_clase = R.col("tblOrdenes", "clase_mantenimiento")
     o_rubro = R.col("tblOrdenes", "rubro")
     o_hh = R.col("tblOrdenes", "horas_efectivas")
-    for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
+    for i, (anio_m, mes_m) in enumerate(MESES_VENTANA):
         fr = fm + 1 + i
         celda(ws, fr, 1, f"{anio_m}-{mes_m:02d}")
         celda(ws, fr, 2, "=" + _mes_corte(f"$A{fr}"), fmt=FMT_FECHA)
@@ -3866,7 +3872,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
               f"=ROUND(SUM({get_column_letter(C_MIXH)}{fr}:"
               f"{get_column_letter(C_MIXH + NCL - 1)}{fr})"
               f"-{get_column_letter(C_MIXH + NCL)}{fr},6)", fmt=FMT_HH)
-    ult_mes = fm + len(esperado["meses"])
+    ult_mes = fm + len(MESES_VENTANA)
     escala_adherencia(ws, f"E{fm + 1}:E{ult_mes}")
     for j in range(len(RUBROS)):
         La = get_column_letter(C_RUB + 4 * j + 2)
@@ -4045,7 +4051,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                           "capacidad_productiva_semanal", "semanas_de_backlog"])
     o_fecha = R.col("tblOrdenes", "fecha_inicio")
     o_est = R.col("tblOrdenes", "estado")
-    for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
+    for i, (anio_m, mes_m) in enumerate(MESES_VENTANA):
         fr = fbm + 1 + i
         celda(ws, fr, 1, f"{anio_m}-{mes_m:02d}")
         celda(ws, fr, 2, "=" + _mes_corte(f"$A{fr}"), fmt=FMT_FECHA)
@@ -4242,6 +4248,127 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         del wb.defined_names["lista_turnos"]
     wb.defined_names.add(DefinedName(
         "lista_turnos", attr_text=f"CAT_TURNOS!$G${tt.fila_ini}:$G${ult_val}"))
+
+    ws_par = wb["PARAMETROS"]
+    # ── LISTAS DERIVADAS DE CATÁLOGO ───────────────────────────────────────
+    # Antes se escribían como TEXTO FIJO con los valores de ejemplo: al cargar
+    # sus catálogos, el usuario seguía viendo "Coordinador A/B/C" para siempre.
+    # Ahora cada lista es una FÓRMULA contra su catálogo, con holgura para crecer
+    # y compactación de huecos (el patrón que ya usaba `lista_tecnicos`).
+    #
+    # Tres piezas por lista:
+    #   1) una columna de RANGO en la hoja del catálogo, que numera 1..n los
+    #      valores que entran (primera aparición, y filtro si lo hay);
+    #   2) una columna en PARAMETROS que los compacta con INDEX/MATCH, sin huecos;
+    #   3) un nombre definido acotado con INDEX al número real de entradas, para
+    #      que el desplegable no muestre opciones en blanco.
+    col_rank = {}                       # hoja del catálogo → 1.ª columna libre
+
+    def lista_catalogo(nombre, titulo, tabla, campo, filtro=None, prefijo=None,
+                       expr=None):
+        """Lista de validación derivada de un catálogo, con holgura y compactada.
+
+        `campo`   columna del catálogo de la que sale el valor
+        `filtro`  (campo, valor) para quedarse solo con las filas que cumplen
+        `prefijo` valor literal que va primero (p. ej. "(todos)" de los filtros)
+        `expr`    fórmula por fila (usa {f} como nº de fila) cuando el valor no
+                  es una columna tal cual, sino una derivación de varias
+        """
+        tb = TAB[tabla]
+        hoja = wb[tb.hoja]
+        ini, fin = tb.fila_ini, tb.fila_fin
+        # Primera columna libre REAL de la hoja: CAT_TURNOS ya usa una columna
+        # auxiliar propia (lista_turnos), así que contar solo los campos de la
+        # tabla la habría pisado.
+        c0 = col_rank.get(tb.hoja, hoja.max_column + 2)
+        # (0) columna de VALOR: la del catálogo, o una calculada si hay `expr`
+        if expr:
+            cv = c0
+            c0 += 1
+            Lv = get_column_letter(cv)
+            celda(hoja, tb.fila_enc, cv, f"{titulo} (auxiliar) — no editar", font=F_NOTA)
+            for r in range(ini, fin + 1):
+                celda(hoja, r, cv, expr.format(f=r), font=F_NOTA)
+        else:
+            Lv = get_column_letter(tb.campos.index(campo) + 1)
+        # (1) columna de RANGO en el catálogo
+        cr = c0
+        col_rank[tb.hoja] = c0 + 1
+        Lr = get_column_letter(cr)
+        celda(hoja, tb.fila_enc, cr, f"orden de {titulo} — no editar", font=F_NOTA)
+        for r in range(ini, fin + 1):
+            V = f"${Lv}${ini}:${Lv}{r}"          # prefijo hasta esta fila
+            if filtro:
+                cf, vf = filtro
+                Lf = get_column_letter(tb.campos.index(cf) + 1)
+                F = f"${Lf}${ini}:${Lf}{r}"
+                primera = f'COUNTIFS({F},"{vf}",{V},${Lv}{r})<>1'
+                # nº de valores DISTINTOS que cumplen el filtro hasta esta fila
+                cuenta = (f'SUMPRODUCT(({F}="{vf}")*({V}<>"")'
+                          f'/COUNTIFS({F},{F}&"",{V},{V}&""))')
+            else:
+                primera = f"COUNTIF({V},${Lv}{r})<>1"
+                cuenta = f'SUMPRODUCT(({V}<>"")/COUNTIF({V},{V}&""))'
+            celda(hoja, r, cr,
+                  f'=IF(${Lv}{r}="","",IF({primera},"",{cuenta}))', font=F_NOTA)
+        hoja.column_dimensions[Lr].hidden = True
+        if expr:
+            hoja.column_dimensions[Lv].hidden = True
+        # (2) columna compactada en PARAMETROS
+        n_max = (fin - ini + 1) + (1 if prefijo else 0)
+        c = col_aux[0]
+        Lc = get_column_letter(c)
+        celda(ws_par, 4, c, titulo, font=F_NOTA)
+        for k in range(n_max):
+            f_ = 5 + k
+            if prefijo and k == 0:
+                celda(ws_par, f_, c, f'="{prefijo}"')
+            else:
+                orden = k + (0 if prefijo else 1)
+                celda(ws_par, f_, c,
+                      f'=IFERROR(INDEX({tb.hoja}!${Lv}${ini}:${Lv}${fin},'
+                      f'MATCH({orden},{tb.hoja}!${Lr}${ini}:${Lr}${fin},0)),"")')
+        # (3) nombre definido acotado al nº REAL de entradas (INDEX, no OFFSET:
+        #     no es volátil y no está en la lista de funciones prohibidas)
+        rng = f"PARAMETROS!${Lc}$5:${Lc}${4 + n_max}"
+        wb.defined_names.add(DefinedName(
+            nombre,
+            attr_text=f'=PARAMETROS!${Lc}$5:INDEX({rng},MAX(1,COUNTIF({rng},"?*")))'))
+        ws_par.column_dimensions[Lc].width = 22
+        col_aux[0] += 1
+        return nombre
+
+    TODOS = "(todos)"
+    # Filtros y listas de área / sub-área / coordinador / especialidad: todas
+    # salen ahora del catálogo, no de una copia de los datos de ejemplo.
+    lista_catalogo("lista_f_turno", "filtro turno", "tblTurnos", "turno", prefijo=TODOS)
+    lista_catalogo("lista_f_area", "filtro área", "tblCECO", "area", prefijo=TODOS)
+    lista_catalogo("lista_areas", "áreas (CAT_CENTROS_COSTO)", "tblCECO", "area")
+    lista_catalogo("lista_f_coordinador", "filtro coordinador", "tblCECO", "coordinador",
+                   prefijo=TODOS)
+    # La sub-área EFECTIVA hereda el nombre del área cuando el CECO no subdivide,
+    # así que se calcula por fila antes de sacar los distintos.
+    _cc = TAB["tblCECO"]
+    _La = get_column_letter(_cc.campos.index("area") + 1)
+    _Ls = get_column_letter(_cc.campos.index("sub_area") + 1)
+    _sub_expr = f'=IF(${_La}{{f}}="","",IF(${_Ls}{{f}}="",${_La}{{f}},${_Ls}{{f}}))'
+    lista_catalogo("lista_f_subarea", "filtro sub-área", "tblCECO", "sub_area",
+                   prefijo=TODOS, expr=_sub_expr)
+    lista_catalogo("lista_subareas", "sub-áreas efectivas", "tblCECO", "sub_area",
+                   expr=_sub_expr)
+    lista_catalogo("lista_f_especialidad", "filtro especialidad", "tblPuestos",
+                   "especialidad", prefijo=TODOS)
+    # Especialidades de PERSONAL PROPIO: el filtro es el atributo del catálogo.
+    lista_catalogo("lista_esp_propias", "especialidad propia (CAT_PUESTOS)",
+                   "tblPuestos", "especialidad",
+                   filtro=("es_especialidad_propia", SI))
+    lista_catalogo("lista_ceco", "centros de costo", "tblCECO", "codigo")
+    lista_catalogo("lista_puestos", "puestos de trabajo", "tblPuestos", "codigo")
+    lista_catalogo("lista_actividades", "actividades", "tblActividades", "codigo")
+    lista_catalogo("lista_tipos_ot", "tipos de OT", "tblTiposOT", "codigo")
+    lista_catalogo("lista_supervisores", "supervisores", "tblSupervisores", "nombre")
+    lista_catalogo("lista_motivos_ausencia", "motivos de ausencia", "tblMotivos", "motivo")
+
 
     # ----------------------------------------------------------- EXPORTAR
     # Correo redactado en una sola celda (A6), armado desde una zona auxiliar
@@ -4516,7 +4643,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # y formato condicional: sin formas, sin objetos de dibujo y sin macros.
     ws = wb.create_sheet("DASHBOARD")
     ws.sheet_properties.tabColor = "1F4E78"
-    NM = len(esperado["meses"])
+    NM = len(MESES_VENTANA)
     fa0, fa1 = ANC["adh_mes"] + 1, ANC["adh_mes"] + NM
     fp0, fp1 = ANC["perfil_mes"] + 1, ANC["perfil_mes"] + NM
     fb0, fb1 = ANC["backlog_mes"] + 1, ANC["backlog_mes"] + NM
@@ -4545,14 +4672,16 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
           font=F_TIT)
     ws.merge_cells("A1:R1")
     celda(ws, 2, 1, "Solo lectura: cada indicador se lee de su hoja de origen (botonera de abajo). "
-                    "Las metas de mix son convención de industria, NO una norma; se ajustan en "
-                    "PARAMETROS.", font=F_NOTA)
+                    "El selector ofrece el calendario completo, no solo los meses con datos: un mes "
+                    "sin datos sale en BLANCO (blanco = no hay dato; cero = hubo trabajo y no se "
+                    "cumplió). Las metas de mix son convención de industria, NO una norma; se "
+                    "ajustan en PARAMETROS.", font=F_NOTA)
     ws.merge_cells("A2:R2")
     celda(ws, 3, 1, "Mes:", font=F_SEC)
     # Al abrir, el tablero muestra el mes de la fecha de datos (la vista natural);
     # si ese mes no tiene órdenes, cae al último mes con datos.
     _mes_hoy = f"{datos['hoy'].year}-{datos['hoy'].month:02d}"
-    _meses_txt = [f"{a_}-{m_:02d}" for a_, m_ in esperado["meses"]]
+    _meses_txt = [f"{a_}-{m_:02d}" for a_, m_ in MESES_VENTANA]
     celda(ws, 3, 2, _mes_hoy if _mes_hoy in _meses_txt else _meses_txt[-1], font=F_EDIT)
     # El corte se declara SIEMPRE en pantalla, y se ancla a p_fecha_datos: nunca
     # a HOY(), para que el tablero sea la misma foto cada vez que se abre.
@@ -4917,7 +5046,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # ---- selector de mes: rango + nombre definido (misma técnica que 7.1) --
     COL_MES = 24                                   # columna X, fuera del tablero
     celda(ws, 2, COL_MES, "meses con datos (validación) — no editar", font=F_NOTA)
-    for i, (anio_m, mes_m) in enumerate(esperado["meses"]):
+    for i, (anio_m, mes_m) in enumerate(MESES_VENTANA):
         celda(ws, 3 + i, COL_MES, f"{anio_m}-{mes_m:02d}")
     LM = get_column_letter(COL_MES)
     wb.defined_names.add(DefinedName(
@@ -4938,6 +5067,62 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # cuáles NO ponerles el botón de vuelta).
     OCULTAS = ([h for h in wb.sheetnames if h.startswith("CAT_")]
                + ["GUIA_IMPORTAR_ORDENES", "_COMPATIBILIDAD", "_BANCO_PRUEBA"])
+
+    # ------------------------- SEÑALIZACIÓN DE COLUMNAS CALCULADAS
+    # El libro ya marcaba en AZUL lo editable, pero no marcaba lo que NO hay que
+    # tocar, y el usuario nuevo no lo distinguía. Se añade el código
+    # complementario: relleno rojo muy claro en las celdas calculadas y
+    # encabezado en rojo claro sobre la banda azul (rojo puro sobre azul oscuro
+    # sería ilegible).
+    #
+    # "Calculada" = la celda CONTIENE UNA FÓRMULA. No hay lista que mantener ni
+    # que pueda quedar desfasada: si una columna deja de calcularse, deja de
+    # marcarse sola.
+    #
+    # NO se protege la hoja ni se bloquea nada: la señal es visual. Bloquear
+    # rompería el pegado masivo y contradice "avisa, nunca bloquea".
+    HOJAS_SIN_MARCA = {"DASHBOARD", "INSTRUCTIVO", "GUIA_IMPORTAR_ORDENES",
+                       "_COMPATIBILIDAD", "_BANCO_PRUEBA", "PARAMETROS"}
+
+    def marcar_calculadas(ws_):
+        """Rellena las celdas con fórmula y tiñe el encabezado de su columna."""
+        cols_formula, n = set(), 0
+        for fila_ in ws_.iter_rows():
+            for c_ in fila_:
+                if not (isinstance(c_.value, str) and c_.value.startswith("=")):
+                    continue
+                # El formato condicional (semáforos, cuadres, alertas) se pinta
+                # POR ENCIMA del relleno estático, así que no hay conflicto; y un
+                # relleno ya puesto a propósito (tarjetas, ejemplo) se respeta.
+                if c_.fill is None or c_.fill.fgColor.rgb in (None, "00000000"):
+                    c_.fill = FILL_CALC
+                    n += 1
+                cols_formula.add(c_.column)
+        # encabezado: la fila de cabecera es la que lleva el relleno azul
+        for fila_ in ws_.iter_rows(min_row=1, max_row=12):
+            for c_ in fila_:
+                if (c_.column in cols_formula and c_.fill is not None
+                        and c_.fill.fgColor.rgb == "001F4E78" and c_.value):
+                    c_.font = F_HDR_CALC
+        return n
+
+    marcadas = {}
+    for nombre_h in wb.sheetnames:
+        if nombre_h in HOJAS_SIN_MARCA or nombre_h in OCULTAS:
+            continue
+        marcadas[nombre_h] = marcar_calculadas(wb[nombre_h])
+
+    # Leyenda corta en las hojas MIXTAS (las que tienen columnas de los dos
+    # tipos): se añade al final del título, donde no puede pisar nada.
+    LEYENDA = ("   ·   AZUL = usted escribe aquí   ·   ROJO MUY CLARO = se calcula "
+               "solo, no escribir encima")
+    for nombre_h in ("ORDENES", "ASIGNACIONES", "PRESUPUESTO", "TECNICOS",
+                     "PLAN_VACACIONES", "AJUSTES", "CALENDARIO"):
+        if nombre_h not in wb.sheetnames:
+            continue
+        c_tit = wb[nombre_h]["A1"]
+        if isinstance(c_tit.value, str) and not c_tit.value.startswith("="):
+            c_tit.value = c_tit.value + LEYENDA
 
     # ------------------------------------- BOTÓN DE VUELTA AL TABLERO
     # Problema real al presentar: desde el tablero se navega a una hoja, pero
