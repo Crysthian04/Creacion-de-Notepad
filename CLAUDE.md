@@ -6,7 +6,7 @@ Contexto para retomar el trabajo sin releer todo el historial.
 
 | Carpeta | Qué es | Estado |
 |---|---|---|
-| `mantplan/` | **MantPlan** — planificador semanal de mantenimiento en Excel, sin macros. Entregable A. | **v3.6.0, cerrado** |
+| `mantplan/` | **MantPlan** — planificador semanal de mantenimiento en Excel, sin macros. Entregable A. | **v3.7.0, cerrado** |
 | `task-manager/` | Proyecto independiente, sin relación con MantPlan. | — |
 | `asignacion-6-distribucion-planta/` | Proyecto independiente. | — |
 
@@ -40,6 +40,9 @@ presentación · trabajo diario · configuración. Ocultas (con `hidden`, nunca
   funciones de derrame (`SORT`, `FILTER`), `LET`. `TEXTJOIN` lleva `_xlfn.`.
   `INDEX` sí se usa para acotar rangos con nombre: no es volátil.
 - **Sin macros**: navegación con `HYPERLINK`, avisos con formato condicional.
+- **Los `definedName` van SIN `=` delante.** En `xl/workbook.xml` la definición es
+  una expresión desnuda; con el `=` Excel repara el libro y borra el nombre, y
+  LibreOffice lo tolera (el recálculo no lo caza).
 
 ### Decisiones cerradas (el detalle y el porqué, en `mantplan/MANUAL.md`)
 
@@ -67,11 +70,24 @@ presentación · trabajo diario · configuración. Ocultas (con `hidden`, nunca
     mes (18) y semana (año ISO completo) se generan siempre igual, y las listas de
     catálogo son fórmulas con holgura y compactación.
 
+13. **Lo generado se marca aunque no lleve fórmula.** En las hojas de resultado
+    el rojo claro significa «esto lo genera el libro», no «aquí hay una fórmula».
+14. **Todo lo que pueda crecer lleva holgura**, incluidas las filas de categoría
+    de `PRESUPUESTO` (12 ranuras, etiquetas derivadas del catálogo, subtotales por
+    `SUMIF`). Cuando la holgura se agote, el libro lo dice; no se hace cuadrar por
+    construcción, porque eso mataría el indicador que detecta el problema.
+15. **Los nombres definidos se auditan sobre el XML**, no recalculando: un
+    `definedName` escrito con `=` delante hace que Excel repare el libro y borre
+    los nombres, y LibreOffice lo tolera. Ver `verificar_nombres.py`.
+
 ### Convención de color (dos códigos, no tres)
 
 - **AZUL** = celda editable, la escribe el usuario.
 - **ROJO MUY CLARO** (relleno `#FDF3F3`, encabezado en rojo claro sobre la banda
-  azul) = columna **calculada**, no escribir encima.
+  azul) = **generado por el libro**, no escribir encima. En las hojas **mixtas** se
+  marca la celda con fórmula; en las hojas **derivadas** (de resultado) se marcan
+  **todas** las columnas del bloque, tengan fórmula o valor. Las columnas marcadas
+  no llevan desplegable.
 - Las hojas **no se protegen**: la señal es visual. Bloquear rompería el pegado
   masivo y contradiría «avisa, nunca bloquea».
 - El formato condicional (semáforos, cuadres, alertas) se pinta **por encima**.
@@ -85,6 +101,9 @@ presentación · trabajo diario · configuración. Ocultas (con `hidden`, nunca
    (`/root/.claude/skills/xlsx/scripts/recalc.py <archivo> <timeout>`, máx. 595 s)
    y comparación celda a celda contra el motor Python. LibreOffice **no** evalúa
    `XLOOKUP`: solo se recalculan las variantes `_compatible`.
+   **El recálculo no lo ve todo.** Hay defectos que solo viven en el XML (el `=`
+   de los nombres definidos es el caso de manual): esos se auditan sobre el
+   paquete, con `verificar_nombres.py`, en los **seis** libros.
 4. **`VERIFICACION.md` en cada tirada**: qué se verificó, con números, y qué
    **no** se verificó, con los supuestos declarados. Las secciones viejas se
    conservan como historia (`0-bis`, `0-ter`, …).

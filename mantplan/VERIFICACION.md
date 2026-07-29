@@ -1,6 +1,306 @@
-# VERIFICACION.md — MantPlan v3.6.0
+# VERIFICACION.md — MantPlan v3.7.0
 
-## 0. Listas robustas, señalización de columnas calculadas y cierre
+## 0. Rangos nombrados inválidos, señalización de derivadas y holgura de presupuesto
+
+Corrección urgente de un **defecto bloqueante en Excel real** más dos ajustes de
+uso. **No toca** las 10 reglas, el motor, la rotación, VAC, la capacidad ni el
+banco: lo que cambia es cómo se ESCRIBEN los nombres definidos, qué se marca en
+rojo claro y cuántas filas tiene el bloque de presupuesto.
+
+### (1) BUG: los rangos con nombre se escribían con un `=` delante
+
+Excel avisaba al abrir de **«Registros quitados: Rango con nombre de
+/xl/workbook.xml»** y **reparaba** el archivo **borrando los nombres**. Los
+desplegables que dependían de ellos quedaban mudos.
+
+**Causa.** En `xl/workbook.xml` la definición de un nombre va como **expresión
+desnuda**; el `=` inicial es sintaxis de la barra de fórmulas, no del XML. Los 14
+nombres generados por `lista_catalogo` (v3.6.0) lo llevaban:
+
+`lista_f_turno · lista_f_area · lista_areas · lista_f_coordinador ·
+lista_f_subarea · lista_subareas · lista_f_especialidad · lista_esp_propias ·
+lista_ceco · lista_puestos · lista_actividades · lista_tipos_ot ·
+lista_supervisores · lista_motivos_ausencia`
+
+Los otros 33 nombres (`p_*`, `lista_dias`, `lista_turnos`, `lista_tecnicos`,
+`patronHabil`, `cal_fechas`, `cal_habil`, `lista_meses_dash`,
+`lista_semanas_plan`, `lista_no_disponible`) ya eran expresiones desnudas y
+estaban bien. Se revisaron **todos** con el mismo criterio.
+
+**Arreglo.** Se quita el `=` del `attr_text`; la fórmula de rango dinámico
+(`PARAMETROS!$X$5:INDEX(…,MAX(1,COUNTIF(…,"?*")))`) se conserva intacta.
+
+**Por qué no lo cazó la verificación.** El recálculo se hace con LibreOffice, que
+**tolera** el `=` inicial: recalculaba 0 errores y los desplegables funcionaban.
+Solo Excel lo rechaza. Un defecto en el XML no se ve recalculando.
+
+### (2) Comprobación estructural del XML — nueva, y permanente
+
+`verificar_nombres.py` lee `xl/workbook.xml` **en crudo** (zipfile + ElementTree,
+sin openpyxl) y **falla** si algún `definedName`:
+
+- empieza por `=`
+- contiene `#REF!`
+- está vacío
+- está duplicado (mismo nombre y mismo ámbito)
+- usa `OFFSET` o `INDIRECT` (prohibidas en este proyecto: son la otra forma de que
+  un nombre se rompa solo)
+
+y además comprueba el **enlace**: toda validación de lista cuyo `formula1` sea un
+identificador debe apuntar a un nombre que exista (una lista huérfana es un
+desplegable mudo).
+
+**CONTROL — la comprobación detecta el caso malo.** Ejecutada sobre los seis
+libros **tal como estaban entregados** (commit `417d903`):
+
+```
+✗✗ MantPlan_plantilla.xlsx             definedName  47 · fallos 14
+✗✗ MantPlan_plantilla_compatible.xlsx  definedName  47 · fallos 14
+✗✗ MantPlan.xlsx                       definedName  47 · fallos 14
+✗✗ MantPlan_compatible.xlsx            definedName  47 · fallos 14
+✗✗ MantPlan_banco.xlsx                 definedName  47 · fallos 14
+✗✗ MantPlan_banco_compatible.xlsx      definedName  47 · fallos 14
+TOTAL DE FALLOS ESTRUCTURALES: 84
+```
+
+Sobre los seis libros regenerados (v3.7.0):
+
+```
+OK MantPlan_plantilla.xlsx             definedName 47 · usados por validaciones 18 · fallos 0
+OK MantPlan_plantilla_compatible.xlsx  definedName 47 · usados por validaciones 18 · fallos 0
+OK MantPlan.xlsx                       definedName 47 · usados por validaciones 18 · fallos 0
+OK MantPlan_compatible.xlsx            definedName 47 · usados por validaciones 18 · fallos 0
+OK MantPlan_banco.xlsx                 definedName 47 · usados por validaciones 18 · fallos 0
+OK MantPlan_banco_compatible.xlsx      definedName 47 · usados por validaciones 18 · fallos 0
+TOTAL DE FALLOS ESTRUCTURALES: 0
+```
+
+### (3) Señalización: el criterio pasa de «tiene fórmula» a «es derivado»
+
+En v3.6.0 se marcaba en rojo muy claro **la celda que contuviera una fórmula**.
+Quedaban fuera las celdas que el generador escribe como **valor** y que el usuario
+tampoco debe tocar — y el usuario intentó editarlas:
+
+| hoja | columnas que parecían editables |
+|---|---|
+| `SEGUIMIENTO_HH` | `tecnico`, `semana` |
+| `SEGUIMIENTO_MENSUAL` | `tecnico`, `mes` |
+| `ADHERENCIA`, `PERFIL_HH`, `BACKLOG`, `COSTOS`, `EQUIPOS_CRITICOS` | las etiquetas de fila y de columna de cada matriz (mes, área, sub-área, tramo, especialidad, equipo) |
+
+Ahora hay **dos criterios según la hoja**:
+
+- **hoja mixta** (`ORDENES`, `TECNICOS`, `ASIGNACIONES`, `PRESUPUESTO`,
+  `PLAN_VACACIONES`, `AJUSTES`, `CALENDARIO`, `2_IMPORTAR_EJECUCION`): se marca la
+  celda **con fórmula**, porque ahí conviven columnas del usuario y calculadas;
+- **hoja derivada** (`PLAN_SEMANAL`, `ADHERENCIA`, `PERFIL_HH`, `BACKLOG`,
+  `COSTOS`, `EQUIPOS_CRITICOS`, `SEGUIMIENTO_HH`, `SEGUIMIENTO_MENSUAL`,
+  `EXPORTAR`, `VALIDACION`): se marcan **todas** las columnas de cada bloque,
+  tengan fórmula o valor.
+
+El bloque se detecta solo: una fila de encabezado (la banda azul `1F4E78`) y las
+filas que la siguen hasta la primera vacía. No hay lista de columnas que mantener.
+El encabezado entero pasa a rojo claro sobre la banda azul.
+
+**Nada de desplegables en las columnas marcadas**: una lista invitaría a editar
+justo lo que el color dice que no se toca.
+
+Encabezados sin marcar en las hojas derivadas, antes y después:
+
+| hoja | v3.6.0 | v3.7.0 |
+|---|---:|---:|
+| `PLAN_SEMANAL` | 16 de 21 | **0** de 21 |
+| `ADHERENCIA` | 90 de 98 | **0** de 98 |
+| `PERFIL_HH` | 23 de 34 | **0** de 34 |
+| `BACKLOG` | 18 de 24 | **0** de 24 |
+| `COSTOS` | 9 de 12 | **0** de 12 |
+| `EQUIPOS_CRITICOS` | 0 de 4 | **0** de 4 |
+| `SEGUIMIENTO_HH` | 6 de 11 | **0** de 11 |
+| `SEGUIMIENTO_MENSUAL` | 2 de 6 | **0** de 6 |
+| `VALIDACION` | 2 de 3 | **0** de 3 |
+
+(`EXPORTAR` no tiene bloques con banda azul: su zona auxiliar es toda fórmula y ya
+estaba marcada por el primer criterio.)
+
+Celdas marcadas en las dos hojas que motivaron el cambio: `SEGUIMIENTO_HH` 496 ·
+`SEGUIMIENTO_MENSUAL` 192.
+
+**CONTROL — ningún desplegable cae sobre una celda marcada.** Se recorrieron las
+561 celdas alcanzadas por las validaciones de los tres libros: **0** sobre
+celda con relleno `FDF3F3`. Los selectores de `PLAN_SEMANAL` y `EXPORTAR` siguen
+siendo editables (relleno gris propio) y no se marcaron.
+
+### (4) `PRESUPUESTO`: holgura de categorías
+
+**El defecto.** El bloque tenía **exactamente 6 filas**, una por categoría
+existente, con la etiqueta escrita como texto fijo. Una **7.ª** categoría en
+`CAT_ACTIVIDADES` no tenía fila: su gasto **desaparecía** del bloque de
+comparación.
+
+**El arreglo**, con el mismo patrón que las listas (rango + compactación):
+
+- **12 ranuras** (`CAP_CAT_PPTO`) en el bloque de entrada **y** en las cinco
+  matrices del bloque de comparación;
+- las etiquetas `categoria` y `clasificacion` del bloque de entrada **salen de
+  `CAT_ACTIVIDADES`** por `INDEX/MATCH` sobre una columna de orden nueva y oculta.
+  Esa columna respeta la presentación acordada: **primero las fijas, luego las
+  variables**, y dentro de cada grupo el orden del catálogo;
+- las ranuras del bloque de comparación **espejan** la fila de entrada
+  (`=$A$fila`, `=$B$fila`): los dos bloques no pueden desalinearse;
+- **los subtotales dejan de enumerar categorías**. `Subtotal FIJO` y
+  `Subtotal VARIABLE` son ahora `SUMIF` sobre la columna `clasificacion` del
+  propio bloque, y `TOTAL GENERAL` es `SUM(ranuras) + SIN CLASIFICAR`. Cuadran con
+  cualquier número de categorías activas, sin tocar una fórmula;
+- las ranuras vacías devuelven `""` en vez de calcular, para que restar o dividir
+  celdas de texto no llene la hoja de errores en las filas de holgura;
+- bajo el bloque de entrada, un rótulo dice **«categorías activas en el catálogo:
+  N de 12 filas disponibles»** y se pone en rojo con el aviso de holgura agotada
+  si N > 12;
+- `clasificacion` en `CAT_ACTIVIDADES` recibe desplegable `fijo,variable`: los
+  subtotales suman por texto exacto y un «Fijo» con mayúscula dejaría la categoría
+  fuera de los dos subtotales sin que se notara.
+
+### Verificación
+
+Todo lo que sigue se ejecutó sobre los libros **que se entregan**, regenerados con
+v3.7.0. `total_errors` sale del recálculo real de LibreOffice.
+
+**(a) Rangos con nombre — comprobación sobre el XML, los seis libros.**
+0 fallos en los seis (tabla arriba). Ninguno empieza por `=`, ninguno tiene
+`#REF!`, ninguno está vacío, ninguno está duplicado, ninguno usa `OFFSET` ni
+`INDIRECT`, y las 18 validaciones que apuntan a un nombre apuntan a uno que
+existe.
+
+**(b) Los 14 rangos resuelven al número exacto de entradas.** Contado sobre el
+libro recalculado y comparado con el número de valores **distintos** calculado en
+Python desde el mismo catálogo — no contra una constante escrita a mano:
+
+| nombre | esperado | vivos | tope del rango |
+|---|---:|---:|---:|
+| `lista_f_turno` | 5 | 5 | 20 |
+| `lista_f_area` | 4 | 4 | 26 |
+| `lista_areas` | 3 | 3 | 25 |
+| `lista_f_coordinador` | 4 | 4 | 26 |
+| `lista_f_subarea` | 7 | 7 | 26 |
+| `lista_subareas` | 6 | 6 | 25 |
+| `lista_f_especialidad` | 6 | 6 | 21 |
+| `lista_esp_propias` | 3 | 3 | 20 |
+| `lista_ceco` | 10 | 10 | 25 |
+| `lista_puestos` | 5 | 5 | 20 |
+| `lista_actividades` | 8 | 8 | 23 |
+| `lista_tipos_ot` | 5 | 5 | 20 |
+| `lista_supervisores` | 3 | 3 | 18 |
+| `lista_motivos_ausencia` | 3 | 3 | 18 |
+
+Sin huecos intermedios, los 14 usados por alguna validación, y con holgura vacía
+después del último valor (84 comprobaciones, 0 fallos).
+
+**Prueba de catálogo (editar y recalcular, no inspección).** Se añadió un CECO
+nuevo (`CC-999`, área `TALLER`, sub-área `Banco de pruebas`, coordinador
+`Coordinador Z`) y un puesto nuevo (`PU-INS`, especialidad propia `INSTRUM`), se
+recalculó (**0 errores**) y las nueve listas afectadas crecieron **exactamente en
+1**, con el valor nuevo dentro y sin huecos:
+
+```
+lista_ceco           10 → 11    lista_areas            3 →  4
+lista_f_area          4 →  5    lista_f_coordinador    4 →  5
+lista_subareas        6 →  7    lista_f_subarea        7 →  8
+lista_puestos         5 →  6    lista_f_especialidad   6 →  7
+lista_esp_propias     3 →  4
+```
+
+Control: el CECO nuevo **no** apareció en `lista_motivos_ausencia`.
+
+**(c) Columnas generadas sin fórmula, marcadas.** 0 encabezados sin marcar en las
+diez hojas derivadas de los tres libros (tabla arriba). `SEGUIMIENTO_HH.tecnico` y
+`.semana` y `SEGUIMIENTO_MENSUAL.tecnico` y `.mes` llevan relleno `FDF3F3` y
+encabezado rojo. Control: 0 desplegables sobre celda marcada.
+
+**(d) Séptima categoría de presupuesto — editar y recalcular.** Sobre el demo:
+se añadió al catálogo la actividad `ACT-09` con la categoría nueva
+**«Contratos de emergencia» (variable)** y se reasignaron a ella **12 órdenes** de
+`ACT-03`. Recálculo: **0 errores**.
+
+| comprobación | resultado |
+|---|---|
+| el rótulo pasa a decir | «categorías activas en el catálogo: **7** de 12 filas disponibles» |
+| fila en el bloque de entrada | 14 |
+| fila en las 5 matrices de comparación | 34 · 53 · 74 · 93 · 112 |
+| gasto que recibe la categoría nueva | **3.600** |
+| `Correctivos - materiales` | 15.580 → **11.980** (pierde exactamente 3.600) |
+| `TOTAL GENERAL` real del año | 31.590 → **31.590** (no cambia: solo se reparte distinto) |
+| `CONTROL` | 31.590 |
+| **`DIFERENCIA`, los 12 meses** | **0** (máximo absoluto = 0) |
+| `Subtotal VARIABLE` | sin cambio (las dos categorías son variables) y cuadra con sus filas |
+| `Subtotal FIJO` | sin cambio |
+
+**CONTROL de (d) — el caso contrario sí se detecta.** Se llevó el catálogo a **13**
+categorías (una por encima de la holgura) y se movieron 8 órdenes con gasto a la
+categoría que se queda sin fila. Recálculo: 0 errores, y el libro **avisa**:
+
+```
+categorías activas en el catálogo: 13 de 12 filas disponibles — ¡SE AGOTÓ LA
+HOLGURA! amplíe CAP_CAT_PPTO y regenere: el gasto de las categorías sin fila no
+entra en la comparación
+categorías SIN fila: ['Categoría de desborde 6']   ·   DIFERENCIA máx = 1.200
+```
+
+Es decir: el fallo **se denuncia** en dos sitios (el rótulo en rojo y la fila
+`DIFERENCIA`, también en rojo) en vez de perderse en silencio, que era el
+comportamiento anterior.
+
+**(e) 0 errores y motor ↔ Excel sin desviaciones.**
+
+| libro | fórmulas | `total_errors` | comparaciones motor ↔ hoja | fallos |
+|---|---:|---:|---:|---:|
+| `MantPlan_plantilla_compatible.xlsx` | 81.823 | **0** | 40 (+ 32 de la ventana) | **0** |
+| `MantPlan_compatible.xlsx` (demo) | 82.234 | **0** | **15.643** | **0** |
+| `MantPlan_banco_compatible.xlsx` | 153.598 | **0** | **63.177** | **0** |
+
+Más: `verificar_dashboard.py` 201 comparaciones · 0 fallos (3 meses recalculados,
+5 gráficos, botonera y botón de vuelta en las 20 hojas visibles);
+`test_presupuesto.py` (b)(c)(d)(e) OK; `test_catalogos.py` 38/0;
+`test_14_rangos.py` 84/0; `test_categoria_nueva.py` 21/0; `test_ventana.py` 32/0;
+`test_override.py`, `test_vac_override.py`, `test_activo.py`,
+`test_export_empty.py`, `test_reorden.py`: sin regresiones.
+
+### Qué NO se verificó
+
+- **Apertura en Excel real.** No hay Excel en este entorno. El defecto de los
+  nombres es exactamente de los que **solo Excel caza**, y por eso la comprobación
+  se hizo sobre el XML, que es donde vive. Lo que se afirma es que el XML ya
+  cumple la especificación (`definedName` como expresión desnuda), no que Excel lo
+  haya abierto sin avisos: eso lo confirma el usuario al abrirlo.
+- **Las variantes principales** (`XLOOKUP` + referencias estructuradas) no se
+  recalculan: LibreOffice no evalúa `XLOOKUP`. Salen del mismo código y del mismo
+  generador que las `_compatible`, y **sí** pasaron la comprobación estructural del
+  XML, que es independiente del modo de referencias.
+- **La 13.ª categoría en adelante**. Con 12 ranuras, la 13.ª no tiene fila. No se
+  «arregla» sumándola al residuo a propósito: eso haría que `DIFERENCIA` fuese 0
+  por construcción y perdería su valor de diagnóstico. Se avisa y se deja a la
+  vista, que es lo que hace el resto del libro.
+
+### Supuestos declarados
+
+- **12 ranuras** de categoría (frente a 6 usadas). Es el número que sugirió el
+  usuario; el catálogo admite hasta 23 filas, así que teóricamente cabrían 23
+  categorías distintas. Se prefirió avisar a llenar la hoja de 17 filas vacías por
+  cada uno de los seis bloques.
+- **El orden de presentación** (fijas primero, luego variables) se mantiene porque
+  ya era una decisión tomada. Consecuencia declarada, y escrita en el
+  `INSTRUCTIVO`: si el usuario **reordena** las categorías del catálogo, las
+  etiquetas se mueven pero **los importes ya escritos no**, porque son dato del
+  usuario y viven en su fila.
+- **`EXPORTAR` se cuenta como hoja derivada** aunque sus cuatro selectores sean
+  editables: los selectores llevan relleno propio y el marcado los respeta.
+
+### Versión
+
+`VERSION` 3.6.0 → **3.7.0**. Sube la menor, no el parche: además de la corrección,
+el bloque de `PRESUPUESTO` cambia de tamaño y de fórmulas.
+
+---
+
+## 0-bis. Listas robustas, señalización de columnas calculadas y cierre
 
 Última tirada del entregable A. **No toca** las 10 reglas, el motor, el dashboard
 ni el banco (punto g).
@@ -222,7 +522,7 @@ ser poco si se quiere mirar más atrás; se amplía cambiando dos constantes.
 
 ---
 
-## 0-bis. Plantilla de producción e instructivo de uso
+## 0-ter. Plantilla de producción e instructivo de uso
 
 Última tirada del entregable A. **No toca** las 10 reglas, el motor, el dashboard
 ni el banco: los tres datasets salen del mismo código y se verifican por separado
@@ -382,7 +682,7 @@ independiente lo corre el usuario.
 
 ---
 
-## 0-ter. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
+## 0-quater. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
 
 Tirada de ajustes sobre el DASHBOARD. **No toca** las 10 reglas, la rotación,
 VAC, el seguimiento, la capacidad ni el banco (comprobado en el punto f).
@@ -569,7 +869,7 @@ en ningún sitio. (vi) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-quater. DASHBOARD — capstone del entregable A
+## 0-quinquies. DASHBOARD — capstone del entregable A
 
 Hoja de presentación en el **puesto #1**, activa al abrir, con paneles
 inmovilizados. Es capa **visual y de solo lectura**: no implementa ninguna
@@ -815,7 +1115,7 @@ una semana con la **dotación activa actual**; no proyecta altas ni bajas.
 
 ---
 
-## 0-quinquies. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
+## 0-sexies. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
 
 Tirada de correcciones. **No toca las 10 reglas, el presupuesto, VAC, el
 seguimiento ni el banco**: con los 16 técnicos activos el motor devuelve
@@ -1069,7 +1369,7 @@ DASHBOARD.** (vii) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-sexies. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
+## 0-septies. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
 
 Hoja **derivada** nueva (`PRESUPUESTO`), colocada en el grupo de presentación
 justo después de `COSTOS`. **No toca las 10 reglas, la rotación, VAC, el
@@ -1174,7 +1474,7 @@ mide contra el día de apertura, igual que las columnas de envejecimiento.
 
 ---
 
-## 0-septies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+## 0-octies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
 
 Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
 rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los

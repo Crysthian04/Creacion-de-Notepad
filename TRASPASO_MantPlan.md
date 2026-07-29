@@ -4,7 +4,7 @@ Documento de traspaso: qué está terminado, qué contiene y qué queda por hace
 
 ---
 
-## Estado: entregable A CERRADO (v3.6.0)
+## Estado: entregable A CERRADO (v3.7.0)
 
 El planificador semanal de mantenimiento en Excel está terminado y verificado.
 Se entrega listo para usar, sin trabajo pendiente dentro de su alcance.
@@ -75,6 +75,9 @@ python generar_mantplan.py --fecha-ancla 2026-07-27 --salida MantPlan.xlsx
 python generar_mantplan.py --fecha-ancla 2026-07-27 --salida MantPlan_compatible.xlsx --refs compatibles
 python generar_mantplan.py --anio-completo --salida MantPlan_banco.xlsx
 python generar_mantplan.py --anio-completo --salida MantPlan_banco_compatible.xlsx --refs compatibles
+
+# Y SIEMPRE, sobre los seis: comprobación estructural del XML de los nombres.
+python verificar_nombres.py MantPlan*.xlsx
 ```
 
 ---
@@ -121,9 +124,21 @@ de datos.
   Eso hace que las cuatro columnas de envejecimiento cambien según el día del
   recálculo; el verificador lo tiene en cuenta e infiere el día del propio libro.
   El **tablero**, en cambio, se ancla a `p_fecha_datos` y nunca a `HOY()`.
-- Si se añade una hoja o una columna, hay que decidir si es **derivada** (se marca
-  en rojo claro sola, porque lleva fórmula) o **editable** (azul). No hay tercer
-  color.
+- **Los rangos con nombre se escriben SIN `=` delante.** En `xl/workbook.xml` la
+  definición va como expresión desnuda; con el `=` Excel avisa de «Registros
+  quitados: Rango con nombre» y **borra los nombres al reparar**, dejando mudos los
+  desplegables. LibreOffice lo tolera, así que **el recálculo no lo detecta**: por
+  eso hay una comprobación estructural del XML (`verificar_nombres.py`) que se
+  corre sobre los seis libros y falla si algún `definedName` empieza por `=`,
+  contiene `#REF!`, está vacío o está duplicado. Es el tipo de defecto que solo se
+  ve abriendo el archivo en Excel real.
+- Si se añade una hoja o una columna, hay que decidir si es **derivada** (rojo
+  claro) o **editable** (azul). No hay tercer color. En las hojas de **resultado**
+  se marca todo, tenga fórmula o valor: el rojo significa «lo genera el libro», no
+  «aquí hay una fórmula».
 - Cualquier lista nueva que dependa de un catálogo o de los datos debe ser
   **fórmula con holgura y compactación**, nunca texto fijo. Es el defecto que más
-  veces ha reaparecido en este proyecto.
+  veces ha reaparecido en este proyecto — la última, en las **filas de categoría de
+  `PRESUPUESTO`**, que estaban dimensionadas a las seis categorías existentes.
+  Regla práctica: si algo puede crecer con el catálogo, dele ranuras y avise
+  cuando se agoten; no lo haga cuadrar por construcción.

@@ -48,7 +48,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.6.0"
+VERSION = "3.7.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -210,6 +210,14 @@ def _fecha_ancla_year(hoy):
 # usuario pueda añadir los suyos sin tocar rangos ni fórmulas. Las listas
 # derivadas compactan los huecos, así que no ensucian ningún desplegable.
 HOLGURA_CAT = 15
+
+# Ranuras de categoría del PRESUPUESTO, en el bloque de entrada y en cada matriz
+# del bloque de comparación. Mismo problema que las listas: el bloque tenía una
+# fila por categoría EXISTENTE, así que una categoría nueva en CAT_ACTIVIDADES se
+# quedaba sin fila y su gasto desaparecía de la comparación. Con holgura, la fila
+# aparece sola; si algún día el catálogo definiera más de estas, el libro lo AVISA
+# (la fila DIFERENCIA se pone en rojo y el contador de categorías activas lo dice).
+CAP_CAT_PPTO = 12
 
 MESES_ANTES, MESES_DESPUES = 3, 3        # 3 + 12 + 3 = 18 entradas siempre
 SEMANAS_ANTES, SEMANAS_DESPUES = 2, 2
@@ -2518,6 +2526,16 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ("4. CALENDARIO — marque el patrón semanal y cargue feriados y paros de planta.", ""),
         ("5. PLAN_VACACIONES — periodos de vacaciones y permisos por técnico.", ""),
         ("6. PRESUPUESTO — el plan de gasto por mes y categoría.", ""),
+        (f"CÓMO AÑADIR UNA CATEGORÍA DE PRESUPUESTO: no se toca PRESUPUESTO. En "
+         f"CAT_ACTIVIDADES, escriba la categoría en la columna `categoria_presupuesto` de la "
+         f"actividad que corresponda y elija `clasificacion` = fijo o variable (hay "
+         f"desplegable: los subtotales suman por ese texto exacto). La fila aparece sola en "
+         f"el bloque de entrada Y en las cinco matrices del bloque de comparación, y ya puede "
+         f"escribir su plan mensual. Hay {CAP_CAT_PPTO} filas de holgura; el rótulo bajo el "
+         f"bloque de entrada dice cuántas categorías activas hay y avisa si se agotan.", ""),
+        ("Las categorías se ordenan solas: primero las FIJAS y luego las VARIABLES, en el "
+         "orden del catálogo. Si REORDENA las categorías del catálogo, las etiquetas se mueven "
+         "pero los importes ya escritos NO: revise que cada importe siga en su fila.", ""),
         ("ADVERTENCIA: BORRE TODAS LAS FILAS DE EJEMPLO ANTES DE CARGAR DATOS REALES. "
          "Si su exportación trae menos filas que el ejemplo, las sobrantes se quedan abajo y "
          "contaminan TODOS los reportes: seleccione las filas de datos completas y bórrelas, "
@@ -2551,9 +2569,15 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         ("Las hojas NO están protegidas a propósito: la señal es visual. Bloquear celdas "
          "rompería el pegado masivo del ERP y contradiría el principio de la herramienta, "
          "que avisa pero nunca bloquea.", ""),
-        ("No toque las hojas derivadas (ADHERENCIA, PERFIL_HH, BACKLOG, COSTOS, "
-         "SEGUIMIENTO_*, EQUIPOS_CRITICOS, DASHBOARD): se recalculan solas desde ORDENES, "
-         "ASIGNACIONES y los catálogos. Cualquier cambio ahí se pierde al recalcular.", ""),
+        ("No toque las hojas derivadas (PLAN_SEMANAL, ADHERENCIA, PERFIL_HH, BACKLOG, COSTOS, "
+         "SEGUIMIENTO_*, EQUIPOS_CRITICOS, EXPORTAR, VALIDACION, DASHBOARD): se recalculan "
+         "solas desde ORDENES, ASIGNACIONES y los catálogos. Cualquier cambio ahí se pierde "
+         "al recalcular.", ""),
+        ("En esas hojas TODAS las columnas van en rojo claro, también las que muestran un "
+         "texto fijo y no una fórmula (el nombre del técnico y la semana en SEGUIMIENTO_HH, "
+         "el técnico y el mes en SEGUIMIENTO_MENSUAL, las etiquetas de fila de las matrices). "
+         "Parecen escribibles y no lo son: las genera el libro, y lo que escriba encima "
+         "desaparece en la siguiente regeneración. Por eso tampoco llevan desplegable.", ""),
         ("En ASIGNACIONES, el turno se DERIVA de la rotación. Para una excepción puntual use "
          "turno_manual; al vaciarlo vuelve la rotación automática.", ""),
         ("", ""),
@@ -2574,6 +2598,12 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
          "los meses con datos: así puede elegir su mes ANTES de cargarlo. Un mes sin datos sale "
          "en BLANCO — blanco significa «no hay dato», cero significa «hubo trabajo y no se "
          "cumplió», y no son lo mismo.", ""),
+        ("En PRESUPUESTO, la fila DIFERENCIA se pone en rojo → hay gasto que no llega al "
+         "bloque de comparación. Casi siempre es que el catálogo define más categorías que "
+         "filas disponibles: mire el rótulo «categorías activas» bajo el bloque de entrada.", ""),
+        ("Los desplegables aparecen vacíos o Excel avisa al abrir de que ha reparado el "
+         "archivo quitando rangos con nombre → el archivo se generó con una versión anterior "
+         "a la 3.7.0. Vuelva a generarlo; no es un problema de su Excel.", ""),
         ("Un técnico no aparece en las listas → está marcado activo = no en TECNICOS.", ""),
         ("Un técnico aparece sin turno y con 0 h → está de vacaciones (PLAN_VACACIONES) o "
          "inactivo. El hueco se deja a la vista a propósito.", ""),
@@ -3056,49 +3086,66 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         celda(ws, i, 1, t, font=F_NOTA)
 
     # ---- BLOQUE DE ENTRADA (manual) ----
+    # HOLGURA: el bloque tenía exactamente una fila por categoría existente. Una
+    # categoría nueva en CAT_ACTIVIDADES se quedaba SIN FILA y su gasto
+    # desaparecía del bloque de comparación. Ahora hay CAP_CAT_PPTO ranuras y las
+    # etiquetas SALEN DEL CATÁLOGO (compactadas, sin huecos): añadir una
+    # categoría al catálogo hace aparecer su fila sola, en los dos bloques.
+    # Las columnas de importe siguen siendo del usuario (azul); solo `categoria`
+    # y `clasificacion` se calculan.
     fe0 = 6
-    celda(ws, fe0, 1, "BLOQUE DE ENTRADA — plan manual del año (azul = editable)", font=F_SEC)
+    celda(ws, fe0, 1, "BLOQUE DE ENTRADA — plan manual del año (azul = editable). Las filas de "
+                      f"categoría salen de CAT_ACTIVIDADES; hay holgura para {CAP_CAT_PPTO}.",
+          font=F_SEC)
     encabezados(ws, fe0 + 1, ["categoria", "clasificacion"] + MESES_AB
                 + ["presupuesto_anual", "suma_12_meses", "cuadre"])
-    fila_cat = {}
-    for i, (cat, clas) in enumerate(CATEGORIAS_PRESUPUESTO):
-        fr = fe0 + 2 + i
-        fila_cat[cat] = fr
-        celda(ws, fr, 1, cat)
-        celda(ws, fr, 2, clas)
+    FILA_ENT = fe0 + 2                       # primera ranura de categoría
+    for k in range(CAP_CAT_PPTO):
+        fr = FILA_ENT + k
+        # A y B se escriben MÁS TARDE (necesitan la columna de orden de
+        # CAT_ACTIVIDADES, que se crea junto con las demás listas de catálogo).
+        cat = CATEGORIAS_PRESUPUESTO[k][0] if k < len(CATEGORIAS_PRESUPUESTO) else None
         for m in range(1, 13):
-            celda(ws, fr, C0 + m - 1, P["mensual"][cat][m - 1], font=F_EDIT, fmt=FMT_DINERO)
-        celda(ws, fr, 15, P["anual"][cat], font=F_EDIT, fmt=FMT_DINERO)
-        celda(ws, fr, 16, f"=SUM($C{fr}:$N{fr})", fmt=FMT_DINERO)
-        celda(ws, fr, 17, f'=IF(ROUND($P{fr}-$O{fr},2)=0,"cuadra",'
-                          f'"DESCUADRE: "&TEXT($P{fr}-$O{fr},"+#,##0;-#,##0")&" vs anual")')
-    fe1 = fe0 + 1 + len(CATEGORIAS_PRESUPUESTO)
+            celda(ws, fr, C0 + m - 1, P["mensual"][cat][m - 1] if cat else None,
+                  font=F_EDIT, fmt=FMT_DINERO)
+        celda(ws, fr, 15, P["anual"][cat] if cat else None, font=F_EDIT, fmt=FMT_DINERO)
+        celda(ws, fr, 16, f'=IF($A{fr}="","",SUM($C{fr}:$N{fr}))', fmt=FMT_DINERO)
+        celda(ws, fr, 17, f'=IF($A{fr}="","",IF(ROUND($P{fr}-$O{fr},2)=0,"cuadra",'
+                          f'"DESCUADRE: "&TEXT($P{fr}-$O{fr},"+#,##0;-#,##0")&" vs anual"))')
+    fe1 = FILA_ENT + CAP_CAT_PPTO - 1        # última ranura
     celda(ws, fe1 + 1, 1, "TOTAL", font=F_SEC)
     for col in list(range(C0, C0 + 12)) + [15, 16]:
         L_ = get_column_letter(col)
-        celda(ws, fe1 + 1, col, f"=SUM({L_}{fe0 + 2}:{L_}{fe1})", fmt=FMT_DINERO)
+        celda(ws, fe1 + 1, col, f"=SUM({L_}{FILA_ENT}:{L_}{fe1})", fmt=FMT_DINERO)
+    # Aviso de holgura agotada: si el catálogo llega a definir más categorías que
+    # ranuras, el gasto de las sobrantes no tendría fila. Se AVISA (nunca bloquea);
+    # la fórmula la escribe el mismo paso que las etiquetas.
+    FILA_AVISO_CAT = fe1 + 2
     dvp = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0",
                          allow_blank=True)
     ws.add_data_validation(dvp)
-    dvp.add(f"C{fe0 + 2}:O{fe1}")
+    dvp.add(f"C{FILA_ENT}:O{fe1}")
     ws.conditional_formatting.add(
-        f"Q{fe0 + 2}:Q{fe1}",
-        FormulaRule(formula=[f'LEFT($Q{fe0 + 2},9)="DESCUADRE"'], fill=FILL_ROJO))
+        f"Q{FILA_ENT}:Q{fe1}",
+        FormulaRule(formula=[f'LEFT($Q{FILA_ENT},9)="DESCUADRE"'], fill=FILL_ROJO))
 
     # ---- BLOQUE DE COMPARACIÓN (derivado) ----
-    fc0 = fe1 + 3
+    # Mismas CAP_CAT_PPTO ranuras que el bloque de entrada, y en el mismo orden:
+    # cada ranura ESPEJA su etiqueta (=$A de la fila de entrada), así los dos
+    # bloques no pueden desalinearse. Los subtotales ya no enumeran categorías
+    # una a una: SUMAN POR CLASIFICACIÓN sobre la propia columna B del bloque, de
+    # modo que cuadran con cualquier número de categorías activas.
+    fc0 = FILA_AVISO_CAT + 2
     celda(ws, fc0, 1, "BLOQUE DE COMPARACIÓN — presupuesto vs real por categoría y mes", font=F_SEC)
     celda(ws, fc0 + 1, 1, "mes de corte del YTD:", font=F_NOTA)
     # YTD acumula hasta el mes de la fecha de datos; 12 si el año ya pasó, 0 si no empezó.
     celda(ws, fc0 + 1, 2, "=IF(YEAR(TODAY())>p_anio_presupuesto,12,"
                           "IF(YEAR(TODAY())<p_anio_presupuesto,0,MONTH(TODAY())))")
     cel_ytd = f"$B${fc0 + 1}"
-    filas_comp = ([c for c, _ in CATEGORIAS_PRESUPUESTO] + [SIN_CLASIFICAR_PPTO]
-                  + ["Subtotal FIJO", "Subtotal VARIABLE", "TOTAL GENERAL"])
-    clas_de = dict(CATEGORIAS_PRESUPUESTO)
-    miembros = {"Subtotal FIJO": [c for c, k in CATEGORIAS_PRESUPUESTO if k == "fijo"],
-                "Subtotal VARIABLE": [c for c, k in CATEGORIAS_PRESUPUESTO if k == "variable"],
-                "TOTAL GENERAL": [c for c, _ in CATEGORIAS_PRESUPUESTO] + [SIN_CLASIFICAR_PPTO]}
+    RANURAS = [("cat", k) for k in range(CAP_CAT_PPTO)]
+    filas_comp = RANURAS + [SIN_CLASIFICAR_PPTO, "Subtotal FIJO",
+                            "Subtotal VARIABLE", "TOTAL GENERAL"]
+    SUBTOTALES = {"Subtotal FIJO": "fijo", "Subtotal VARIABLE": "variable"}
     o_col = R.col("tblOrdenes", "costo_total")
     o_anio = R.col("tblOrdenes", "anio")
     o_mes = R.col("tblOrdenes", "mes")
@@ -3116,16 +3163,21 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             filas[etiqueta] = fila0 + 2 + len(filas_comp) + i
         for f in filas_comp:
             fr = filas[f]
-            celda(ws, fr, 1, f, font=F_SEC if f.startswith(("Subtotal", "TOTAL")) else F_TXT)
-            celda(ws, fr, 2, clas_de.get(f, ""))
+            if isinstance(f, tuple):                       # ranura de categoría
+                fe_ = FILA_ENT + f[1]
+                celda(ws, fr, 1, f"=$A${fe_}")             # espejo del bloque de entrada
+                celda(ws, fr, 2, f"=$B${fe_}")
+            else:
+                celda(ws, fr, 1, f,
+                      font=F_SEC if f.startswith(("Subtotal", "TOTAL")) else F_TXT)
             for m in range(1, 13):
-                celda(ws, fr, C0 + m - 1, celda_fn(f, m, filas), fmt=fmt)
+                celda(ws, fr, C0 + m - 1, guardar(f, fr, celda_fn(f, m, filas)), fmt=fmt)
             # El YTD de las matrices numéricas acumula los meses hasta el corte;
             # las de % y estado no se pueden sumar: llevan su propia fórmula sobre
             # los YTD ya acumulados (SUMPRODUCT sobre texto daría #VALUE!).
-            celda(ws, fr, 15,
-                  ytd_fn(f) if ytd_fn else f"=SUMPRODUCT(({ARR12}<={cel_ytd})*($C{fr}:$N{fr}))",
-                  fmt=fmt)
+            celda(ws, fr, 15, guardar(
+                f, fr, ytd_fn(f) if ytd_fn
+                else f"=SUMPRODUCT(({ARR12}<={cel_ytd})*($C{fr}:$N{fr}))"), fmt=fmt)
         for etiqueta, fn in extra:
             fr = filas[etiqueta]
             celda(ws, fr, 1, etiqueta, font=F_NOTA)
@@ -3134,22 +3186,45 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             celda(ws, fr, 15, f"=SUMPRODUCT(({ARR12}<={cel_ytd})*($C{fr}:$N{fr}))", fmt=fmt)
         return filas, fila0 + 3 + len(filas_comp) + len(extra)
 
-    def suma_de(fs, m, miembros_f):
-        return "=" + "+".join(f"{cm(m)}{fs[c]}" for c in miembros_f)
+    def guardar(f, fr, valor):
+        """Una ranura VACÍA (sin categoría en el catálogo) devuelve "" en vez de
+        calcular: si no, restar o dividir celdas de texto daría #VALUE! y la hoja
+        se llenaría de errores en las filas de holgura."""
+        if not isinstance(f, tuple) or not (isinstance(valor, str) and valor.startswith("=")):
+            return valor
+        return f'=IF($A{fr}="","",{valor[1:]})'
+
+    def rango_ranuras(fs, col):
+        """Rango de la columna `col` que cubre SOLO las ranuras de categoría."""
+        a, b = fs[RANURAS[0]], fs[RANURAS[-1]]
+        return f"{col}{a}:{col}{b}"
+
+    def f_subtotal(f, m, fs):
+        """Subtotal por clasificación: SUMIF sobre la columna B del propio bloque.
+        No enumera categorías, así que sobrevive a que se añadan o se quiten."""
+        return (f'=SUMIF({rango_ranuras(fs, "$B")},"{SUBTOTALES[f]}",'
+                f'{rango_ranuras(fs, cm(m))})')
+
+    def f_total(f, m, fs):
+        return f'=SUM({rango_ranuras(fs, cm(m))})+{cm(m)}{fs[SIN_CLASIFICAR_PPTO]}'
 
     def f_ppto(f, m, fs):
-        if f in miembros:
-            return suma_de(fs, m, miembros[f])
+        if f in SUBTOTALES:
+            return f_subtotal(f, m, fs)
+        if f == "TOTAL GENERAL":
+            return f_total(f, m, fs)
         if f == SIN_CLASIFICAR_PPTO:
             return 0                     # lo no clasificado no se presupuesta
-        return f"={cm(m)}{fila_cat[f]}"   # referencia al bloque de entrada
+        return f"={cm(m)}{FILA_ENT + f[1]}"   # referencia a su fila de entrada
 
     bloques["ppto"], fb = matriz(fb, "PRESUPUESTO (del bloque de entrada)",
                                  FMT_DINERO, f_ppto)
 
     def f_real(f, m, fs):
-        if f in miembros:
-            return suma_de(fs, m, miembros[f])
+        if f in SUBTOTALES:
+            return f_subtotal(f, m, fs)
+        if f == "TOTAL GENERAL":
+            return f_total(f, m, fs)
         return (f'=SUMIFS({o_col},{o_anio},p_anio_presupuesto,{o_mes},{m},'
                 f'{o_cat},$A{fs[f]})')
 
@@ -4189,6 +4264,12 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
          "Catálogo de actividades. `rubro` es la etiqueta transversal del trabajo "
          "(calibración / lubricación) y puede quedar VACÍA: eso es lo normal",
          [("C", '"correctivo,preventivo,predictivo,legal"'),
+          # `clasificacion` manda en dos sitios a la vez: decide el ORDEN de las
+          # filas del presupuesto (primero fijas, luego variables) y alimenta los
+          # subtotales, que son SUMIF por texto exacto. Un "Fijo" con mayúscula
+          # dejaría la categoría fuera de los dos subtotales sin que se note, así
+          # que la columna lleva su lista. Sigue siendo ayuda, no barrera.
+          ("E", '"fijo,variable"', True),
           ("F", '"' + ",".join(RUBROS) + '"', True)]),
         ("CAT_TIPOS_OT", "tblTiposOT", TIPOS_OT,
          "Traducción de tipos de OT del ERP → preventiva/correctiva (REGLA-1) y → clase "
@@ -4331,12 +4412,75 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         # (3) nombre definido acotado al nº REAL de entradas (INDEX, no OFFSET:
         #     no es volátil y no está en la lista de funciones prohibidas)
         rng = f"PARAMETROS!${Lc}$5:${Lc}${4 + n_max}"
+        # SIN "=" inicial: en xl/workbook.xml la definición de un nombre va como
+        # expresión desnuda. Con el "=" delante, Excel considera corrupto el libro,
+        # avisa de «Registros quitados: Rango con nombre» y BORRA el nombre al
+        # reparar. LibreOffice lo tolera, así que el recálculo no lo detecta: por
+        # eso la verificación incluye ahora un chequeo estructural del XML.
         wb.defined_names.add(DefinedName(
             nombre,
-            attr_text=f'=PARAMETROS!${Lc}$5:INDEX({rng},MAX(1,COUNTIF({rng},"?*")))'))
+            attr_text=f'PARAMETROS!${Lc}$5:INDEX({rng},MAX(1,COUNTIF({rng},"?*")))'))
         ws_par.column_dimensions[Lc].width = 22
         col_aux[0] += 1
         return nombre
+
+    # ── FILAS DE CATEGORÍA DEL PRESUPUESTO ────────────────────────────────
+    # Mismo patrón que las listas de catálogo (rango + compactación), con una
+    # vuelta de tuerca: el bloque presenta primero las categorías FIJAS y luego
+    # las VARIABLES, así que el orden no es "primera aparición" a secas sino
+    # "primera aparición dentro de su grupo", con el grupo variable desplazado
+    # detrás del total de fijas. Se escribe ANTES que las demás listas para que
+    # `lista_catalogo` no le pise la columna (col_rank lo registra).
+    _ac = TAB["tblActividades"]
+    _hja = wb[_ac.hoja]
+    _ai, _af = _ac.fila_ini, _ac.fila_fin
+    _Ld = get_column_letter(_ac.campos.index("categoria_presupuesto") + 1)
+    _Le = get_column_letter(_ac.campos.index("clasificacion") + 1)
+    _cr = _hja.max_column + 2
+    col_rank[_ac.hoja] = _cr + 1
+    _Lr = get_column_letter(_cr)
+
+    def _distintas(vf, hasta):
+        """Nº de categorías DISTINTAS con esa clasificación hasta la fila `hasta`."""
+        D = f"${_Ld}${_ai}:${_Ld}{hasta}"
+        E = f"${_Le}${_ai}:${_Le}{hasta}"
+        return f'SUMPRODUCT(({E}="{vf}")*({D}<>"")/COUNTIFS({E},{E}&"",{D},{D}&""))'
+
+    celda(_hja, _ac.fila_enc, _cr, "orden de categoría de presupuesto — no editar",
+          font=F_NOTA)
+    for _r in range(_ai, _af + 1):
+        _D = f"${_Ld}${_ai}:${_Ld}{_r}"
+        _E = f"${_Le}${_ai}:${_Le}{_r}"
+        _prim = lambda vf: f'COUNTIFS({_E},"{vf}",{_D},${_Ld}{_r})<>1'
+        celda(_hja, _r, _cr,
+              f'=IF(${_Ld}{_r}="","",'
+              f'IF(${_Le}{_r}="fijo",IF({_prim("fijo")},"",{_distintas("fijo", _r)}),'
+              f'IF(${_Le}{_r}="variable",IF({_prim("variable")},"",'
+              f'{_distintas("fijo", _af)}+{_distintas("variable", _r)}),"")))',
+              font=F_NOTA)
+    _hja.column_dimensions[_Lr].hidden = True
+    RG_CAT = f"{_ac.hoja}!${_Ld}${_ai}:${_Ld}${_af}"
+    RG_CLAS = f"{_ac.hoja}!${_Le}${_ai}:${_Le}${_af}"
+    RG_ORD = f"{_ac.hoja}!${_Lr}${_ai}:${_Lr}${_af}"
+
+    _wsp = wb["PRESUPUESTO"]
+    for _k in range(CAP_CAT_PPTO):
+        _fr = FILA_ENT + _k
+        celda(_wsp, _fr, 1,
+              f'=IFERROR(INDEX({RG_CAT},MATCH({_k + 1},{RG_ORD},0)),"")')
+        celda(_wsp, _fr, 2,
+              f'=IF($A{_fr}="","",IFERROR(INDEX({RG_CLAS},MATCH($A{_fr},{RG_CAT},0)),""))')
+    # Aviso de holgura agotada: avisa, no bloquea (el gasto de una categoría sin
+    # fila se vería además como DIFERENCIA distinta de 0, en rojo).
+    celda(_wsp, FILA_AVISO_CAT, 1,
+          f'="categorías activas en el catálogo: "&MAX({RG_ORD})&" de {CAP_CAT_PPTO} '
+          f'filas disponibles"'
+          f'&IF(MAX({RG_ORD})>{CAP_CAT_PPTO}," — ¡SE AGOTÓ LA HOLGURA! amplíe CAP_CAT_PPTO '
+          f'y regenere: el gasto de las categorías sin fila no entra en la comparación","")',
+          font=F_NOTA)
+    _wsp.conditional_formatting.add(
+        f"A{FILA_AVISO_CAT}",
+        FormulaRule(formula=[f"MAX({RG_ORD})>{CAP_CAT_PPTO}"], fill=FILL_ROJO))
 
     TODOS = "(todos)"
     # Filtros y listas de área / sub-área / coordinador / especialidad: todas
@@ -5075,14 +5219,38 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # encabezado en rojo claro sobre la banda azul (rojo puro sobre azul oscuro
     # sería ilegible).
     #
-    # "Calculada" = la celda CONTIENE UNA FÓRMULA. No hay lista que mantener ni
-    # que pueda quedar desfasada: si una columna deja de calcularse, deja de
-    # marcarse sola.
+    # EL CRITERIO YA NO ES "contiene fórmula", SINO "pertenece a algo DERIVADO".
+    # Con el criterio anterior quedaban sin marcar las celdas que el generador
+    # escribe como VALOR y que el usuario tampoco debe tocar: `tecnico` y `semana`
+    # de SEGUIMIENTO_HH, `tecnico` y `mes` de SEGUIMIENTO_MENSUAL, y las etiquetas
+    # de fila de todas las matrices (área, mes, tramo…). Parecían editables, y de
+    # hecho el usuario intentó editarlas: lo que escribiera se perdería en la
+    # siguiente regeneración y descuadraría los cruces contra las hojas fuente.
+    #
+    # Ahora hay dos criterios, según la hoja:
+    #   · hoja MIXTA (ORDENES, TECNICOS, PRESUPUESTO…): marca la celda con fórmula,
+    #     porque en ellas conviven columnas del usuario y columnas calculadas;
+    #   · hoja DERIVADA (hoja de RESULTADO): marca TODAS las columnas de cada
+    #     bloque, tengan fórmula o valor. Nada de lo que hay ahí lo escribe el
+    #     usuario.
+    # A las columnas marcadas NO se les pone desplegable: una lista invitaría a
+    # editarlas, que es justo lo contrario de lo que dice el color.
     #
     # NO se protege la hoja ni se bloquea nada: la señal es visual. Bloquear
     # rompería el pegado masivo y contradice "avisa, nunca bloquea".
     HOJAS_SIN_MARCA = {"DASHBOARD", "INSTRUCTIVO", "GUIA_IMPORTAR_ORDENES",
                        "_COMPATIBILIDAD", "_BANCO_PRUEBA", "PARAMETROS"}
+    # Hojas de RESULTADO: todo su contenido lo genera el libro.
+    HOJAS_DERIVADAS = {"PLAN_SEMANAL", "ADHERENCIA", "PERFIL_HH", "BACKLOG", "COSTOS",
+                       "EQUIPOS_CRITICOS", "SEGUIMIENTO_HH", "SEGUIMIENTO_MENSUAL",
+                       "EXPORTAR", "VALIDACION"}
+    AZUL_HDR = "1F4E78"
+
+    def _libre(c_):
+        """La celda no tiene un relleno puesto a propósito (tarjeta, ejemplo,
+        selector gris): el formato condicional se pinta por encima, así que no
+        hay conflicto, pero un relleno explícito sí se respeta."""
+        return c_.fill is None or str(c_.fill.fgColor.rgb or "")[-6:] in ("", "000000")
 
     def marcar_calculadas(ws_):
         """Rellena las celdas con fórmula y tiñe el encabezado de su columna."""
@@ -5091,10 +5259,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             for c_ in fila_:
                 if not (isinstance(c_.value, str) and c_.value.startswith("=")):
                     continue
-                # El formato condicional (semáforos, cuadres, alertas) se pinta
-                # POR ENCIMA del relleno estático, así que no hay conflicto; y un
-                # relleno ya puesto a propósito (tarjetas, ejemplo) se respeta.
-                if c_.fill is None or c_.fill.fgColor.rgb in (None, "00000000"):
+                if _libre(c_):
                     c_.fill = FILL_CALC
                     n += 1
                 cols_formula.add(c_.column)
@@ -5102,15 +5267,49 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         for fila_ in ws_.iter_rows(min_row=1, max_row=12):
             for c_ in fila_:
                 if (c_.column in cols_formula and c_.fill is not None
-                        and c_.fill.fgColor.rgb == "001F4E78" and c_.value):
+                        and str(c_.fill.fgColor.rgb or "")[-6:] == AZUL_HDR and c_.value):
                     c_.font = F_HDR_CALC
+        return n
+
+    def marcar_derivada(ws_):
+        """Marca los BLOQUES completos de una hoja de resultado.
+
+        Un bloque es una fila de encabezado (la banda azul) y las filas que la
+        siguen hasta la primera fila vacía. Se marcan todas sus columnas, con
+        fórmula o con valor, y su encabezado entero pasa a rojo claro.
+        """
+        n = 0
+        enc = {}
+        for fila_ in ws_.iter_rows():
+            cols = [c_.column for c_ in fila_ if c_.value not in (None, "")
+                    and c_.fill is not None
+                    and str(c_.fill.fgColor.rgb or "")[-6:] == AZUL_HDR]
+            if cols:
+                enc[fila_[0].row] = cols
+        orden = sorted(enc)
+        for i, r_enc in enumerate(orden):
+            cols = enc[r_enc]
+            tope = orden[i + 1] - 1 if i + 1 < len(orden) else ws_.max_row
+            for r_ in range(r_enc + 1, tope + 1):
+                celdas = [ws_.cell(row=r_, column=c_) for c_ in cols]
+                if all(x.value in (None, "") for x in celdas):
+                    break                       # fin del bloque
+                for x in celdas:
+                    if x.value not in (None, "") and _libre(x):
+                        x.fill = FILL_CALC
+                        n += 1
+            for c_ in cols:
+                ws_.cell(row=r_enc, column=c_).font = F_HDR_CALC
         return n
 
     marcadas = {}
     for nombre_h in wb.sheetnames:
         if nombre_h in HOJAS_SIN_MARCA or nombre_h in OCULTAS:
             continue
-        marcadas[nombre_h] = marcar_calculadas(wb[nombre_h])
+        n_ = marcar_calculadas(wb[nombre_h])
+        if nombre_h in HOJAS_DERIVADAS:
+            n_ += marcar_derivada(wb[nombre_h])
+        marcadas[nombre_h] = n_
 
     # Leyenda corta en las hojas MIXTAS (las que tienen columnas de los dos
     # tipos): se añade al final del título, donde no puede pisar nada.

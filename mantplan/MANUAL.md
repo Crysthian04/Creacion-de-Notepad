@@ -286,6 +286,49 @@ hoja `INSTRUCTIVO`.
 
 ---
 
+## 16. Lo generado se marca aunque no lleve fórmula
+
+**Decisión.** En las hojas de **resultado**, todas las columnas van marcadas como
+calculadas —relleno rojo muy claro y encabezado en rojo—, tengan fórmula o un
+valor escrito por el generador. En las hojas **mixtas** sigue marcándose la celda
+con fórmula.
+
+**Motivo.** El primer criterio («la celda contiene una fórmula») era elegante y
+se mantenía solo, pero describía mal la realidad: `SEGUIMIENTO_HH` escribe
+`tecnico` y `semana` como texto, `SEGUIMIENTO_MENSUAL` escribe `tecnico` y `mes`,
+y todas las matrices escriben sus etiquetas de fila. Nada de eso lleva fórmula y
+nada de eso lo debe tocar el usuario. Con el criterio viejo se veían editables,
+y el usuario intentó editarlas. Lo que escribiera se perdería en la siguiente
+regeneración, en silencio, y descuadraría los cruces contra las hojas fuente.
+
+**Consecuencia.** El color deja de significar «aquí hay una fórmula» y pasa a
+significar **«esto lo genera el libro»**, que es lo que el usuario necesita saber.
+Esas columnas tampoco llevan desplegable: una lista invitaría a editar justo lo
+que el color dice que no se toca.
+
+---
+
+## 17. Todo lo que crezca lleva holgura, incluido el presupuesto
+
+**Decisión.** El bloque de `PRESUPUESTO` tiene 12 ranuras de categoría en el
+bloque de entrada y en cada matriz del bloque de comparación, con las etiquetas
+derivadas de `CAT_ACTIVIDADES`. Los subtotales se calculan por `SUMIF` sobre la
+clasificación, no enumerando categorías.
+
+**Motivo.** Es el mismo defecto que ya había aparecido tres veces en este proyecto
+con las listas: algo dimensionado a los datos del momento de generar el archivo.
+El bloque tenía seis filas porque había seis categorías. La séptima categoría que
+alguien definiera en el catálogo no tendría fila, y su gasto **desaparecería** del
+bloque de comparación sin decir nada.
+
+**Consecuencia.** Añadir una categoría es escribirla en el catálogo. Y el límite,
+cuando se alcance, **se ve**: un rótulo cuenta las categorías activas y se pone en
+rojo, y la fila `DIFERENCIA` deja de ser 0. Se prefirió eso a hacer que
+`DIFERENCIA` cuadrase siempre por construcción —absorbiendo el residuo en una fila
+comodín—, porque eso habría eliminado el único indicador que detecta el problema.
+
+---
+
 ## Lo que esta herramienta no puede calcular
 
 No es una omisión, es una consecuencia de qué datos entran: MTBF, MTTR,

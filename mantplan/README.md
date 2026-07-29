@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.6.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.7.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -65,6 +65,10 @@ python generar_mantplan.py --plantilla --fecha-ancla 2026-07-27 --salida MantPla
 python generar_mantplan.py --anio-completo --salida MantPlan_banco.xlsx
 python generar_mantplan.py --anio-completo --salida MantPlan_banco_compatible.xlsx --refs compatibles
 python generar_mantplan.py --anio-completo --n-ordenes 1000 --semanas-programadas 4 --semilla 20260101
+
+# Comprobación estructural del XML de los rangos con nombre (los SEIS libros).
+# No recalcula: audita xl/workbook.xml. Devuelve 1 si encuentra algún fallo.
+python verificar_nombres.py MantPlan*.xlsx
 ```
 
 ## Decisiones técnicas
@@ -632,6 +636,30 @@ calculada `categoria_presupuesto` de `tblOrdenes`.
    **total general** y una columna **YTD** que acumula hasta el mes de la fecha de
    datos (y no más).
 
+**Holgura para categorías nuevas (v3.7.0).** El bloque tenía exactamente una fila
+por categoría existente, con la etiqueta escrita como texto: una **séptima**
+categoría en `CAT_ACTIVIDADES` no tenía fila y su gasto **desaparecía** de la
+comparación. Ahora hay **12 ranuras** (`CAP_CAT_PPTO`) en los dos bloques, y las
+etiquetas salen del catálogo con el mismo patrón que las listas —columna de orden
+oculta en `CAT_ACTIVIDADES`, `INDEX`/`MATCH` compactando sin huecos—. Añadir una
+categoría es escribirla en el catálogo: la fila aparece sola en el bloque de
+entrada y en las cinco matrices. Las ranuras de comparación **espejan** la fila de
+entrada (`=$A$fila`), de modo que los dos bloques no pueden desalinearse.
+
+Los **subtotales dejan de enumerar categorías**: `Subtotal FIJO` y
+`Subtotal VARIABLE` son `SUMIF` sobre la columna `clasificacion` del propio
+bloque, y `TOTAL GENERAL` es `SUM(ranuras) + SIN CLASIFICAR`. Cuadran con
+cualquier número de categorías activas sin tocar una fórmula. Un rótulo bajo el
+bloque de entrada dice cuántas categorías activas hay y se pone en rojo si se
+agota la holgura; y si aun así una categoría se quedara sin fila, la fila
+`DIFERENCIA` deja de ser 0 y se pinta en rojo: se avisa, no se pierde en silencio.
+
+El orden de presentación se conserva —primero las fijas, luego las variables, y
+dentro de cada grupo el orden del catálogo—. Consecuencia declarada: si se
+**reordenan** las categorías del catálogo, las etiquetas se mueven pero los
+importes ya escritos no, porque son dato del usuario y viven en su fila. Está
+dicho en el `INSTRUCTIVO`.
+
 **El real sale de COSTOS.** Se calcula con el **mismo campo** que ya usa `COSTOS`
 (`costo_total`, REGLA-8) y la **misma convención de mes** (`anio`/`mes` de la
 orden): no hay una segunda forma de sumar costos ni se tocó REGLA-8.
@@ -914,9 +942,27 @@ tocar. Ahora las columnas calculadas llevan relleno **rojo muy claro** (`#FDF3F3
 casi blanco) y su encabezado en rojo claro sobre la banda azul. No hay un tercer
 color: azul = usted escribe aquí, rojo claro = se calcula solo.
 
-«Calculada» se decide por una sola regla: **la celda contiene una fórmula**. No
-hay lista que mantener ni que pueda quedar desfasada; si una columna deja de
-calcularse, deja de marcarse sola.
+«Calculada» se decide por la hoja, no solo por la celda (v3.7.0):
+
+- En una **hoja mixta** (`ORDENES`, `TECNICOS`, `ASIGNACIONES`, `PRESUPUESTO`,
+  `PLAN_VACACIONES`, `AJUSTES`, `CALENDARIO`, `2_IMPORTAR_EJECUCION`) se marca **la
+  celda que contiene una fórmula**: ahí conviven columnas del usuario y calculadas,
+  y si una columna deja de calcularse, deja de marcarse sola.
+- En una **hoja derivada** —hoja de resultado: `PLAN_SEMANAL`, `ADHERENCIA`,
+  `PERFIL_HH`, `BACKLOG`, `COSTOS`, `EQUIPOS_CRITICOS`, `SEGUIMIENTO_HH`,
+  `SEGUIMIENTO_MENSUAL`, `EXPORTAR`, `VALIDACION`— se marcan **todas** las columnas
+  de cada bloque, tengan fórmula o valor.
+
+El segundo criterio se añadió porque el primero dejaba fuera lo que el generador
+escribe como **valor** y el usuario tampoco debe tocar: `tecnico` y `semana` en
+`SEGUIMIENTO_HH`, `tecnico` y `mes` en `SEGUIMIENTO_MENSUAL`, y las etiquetas de
+fila y columna de todas las matrices. Parecían editables y el usuario intentó
+editarlas; lo que escribiera se perdería en la siguiente regeneración.
+
+El bloque se detecta solo —una fila de encabezado (la banda azul) y las filas que
+la siguen hasta la primera vacía—, así que no hay lista de columnas que mantener.
+Las columnas marcadas **no llevan desplegable**: una lista invitaría a editar justo
+lo que el color dice que no se toca.
 
 Las hojas **no se protegen** y no se bloquea ninguna celda: la señal es visual.
 Bloquear rompería el pegado masivo del ERP y contradiría el principio de la
@@ -930,6 +976,23 @@ título de las hojas mixtas.
 Auditado sobre los archivos finales: sin `OFFSET`, sin `INDIRECT`, sin
 columnas completas (`A:A`), sin enlaces externos, sin VBA, sin nombres
 definidos huérfanos.
+
+### 11. Los nombres definidos se auditan sobre el XML, no recalculando
+
+En `xl/workbook.xml` la definición de un rango con nombre va como **expresión
+desnuda**. Escribirla con un `=` delante —sintaxis de la barra de fórmulas, no del
+XML— hace que **Excel considere corrupto el libro**, avise de «Registros quitados:
+Rango con nombre de /xl/workbook.xml» y **borre los nombres al reparar**: los
+desplegables que dependían de ellos quedan mudos. **LibreOffice lo tolera**, así
+que el recálculo daba 0 errores y no lo detectaba. Es el defecto que se corrigió
+en v3.7.0, y afectaba a los 14 nombres derivados de catálogo.
+
+Por eso la verificación incluye ahora una **comprobación estructural del XML**
+(`verificar_nombres.py`), independiente del cálculo: falla si algún `definedName`
+empieza por `=`, contiene `#REF!`, está vacío, está duplicado o usa `OFFSET` o
+`INDIRECT`; y comprueba que toda validación de lista apunte a un nombre que
+existe. Se corre sobre los **seis** libros, incluidas las variantes principales,
+que no se pueden recalcular con LibreOffice.
 
 ## Datos de ejemplo y verificación a mano (ancla 2026-07-27)
 
