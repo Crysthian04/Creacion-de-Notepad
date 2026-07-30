@@ -1,6 +1,328 @@
-# VERIFICACION.md — MantPlan v3.7.0
+# VERIFICACION.md — MantPlan v3.8.0
 
-## 0. Rangos nombrados inválidos, señalización de derivadas y holgura de presupuesto
+## 0. Horizonte semestral con colchón de mes anterior y arrastre de presupuesto
+
+Cambio estructural. **No toca** las 10 reglas, la rotación, VAC, el dashboard ni el
+banco (que conserva su año completo y su ancla fija). Lo que cambia es **cuánto
+periodo cubre el archivo**, y en consecuencia el tamaño de la grilla, las listas de
+semanas y meses, y una columna nueva en `PRESUPUESTO`.
+
+### El problema
+
+La grilla de `ASIGNACIONES` de la plantilla cubría **4 semanas** (`2026-S30…S33`),
+porque se dimensionó a los datos de ejemplo. Pasada la S33 no había turnos, ni
+capacidad, ni `SEGUIMIENTO`: **inservible para uso real**. El año completo se
+descartó por peso y porque nadie pega 12 meses de órdenes en enero — las fechas se
+mueven y se agregan operaciones sobre la marcha.
+
+### (1) Horizonte = semestre + mes anterior
+
+Dos parámetros nuevos en `PARAMETROS`: **`anio_activo`** y **`semestre_activo`**
+(1 = enero–junio · 2 = julio–diciembre · 0 = año completo, solo el banco). El
+horizonte son los **6 meses del semestre más el mes anterior completo**: 7 meses.
+
+Las semanas del horizonte son las **semanas ISO cuyo lunes cae en esos 7 meses**.
+Se acota por el **lunes** y no por los días a propósito: así cada semana pertenece
+a un único mes y el selector de meses, los bloques mensuales y
+`SEGUIMIENTO_MENSUAL` no pueden desincronizarse. La contrapartida, declarada: los
+días del mes de colchón anteriores a su primer lunes quedan fuera de la grilla —
+están fuera del semestre, así que no afecta a lo que se planifica.
+
+| horizonte | meses | semanas | filas de `ASIGNACIONES` |
+|---|---:|---:|---:|
+| S1 2026 (`2025-12` … `2026-06`) | 7 | **31** (`2025-S49`…`2026-S27`) | **3.472** |
+| S2 2026 (`2026-06` … `2026-12`) | 7 | **31** (`2026-S23`…`2026-S53`) | **3.472** |
+| S1 2027 (`2026-12` … `2027-06`) | 7 | 30 | 3.360 |
+
+Todo lo que usaba «año completo» pasa al horizonte:
+
+| lista o bloque | antes | ahora |
+|---|---:|---:|
+| `lista_semanas_plan` | 58 (año ISO + 2 y 2) | **31** (las del horizonte) |
+| `lista_meses_dash` | 18 (3 + 12 + 3) | **7** (los del horizonte) |
+| bloques mes a mes de `ADHERENCIA` · `PERFIL_HH` · `BACKLOG` | 18 meses | **7 meses** |
+| `SEGUIMIENTO_HH` | 4 semanas × 16 | **31 × 16** |
+| `SEGUIMIENTO_MENSUAL` | 2 meses × 16 | **7 × 16** |
+
+`PLAN_VACACIONES` no tiene lista propia de semanas: se deriva por fecha, así que
+sigue al horizonte sin nada añadido. **El banco conserva** sus 18 meses y su año
+ISO entero, porque cubre el año a propósito.
+
+Cambiar de semestre **no se hace editando `PARAMETROS`**: las filas de la grilla y
+de los bloques mensuales son filas escritas, no fórmulas, así que no pueden
+aparecer solas. Se **regenera** (`--semestre 2 --anio-activo 2026`). Está dicho en
+la descripción del parámetro y en el `INSTRUCTIVO`.
+
+### (2) Continuidad de la rotación (lo crítico)
+
+`semana_referencia` era **el primer lunes de la grilla**. Con el horizonte móvil,
+eso habría movido el ancla en cada archivo nuevo y **reiniciado la rotación**: el
+técnico que venía de T3 volvería a Banco.
+
+Ahora es una **fecha fija del proyecto** (`SEMANA_REFERENCIA_FIJA = 2026-01-05`,
+lunes de `2026-S02`), independiente del horizonte y ajustable una única vez con
+`--semana-referencia`. Es arbitraria a propósito: lo único que importa es que no
+cambie.
+
+Tres refuerzos para que no se toque:
+
+- la descripción del parámetro empieza por **«⚠ NO MODIFICAR al cambiar de
+  semestre: reiniciaría la rotación de turnos»**;
+- la **fila entera se pinta en rojo** en `PARAMETROS`, con el aviso repetido en la
+  columna D (va en la misma fila, no en una fila nueva: `FILA_PARAM` es la
+  dirección de cada parámetro y no se puede desplazar);
+- el `INSTRUCTIVO` explica el **arranque inicial** (poner en
+  `TECNICOS.orden_rotacion` la posición real de cada técnico en una semana, fijar
+  ese lunes como referencia, y no volver a tocarlo).
+
+### (3) Arrastre del presupuesto
+
+El plan es manual y cubre los 12 meses: eso no cambia. El gasto **real** solo puede
+sumar lo que está en el archivo, así que en el archivo de S2 el acumulado empezaría
+en junio.
+
+Se añade al bloque de entrada la columna **`arrastre real`**, manual (azul) y **una
+celda por categoría**, rotulada con los meses exactos que le tocan —
+`arrastre real 2026-01…2026-05 (meses FUERA de este archivo)`— calculados al
+generar. Cuando el archivo cubre desde enero, el rótulo dice
+`NO APLICA: este archivo cubre desde enero — dejar en 0` y un formato condicional
+pinta en rojo cualquier importe distinto de cero.
+
+**Se implementó como COLUMNA y no como fila suelta** porque en ese bloque las
+categorías **son** las filas: una fila única no podría ser «por categoría». Es la
+única desviación respecto del enunciado y es intencional.
+
+El arrastre entra **solo en el acumulado**, nunca en un mes:
+
+- `real` YTD por categoría `= SUMPRODUCT(meses ≤ corte) + $R$fila_de_entrada`;
+- `Subtotal FIJO` / `VARIABLE` YTD suman `SUMIF(clasificación, arrastre)`;
+- `TOTAL GENERAL` YTD suma `SUM(arrastre)`;
+- `SIN CLASIFICAR` **no** lleva arrastre (no es categoría de catálogo y no tiene
+  celda donde cargarlo), así que los subtotales y el total siguen sumando
+  exactamente las mismas celdas que las filas que agregan;
+- la matriz de **desviación** arrastra el mismo término, para que siga cumpliéndose
+  `desviación_YTD = real_YTD − presupuesto_YTD`;
+- las celdas **mensuales** no se tocan → `CONTROL` y `DIFERENCIA` siguen cuadrando.
+
+**Rótulo honesto.** El encabezado del acumulado del bloque `REAL` es una fórmula:
+mientras el arrastre esté vacío dice **«acumulado SOLO de este archivo (desde
+2026-06) — falta cargar el arrastre»**; con arrastre cargado pasa a **«YTD real =
+arrastre + este archivo»**. No se presenta como acumulado anual cuando no lo es.
+
+El **DASHBOARD** no cambia: su KPI de OPEX acumula las celdas **mensuales** de
+`PRESUPUESTO`, no la columna YTD, así que sigue mostrando el horizonte del archivo.
+
+### (4) Procedimiento de rotación de archivo
+
+Sección nueva en el `INSTRUCTIVO` (`D-bis`), con los 7 pasos: guardar el archivo
+que cierra con su fecha en el nombre · generar el nuevo · **no tocar
+`semana_referencia`** · copiar catálogos, `TECNICOS`, `PLAN_VACACIONES` y el
+presupuesto del año · cargar el arrastre real · pegar las órdenes (las pendientes
+siguen abiertas en el ERP y entran solas en la exportación) · borrar las filas de
+ejemplo y revisar `VALIDACION`.
+
+---
+
+## 0 (cont.) — Verificación del horizonte semestral
+
+Todo lo que sigue se ejecutó sobre los libros **que se entregan**, recalculados de
+verdad con LibreOffice.
+
+### (a) La plantilla cubre el horizonte completo
+
+Generados los dos semestres y recalculados (**0 errores** cada uno):
+
+```
+S1: 31 semanas (2025-S49…2026-S27) · 3.472 filas · 7 meses
+    última del semestre 2026-S27: turnos OK · 640 h disponibles
+    SEG_HH 15 filas (688 h) · SEG_MES 2026-06 16 filas
+S2: 31 semanas (2026-S23…2026-S53) · 3.472 filas · 7 meses
+    última del semestre 2026-S53: turnos OK · 768 h disponibles
+    SEG_HH 15 filas (816 h) · SEG_MES 2026-12 16 filas
+```
+
+Filas = semanas × técnicos activos × 7, exacto. La **última semana del semestre**
+—la que antes no existía— tiene turno para los 15 técnicos activos, capacidad > 0 y
+su fila de seguimiento semanal y mensual. (640 h en S1 frente a 768 en S2 porque
+esa semana lleva el feriado del 29 de junio.)
+
+### (b) Continuidad de la rotación en la frontera junio → julio
+
+Los dos archivos llevan la **misma** `semana_referencia` (`2026-01-05`). Posiciones
+leídas del libro **recalculado**, no del motor:
+
+| técnico | esp | fin S1 (`2026-S27`) | ini S2 (`2026-S28`) | encadena +1 |
+|---|---|---|---|---|
+| Carlos Pérez | MEC | T3 | T2 | sí |
+| María Gómez | MEC | T2 | T1 | sí |
+| Luis Rodríguez | MEC | T1 | B4 | sí |
+| Miguel Martínez | MEC | B4 | B3 | sí |
+| Ana Sánchez | MEC | B3 | B2 | sí |
+| David Torres | MEC | B2 | B1 | sí |
+| Francisco Ramírez | MEC | B1 | T3 | sí |
+| Jorge Díaz | ELE | T3 | T2 | sí |
+| Roberto Castro | ELE | T2 | T1 | sí |
+| Laura Morales | ELE | T1 | B4 | sí |
+| Ricardo Ortiz | ELE | B4 | B3 | sí |
+| Eduardo Silva | ELE | B3 | B2 | sí |
+| Gabriela Rojas | ELE | B2 | B1 | sí |
+| Fernando Mendoza | ELE | B1 | T3 | sí |
+
+**14 de 14 rotativos encadenan exactamente +1 posición.** Y prueba más fuerte: el
+**mes de colchón** (junio) aparece en los dos archivos, y ahí las **80 posiciones
+técnico-semana son idénticas** en los dos — no solo encadenan, coinciden.
+
+**CONTROL — el caso contrario sí se detecta.** Regenerado S2 con la
+`semana_referencia` movida a `2026-06-08` (desplazamiento no múltiplo del tamaño
+del anillo, si no daría las mismas posiciones y no probaría nada): **14 de 14**
+rotativos cambian de posición en `2026-S28`. El ciclo se reinicia — exactamente lo
+que el aviso de `PARAMETROS` previene.
+
+### (c) Cambiar de semestre desplaza el horizonte y todo lo sigue
+
+```
+S1: meses 2025-12…2026-06 (7) · semanas 2025-S49…2026-S27 (31) · grilla 31
+    SEG_HH 31 semanas · SEG_MES 7 meses · huérfanas 0
+S2: meses 2026-06…2026-12 (7) · semanas 2026-S23…2026-S53 (31) · grilla 31
+    SEG_HH 31 semanas · SEG_MES 7 meses · huérfanas 0
+```
+
+Comprobado en los dos sentidos: ninguna semana **ofrecida** en el selector está
+fuera de la grilla, y ninguna semana **de la grilla** falta en el selector. Los
+bloques mes a mes de `ADHERENCIA`, `PERFIL_HH` y `BACKLOG` tienen fila para los 7
+meses. Los dos semestres solapan **solo el mes de colchón**.
+
+### (d) El arrastre suma en el acumulado y no altera la comparación mensual
+
+Cargado a mano en 3 de las 12 ranuras (2 fijas + 1 variable) y recalculado
+(**0 errores**):
+
+| categoría | clasif | arrastre | YTD antes | YTD después |
+|---|---|---:|---:|---:|
+| Repuestos mandatorios | fijo | 1.500 | 7.275 | **8.775** |
+| Servicios contratados | fijo | 800 | 4.225 | **5.025** |
+| Correctivos - materiales | variable | 250 | 14.100 | **14.350** |
+| `Subtotal FIJO` | | +2.300 | 11.500 | **13.800** |
+| `Subtotal VARIABLE` | | +250 | 14.100 | **14.350** |
+| `TOTAL GENERAL` | | +2.550 | 25.760 | **28.310** |
+| `DESVIACIÓN` YTD | | +2.550 | −10.750 | **−8.200** |
+
+`SIN CLASIFICAR` no se mueve. El acumulado sigue cuadrando con sus filas. **Ninguna
+celda mensual cambia**, `CONTROL` no cambia y **`DIFERENCIA` sigue en 0 los 12
+meses**.
+
+**CONTROL del rótulo:** sin arrastre, el encabezado dice `acumulado SOLO de este
+archivo (desde 2026-06) — falta cargar el arrastre`; con arrastre, `YTD real =
+arrastre + este archivo`.
+
+### (e) Peso y tiempos reales
+
+Medidos, no estimados:
+
+| libro | tamaño | fórmulas | filas `ASIGNACIONES` | recálculo |
+|---|---:|---:|---:|---:|
+| `MantPlan_plantilla.xlsx` | 1,16 MB | 123.306 | 3.472 | — (XLOOKUP) |
+| `MantPlan_plantilla_compatible.xlsx` | 1,88 MB | 123.306 | 3.472 | **35,8 s** |
+| `MantPlan.xlsx` | 1,18 MB | 123.717 | 3.472 | — (XLOOKUP) |
+| `MantPlan_compatible.xlsx` | 1,90 MB | 123.717 | 3.472 | **≈36 s** |
+| `MantPlan_banco.xlsx` | 1,49 MB | 153.600 | 5.936 | — (XLOOKUP) |
+| `MantPlan_banco_compatible.xlsx` | 2,49 MB | 153.600 | 5.936 | ≈70 s |
+
+Generación: 5,7–5,9 s la plantilla y el demo; 34–36 s el banco.
+
+Frente a la estimación del enunciado (≈3.400 filas, ≈120.000 fórmulas, recálculo
+del orden de 20 s): las filas y las fórmulas salen como se esperaba; **el recálculo
+es del orden de 36 s, no de 20**. Es LibreOffice en este contenedor, sin
+paralelismo; en Excel real, con recálculo incremental, el usuario no espera eso al
+abrir. Se reporta el número medido, no el esperado.
+
+### (f) Nombres, errores y motor ↔ Excel
+
+`verificar_nombres.py` sobre los **seis** libros: **0 fallos** estructurales
+(47 `definedName` cada uno, 18 usados por validaciones).
+
+| libro | `total_errors` | comparaciones motor ↔ hoja | fallos |
+|---|---:|---:|---:|
+| `MantPlan_plantilla_compatible.xlsx` | **0** | 40 (+ 33 de horizonte y listas) | **0** |
+| `MantPlan_compatible.xlsx` (demo) | **0** | **58.096** | **0** |
+| `MantPlan_banco_compatible.xlsx` | **0** | **63.177** | **0** |
+
+Batería completa:
+
+```
+verificar                58.096 comparaciones · 0 fallos
+verificar_plantilla          40 comparaciones · 0 fallos
+verificar_banco          63.177 comparaciones · 0 fallos
+test_horizonte               54 comparaciones · 0 fallos   (a) (b) (c) + control
+test_arrastre                26 comparaciones · 0 fallos   (d) + control
+test_14_rangos               84 comparaciones · 0 fallos
+test_catalogos               38 comparaciones · 0 fallos
+test_categoria_nueva         21 comparaciones · 0 fallos
+test_ventana                 33 comparaciones · 0 fallos
+verificar_dashboard        201 comparaciones · 0 fallos
+test_activo              A=OK · B=OK        test_override        OK
+test_vac_override        OK                 test_reorden         OK
+test_presupuesto         (b) (c) (d) (e) verificados
+```
+
+### Cambios de comportamiento que salieron en la verificación
+
+Tres cosas cambiaron de valor **a propósito**, y conviene tenerlas escritas:
+
+1. **Un mes futuro del horizonte ya no reporta carga en blanco, reporta 0 %.** La
+   capacidad de ese mes **se conoce** (la grilla la cubre), así que 0 % de carga es
+   un hecho —no hay trabajo programado—, no una ausencia de dato. La **adherencia**
+   sí sigue en blanco: sin órdenes no hay denominador.
+2. **`SEGUIMIENTO_MENSUAL` cambia de cifras.** Julio tenía 2 semanas en la grilla
+   (96 h requeridas) y ahora tiene 4 (192 h). Es justo lo que se quería arreglar:
+   el bono se calculaba sobre un mes **truncado**. La capa por semana
+   (`SEGUIMIENTO_HH`) no cambia, y se sigue comparando.
+3. **Las posiciones de la rotación se desplazan** respecto de v3.7.0, porque el
+   ancla pasó de «primer lunes de la grilla» a la fecha fija. La cobertura sigue
+   siendo 1/1/1/(N−3) por semana y el motor y el libro siguen coincidiendo celda a
+   celda; lo que cambia es qué posición le toca a quién en una semana dada.
+
+El control `test_activo` (que compara el motor contra una copia congelada del
+generador) se **acotó a la ventana de 4 semanas común** a las dos versiones, para
+que siga vigilando lo suyo —que el roster y el flag `activo` no muevan ningún
+número— sin confundir el crecimiento intencional de la grilla con una regresión.
+
+### Qué NO se verificó
+
+- **Apertura en Excel real**: no hay Excel en este entorno. Los seis libros pasan
+  la comprobación estructural del XML, que es lo que se puede afirmar desde aquí.
+- **Las variantes principales** (`XLOOKUP`) no se recalculan: LibreOffice no evalúa
+  `XLOOKUP`. Salen del mismo código que las `_compatible` y sí pasan la
+  comprobación del XML.
+- **El rendimiento en Excel real** con 3.472 filas de grilla. Lo medido es
+  LibreOffice recalculando el libro entero de cero.
+- **Horizontes de años distintos de 2026** más allá de la aritmética del horizonte
+  (comprobada para S1 2026, S2 2026 y S1 2027, que cruza fin de año). No se
+  generaron libros completos para 2027.
+
+### Supuestos declarados
+
+- **Semestres de CALENDARIO** (ene–jun / jul–dic), no fiscales. Si una planta usa
+  año fiscal, el horizonte se desplaza cambiando `--anio-activo` y `--semestre`,
+  pero los cortes siguen siendo de calendario.
+- **El horizonte se acota por el LUNES de la semana**, con la consecuencia
+  declarada arriba (los primeros días del mes de colchón pueden quedar fuera).
+- **La `semana_referencia` fija es `2026-01-05`** y es arbitraria. Cada planta la
+  fija una vez con sus turnos reales.
+- **El demo también pasa al horizonte semestral**; solo el banco conserva el año.
+  Las órdenes de demostración siguen concentradas en las 4 semanas alrededor del
+  ancla, y los selectores abren en esa **semana de foco** — no en la primera del
+  horizonte, que estaría vacía.
+- **El arrastre va vacío en los libros entregados**: es dato del usuario y no hay
+  semestre anterior que arrastrar. La prueba (d) lo carga y lo verifica.
+
+### Versión
+
+`VERSION` 3.7.0 → **3.8.0**.
+
+---
+
+## 0-bis. Rangos nombrados inválidos, señalización de derivadas y holgura de presupuesto
 
 Corrección urgente de un **defecto bloqueante en Excel real** más dos ajustes de
 uso. **No toca** las 10 reglas, el motor, la rotación, VAC, la capacidad ni el
@@ -300,7 +622,7 @@ el bloque de `PRESUPUESTO` cambia de tamaño y de fórmulas.
 
 ---
 
-## 0-bis. Listas robustas, señalización de columnas calculadas y cierre
+## 0-ter. Listas robustas, señalización de columnas calculadas y cierre
 
 Última tirada del entregable A. **No toca** las 10 reglas, el motor, el dashboard
 ni el banco (punto g).
@@ -522,7 +844,7 @@ ser poco si se quiere mirar más atrás; se amplía cambiando dos constantes.
 
 ---
 
-## 0-ter. Plantilla de producción e instructivo de uso
+## 0-quater. Plantilla de producción e instructivo de uso
 
 Última tirada del entregable A. **No toca** las 10 reglas, el motor, el dashboard
 ni el banco: los tres datasets salen del mismo código y se verifican por separado
@@ -682,7 +1004,7 @@ independiente lo corre el usuario.
 
 ---
 
-## 0-quater. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
+## 0-quinquies. Ajustes de tablero — rubro, mix por horas y navegación de vuelta
 
 Tirada de ajustes sobre el DASHBOARD. **No toca** las 10 reglas, la rotación,
 VAC, el seguimiento, la capacidad ni el banco (comprobado en el punto f).
@@ -869,7 +1191,7 @@ en ningún sitio. (vi) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-quinquies. DASHBOARD — capstone del entregable A
+## 0-sexies. DASHBOARD — capstone del entregable A
 
 Hoja de presentación en el **puesto #1**, activa al abrir, con paneles
 inmovilizados. Es capa **visual y de solo lectura**: no implementa ninguna
@@ -1115,7 +1437,7 @@ una semana con la **dotación activa actual**; no proyecta altas ni bajas.
 
 ---
 
-## 0-sexies. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
+## 0-septies. Correcciones 7.2 — listas dinámicas completas, roster real y `activo` funcional
 
 Tirada de correcciones. **No toca las 10 reglas, el presupuesto, VAC, el
 seguimiento ni el banco**: con los 16 técnicos activos el motor devuelve
@@ -1369,7 +1691,7 @@ DASHBOARD.** (vii) El recálculo independiente lo corre el usuario.
 
 ---
 
-## 0-septies. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
+## 0-octies. PRESUPUESTO OPEX — plan mensual manual vs gasto real por categoría
 
 Hoja **derivada** nueva (`PRESUPUESTO`), colocada en el grupo de presentación
 justo después de `COSTOS`. **No toca las 10 reglas, la rotación, VAC, el
@@ -1474,7 +1796,7 @@ mide contra el día de apertura, igual que las columnas de envejecimiento.
 
 ---
 
-## 0-octies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
+## 0-nonies. Correcciones 7.1 — selector de semanas, gráfico, hoja guía y orden de hojas
 
 Tirada de correcciones sobre el entregable A. **No toca las 10 reglas, la
 rotación, VAC, el seguimiento, la capacidad ni la generación del banco**: los

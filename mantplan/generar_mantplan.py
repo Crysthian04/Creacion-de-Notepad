@@ -48,7 +48,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.properties import PageSetupProperties
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-VERSION = "3.7.0"
+VERSION = "3.8.0"
 
 # Capacidad de las tablas de datos: filas provisionadas con fórmulas para que
 # una importación mensual grande no requiera tocar el libro.
@@ -67,6 +67,14 @@ PARAMETROS = [
     # (parametro, valor, descripcion)
     ("nombre_empresa", "Empresa Ejemplo S.A.", "Editable. Solo informativo, no participa en cálculos."),
     ("nombre_planta", "Planta Ejemplo", "Editable. Solo informativo."),
+    # HORIZONTE del archivo. Definen QUÉ cubre: el semestre activo más el mes
+    # anterior completo. Cambiarlos aquí NO reorganiza el archivo (las filas de la
+    # grilla y los bloques mensuales son filas escritas): hay que REGENERAR.
+    ("anio_activo", None,
+     "Año que cubre este archivo. Cambiarlo exige REGENERAR el libro (no basta con editarlo)."),
+    ("semestre_activo", None,
+     "1 = enero–junio · 2 = julio–diciembre · 0 = año completo (solo el banco de prueba). "
+     "El horizonte es el semestre MÁS el mes anterior completo. Exige REGENERAR."),
     ("moneda", "USD", "Moneda de los costos."),
     ("horas_jornada", 8, "Horas de trabajo por técnico y día (REGLA-5)."),
     ("factor_productividad", 0.87, "Fracción productiva de la jornada (REGLA-6)."),
@@ -89,7 +97,10 @@ PARAMETROS = [
     # de esa semana). En ella, orden_rotacion 1..N mapea directo a la posición
     # del anillo. Su valor se escribe al generar el libro (depende del ancla).
     ("semana_referencia", None,
-     "FECHA (lunes) de la semana de referencia de la rotación de turnos (6.3)."),
+     "⚠ NO MODIFICAR al cambiar de semestre: reiniciaría la rotación de turnos. "
+     "FECHA (lunes) de la semana de referencia de la rotación (6.3). Se fija UNA VEZ, "
+     "con los turnos reales de esa semana en TECNICOS.orden_rotacion, y no se toca más: "
+     "la aritmética modular mantiene la continuidad sola mientras el ancla no se mueva."),
     # 6.5: tolerancia del cumplimiento mensual de horas reales (base del bono).
     ("tolerancia_horas_bono", 0,
      "Horas de tolerancia para 'cumple' del seguimiento mensual (6.5). No toca capacidad."),
@@ -240,6 +251,63 @@ def ventana_semanas(anio):
     sems += [f"{anio}-S{n:02d}" for n in range(1, semanas_iso_del_anio(anio) + 1)]
     sems += [f"{anio + 1}-S{n:02d}" for n in range(1, SEMANAS_DESPUES + 1)]
     return sems
+
+
+# ── HORIZONTE SEMESTRAL ───────────────────────────────────────────────────
+# La grilla de ASIGNACIONES se dimensionaba a los datos de ejemplo: 4 semanas.
+# Pasada la última no había turnos, ni capacidad, ni seguimiento — inservible para
+# uso real. El año completo se descartó por peso y porque nadie pega 12 meses de
+# órdenes en enero: las fechas se mueven y se agregan operaciones sobre la marcha.
+# El horizonte es un SEMESTRE más el MES ANTERIOR completo, que es el colchón de
+# continuidad al rotar de archivo. Cambiar de semestre = cambiar el parámetro y
+# REGENERAR (las filas de la grilla y los bloques mensuales son filas escritas, no
+# fórmulas: no pueden aparecer solas).
+SEMESTRES = {1: (1, 6), 2: (7, 12)}
+SEMESTRE_ANIO_COMPLETO = 0       # solo el banco de prueba, que sí cubre el año
+
+
+def semestre_de(fecha):
+    """Semestre de CALENDARIO al que pertenece la fecha (1 = ene–jun, 2 = jul–dic)."""
+    return 1 if fecha.month <= 6 else 2
+
+
+def meses_horizonte(anio, semestre):
+    """Los 7 (anio, mes) del horizonte: el mes ANTERIOR completo + los 6 del
+    semestre. El mes anterior es el colchón: al abrir el archivo del semestre
+    nuevo, la semana en curso y la anterior ya tienen turnos y capacidad."""
+    m0, m1 = SEMESTRES[semestre]
+    previo = (anio - 1, 12) if m0 == 1 else (anio, m0 - 1)
+    return [previo] + [(anio, m) for m in range(m0, m1 + 1)]
+
+
+def lunes_horizonte(anio, semestre):
+    """Lunes de las semanas ISO cuyo LUNES cae en los 7 meses del horizonte.
+
+    Se acota por el LUNES y no por los días a propósito: así cada semana
+    pertenece a un único mes y el selector de meses, los bloques mensuales y
+    SEGUIMIENTO_MENSUAL no pueden desincronizarse. La contrapartida es que los
+    días del mes de colchón anteriores a su primer lunes quedan fuera de la
+    grilla; están fuera del semestre, así que no afecta a lo que se planifica.
+    """
+    meses = meses_horizonte(anio, semestre)
+    dentro = set(meses)
+    a0, m0 = meses[0]
+    d = date(a0, m0, 1)
+    d += timedelta(days=(7 - d.weekday()) % 7)       # primer lunes del mes inicial
+    fuera = []
+    while (d.year, d.month) in dentro:
+        fuera.append(d)
+        d += timedelta(weeks=1)
+    return fuera
+
+
+# 6.3 — ANCLA DE LA ROTACIÓN. Es una fecha FIJA del proyecto y NO depende del
+# horizonte. Si se moviera al generar el archivo del semestre siguiente (por
+# ejemplo, al primer lunes de la grilla nueva), la aritmética modular reiniciaría
+# el ciclo y el técnico que venía de T3 volvería a Banco. Se fija UNA VEZ —con los
+# turnos reales de una semana, vía orden_rotacion— y no se toca nunca más.
+# Es arbitraria a propósito: lo único que importa es que no cambie.
+SEMANA_REFERENCIA_FIJA = date(2026, 1, 5)        # lunes de 2026-S02
 
 
 def feriados_del_anio(y):
@@ -794,17 +862,27 @@ def _tec(esp, orden):
     return de_esp[min(orden - 1, len(de_esp) - 1)][1]
 
 
-def generar_datos(hoy):
-    """Construye ORDENES, EJECUCION, TECNICOS y ASIGNACIONES sintéticos."""
-    lunes = hoy - timedelta(days=hoy.weekday())
-    lunes_sem = [lunes + timedelta(weeks=k) for k in (-1, 0, 1, 2)]
+def generar_datos(hoy, anio_activo=None, semestre_activo=None,
+                  semana_referencia=SEMANA_REFERENCIA_FIJA):
+    """Construye ORDENES, EJECUCION, TECNICOS y ASIGNACIONES sintéticos.
+
+    La GRILLA (`lunes_sem` / `semanas`) cubre el HORIZONTE SEMESTRAL completo;
+    las órdenes de demostración siguen viviendo en las 4 semanas alrededor del
+    ancla (`lunes_plan`), que es lo que se enseña en el tablero.
+    """
+    anio_activo = anio_activo or hoy.year
+    semestre_activo = semestre_activo or semestre_de(hoy)
+    lunes_foco = hoy - timedelta(days=hoy.weekday())
+    lunes_plan = [lunes_foco + timedelta(weeks=k) for k in (-1, 0, 1, 2)]
+    lunes_sem = lunes_horizonte(anio_activo, semestre_activo)
     semanas = [regla_2_semana(d) for d in lunes_sem]
+    semana_foco = regla_2_semana(lunes_foco)
     excepciones = construir_excepciones(hoy)
 
-    # 6.3: semana de referencia de la rotación = lunes de la 1.ª semana del plan
-    # (así todas las semanas del plan quedan a +0..+3 de la referencia, sin
-    # negativos). En ella orden_rotacion 1..N mapea directo a la posición.
-    semana_referencia = lunes_sem[0]
+    # 6.3: la semana de referencia de la rotación es FIJA y no depende del
+    # horizonte (ver SEMANA_REFERENCIA_FIJA): si se moviera al rotar de archivo,
+    # el ciclo se reiniciaría. La posición sale de la aritmética modular sobre la
+    # distancia en semanas, que puede ser positiva o negativa indistintamente.
     # N = nº de posiciones del ciclo por (especialidad, área) entre rotativos.
     n_por_ciclo = _n_por_ciclo()
 
@@ -813,10 +891,10 @@ def generar_datos(hoy):
     # cobertura visible en un turno; en S32 estaría en Banco (hueco en banco).
     # Dos periodos (varias filas por técnico) para ejercitar el COUNTIFS.
     plan_vacaciones = [
-        {"tecnico": _tec("MEC", 5), "fecha_inicio": lunes_sem[1],
-         "fecha_fin": lunes_sem[3] + timedelta(days=13), "motivo": "Vacaciones anuales"},
-        {"tecnico": _tec("MEC", 5), "fecha_inicio": lunes_sem[3] + timedelta(days=35),
-         "fecha_fin": lunes_sem[3] + timedelta(days=41), "motivo": "Permiso"},
+        {"tecnico": _tec("MEC", 5), "fecha_inicio": lunes_plan[1],
+         "fecha_fin": lunes_plan[3] + timedelta(days=13), "motivo": "Vacaciones anuales"},
+        {"tecnico": _tec("MEC", 5), "fecha_inicio": lunes_plan[3] + timedelta(days=35),
+         "fecha_fin": lunes_plan[3] + timedelta(days=41), "motivo": "Permiso"},
     ]
 
     # --- ASIGNACIONES: 4 semanas × 16 técnicos × 7 días = 448 filas -------
@@ -893,14 +971,14 @@ def generar_datos(hoy):
                     if tec[1] == _tec("MEC", 7) and si == 1 and dia_idx == 4:
                         dia_idx = 3
                     nombre_tec = "" if idx_plan % 12 == 11 else tec[1]  # algunas sin técnico
-                    nueva(lunes_sem[si] + timedelta(days=dia_idx), h, esp, clasif, "plan",
+                    nueva(lunes_plan[si] + timedelta(days=dia_idx), h, esp, clasif, "plan",
                           si=si, dia_idx=dia_idx, tecnico=nombre_tec,
                           ceco=cecos_por_esp[esp][idx_plan % len(cecos_por_esp[esp])])
                     idx_plan += 1
     # Trabajos de terceros (sin técnico interno)
     for si, horas in PRESUPUESTO_TERCERO.items():
         for j, h in enumerate(partir_horas(horas)):
-            nueva(lunes_sem[si] + timedelta(days=j % 5), h, "TERCERO", "preventiva",
+            nueva(lunes_plan[si] + timedelta(days=j % 5), h, "TERCERO", "preventiva",
                   "plan_tercero", si=si, ceco="CC-310", act="ACT-05", tipo="TIPO-P3")
 
     # Órdenes de fin de semana (6.1: base L-S). El SÁBADO es hábil (consume
@@ -908,8 +986,8 @@ def generar_datos(hoy):
     # (prueba VALIDACION y que EXPORTAR recorre los 7 días). Los casos ad-hoc
     # viejos (vacaciones ad-hoc, domingo especial de SERVICIOS) se retiran del sintético
     # y se reservan para §7 (la rotación exige cobertura limpia cada semana).
-    s30_sab = lunes_sem[1] + timedelta(days=5)   # sábado de la semana corriente (hábil)
-    s30_dom = lunes_sem[1] + timedelta(days=6)   # domingo (no hábil)
+    s30_sab = lunes_plan[1] + timedelta(days=5)   # sábado de la semana corriente (hábil)
+    s30_dom = lunes_plan[1] + timedelta(days=6)   # domingo (no hábil)
     nueva(s30_sab, 6, "MEC", "correctiva", "finde", tecnico=_tec("MEC", 1), ceco="CC-110")
     nueva(s30_sab, 4, "ELE", "correctiva", "finde", tecnico=_tec("ELE", 1), ceco="CC-120")
     nueva(s30_dom, 8, "MEC", "correctiva", "finde", tecnico="", ceco="CC-210")
@@ -1075,6 +1153,10 @@ def generar_datos(hoy):
                           "costo_real": 0, "costo_plan_total": 150, "estado_usuario": "LIBERADA"})
 
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
+            "semana_foco": semana_foco, "anio_activo": anio_activo,
+            "semestre_activo": semestre_activo,
+            "meses_horizonte": meses_horizonte(anio_activo, semestre_activo),
+            "semanas_horizonte": semanas,
             "semana_referencia": semana_referencia, "n_por_ciclo": n_por_ciclo,
             "plan_vacaciones": plan_vacaciones, "anio_presupuesto": hoy.year,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
@@ -1106,7 +1188,8 @@ def _dia_habil_plantilla(base, salto, exc):
     raise AssertionError("no se encontró día hábil para la plantilla")
 
 
-def generar_datos_plantilla(hoy):
+def generar_datos_plantilla(hoy, anio_activo=None, semestre_activo=None,
+                            semana_referencia=SEMANA_REFERENCIA_FIJA):
     """Datos de ARRANQUE: 8 órdenes de ejemplo, marcadas y limpias.
 
     Limpias quiere decir: sin duplicados, sin códigos fuera de catálogo, sin
@@ -1115,21 +1198,29 @@ def generar_datos_plantilla(hoy):
     al menos cuatro por especialidad para arrancar; el INSTRUCTIVO explica que
     se reemplazan.
     """
-    lunes = hoy - timedelta(days=hoy.weekday())
-    lunes_sem = [lunes + timedelta(weeks=k) for k in (-1, 0, 1, 2)]
+    anio_activo = anio_activo or hoy.year
+    semestre_activo = semestre_activo or semestre_de(hoy)
+    lunes_foco = hoy - timedelta(days=hoy.weekday())
+    lunes_plan = [lunes_foco + timedelta(weeks=k) for k in (-1, 0, 1, 2)]
+    # La GRILLA cubre el horizonte semestral completo: es lo que hacía inservible
+    # el archivo pasada la 4.ª semana.
+    lunes_sem = lunes_horizonte(anio_activo, semestre_activo)
     semanas = [regla_2_semana(d) for d in lunes_sem]
+    semana_foco = regla_2_semana(lunes_foco)
     # Calendario limpio: solo los feriados generales. Sin las excepciones de
-    # demostración (ni las que están fuera de catálogo a propósito).
+    # demostración (ni las que están fuera de catálogo a propósito). Se cargan los
+    # del año del horizonte Y los del año anterior, porque el mes de colchón del
+    # primer semestre cae en diciembre del año previo.
     excepciones = [{"fecha": f, "tipo": t, "habil": h, "area": a_, "sub_area": s_,
                     "motivo": m}
-                   for f, t, h, a_, s_, m in feriados_del_anio(hoy.year)]
-    semana_referencia = lunes_sem[0]
+                   for y in sorted({a for a, _m in meses_horizonte(anio_activo, semestre_activo)})
+                   for f, t, h, a_, s_, m in feriados_del_anio(y)]
     n_por_ciclo = _n_por_ciclo()
 
     # Vacaciones: una fila de ejemplo, para que se vea el formato esperado.
     plan_vacaciones = [{"tecnico": _tec("MEC", 5),
-                        "fecha_inicio": lunes_sem[3] + timedelta(days=7),
-                        "fecha_fin": lunes_sem[3] + timedelta(days=13),
+                        "fecha_inicio": lunes_plan[3] + timedelta(days=7),
+                        "fecha_fin": lunes_plan[3] + timedelta(days=13),
                         "motivo": MOTIVOS_AUSENCIA[0][0]}]
     asignaciones = _asignaciones_de(lunes_sem, semanas, semana_referencia, plan_vacaciones)
 
@@ -1153,7 +1244,7 @@ def generar_datos_plantilla(hoy):
               "AUT": TECNICOS_ACTIVOS[-1][1], "TERCERO": ""}
     ordenes, ejecucion = [], []
     for i, (esp, ceco, act, tipo, horas, salto, cerrada) in enumerate(plantilla, start=1):
-        fecha = _dia_habil_plantilla(lunes_sem[1], salto, excepciones)
+        fecha = _dia_habil_plantilla(lunes_foco, salto, excepciones)
         oid = f"{PREFIJO_EJEMPLO}{i:03d}"
         desc = f"{MARCA_EJEMPLO} — {CAT_ACTIVIDADES[act]}"
         clasif = CAT_TIPOS[tipo]
@@ -1185,6 +1276,10 @@ def generar_datos_plantilla(hoy):
             "id_operacion": oid + "0010",
         })
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
+            "semana_foco": semana_foco, "anio_activo": anio_activo,
+            "semestre_activo": semestre_activo,
+            "meses_horizonte": meses_horizonte(anio_activo, semestre_activo),
+            "semanas_horizonte": semanas,
             "semana_referencia": semana_referencia, "n_por_ciclo": n_por_ciclo,
             "plan_vacaciones": plan_vacaciones, "anio_presupuesto": hoy.year,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
@@ -1583,7 +1678,15 @@ def generar_datos_banco(n_ordenes=1000, semanas_programadas=4, semilla=SEMILLA_B
         "ventana_capacidad_dia_h": round(cap_dia, 2),
     }
 
+    # El BANCO conserva su AÑO COMPLETO y su ancla fija: es el banco de prueba a
+    # volumen, no un archivo de trabajo, y sus 1.000 órdenes cubren los 12 meses.
+    # Por eso declara semestre_activo = 0 (año completo) y su horizonte sigue
+    # siendo la ventana de calendario de 18 meses / año ISO entero.
     return {"hoy": hoy, "lunes_sem": lunes_sem, "semanas": semanas,
+            "semana_foco": semanas[1], "anio_activo": ANIO_BANCO,
+            "semestre_activo": SEMESTRE_ANIO_COMPLETO,
+            "meses_horizonte": ventana_meses(ANIO_BANCO),
+            "semanas_horizonte": ventana_semanas(ANIO_BANCO),
             "semana_referencia": semana_referencia, "n_por_ciclo": _n_por_ciclo(),
             "plan_vacaciones": plan_vacaciones, "anio_presupuesto": hoy.year,
             "ordenes": ordenes, "ejecucion": ejecucion, "asignaciones": asignaciones,
@@ -1993,7 +2096,7 @@ def calcular_esperado(datos):
                 "por_tec": por_tec, "sobreasignados": sobre, "n_top": len(pend),
                 "top": top_list}
 
-    exportar = exportar_esperado(datos["semanas"][1])
+    exportar = exportar_esperado(datos["semana_foco"])
 
     # --- PRESUPUESTO OPEX: real por categoría × mes desde el MISMO campo que
     #     COSTOS (costo_total) y la MISMA convención de mes (anio/mes).
@@ -2436,12 +2539,14 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # referencia celdas concretas en vez de recalcular nada.
     ANC = {}
     ES_PLANTILLA = datos.get("es_plantilla", False)
-    # Ventana de calendario: 18 meses y el año ISO completo, SIEMPRE. Los bloques
-    # mensuales de ADHERENCIA / PERFIL_HH / BACKLOG cubren la MISMA ventana que el
-    # selector; si cubrieran solo los meses con datos, un mes recién cargado sería
-    # seleccionable pero no tendría fila que leer.
-    MESES_VENTANA = ventana_meses(datos["hoy"].year)
-    SEMANAS_VENTANA = ventana_semanas(datos["hoy"].year)
+    # HORIZONTE del archivo. Los bloques mensuales de ADHERENCIA / PERFIL_HH /
+    # BACKLOG cubren la MISMA ventana que el selector de meses, y el selector de
+    # semanas las MISMAS semanas que la grilla de ASIGNACIONES: una lista que
+    # ofreciera algo sin fila que leer sería peor que no ofrecerlo.
+    # Plantilla y demo: 7 meses y ~31 semanas (semestre + mes anterior).
+    # Banco: 18 meses y el año ISO completo, porque cubre el año a propósito.
+    MESES_VENTANA = datos["meses_horizonte"]
+    SEMANAS_VENTANA = datos["semanas_horizonte"]
     hoy = datos["hoy"]
     semanas = datos["semanas"]
     n_ord, n_ejec, n_asig = len(datos["ordenes"]), len(datos["ejecucion"]), len(datos["asignaciones"])
@@ -2502,6 +2607,13 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                        if ES_PLANTILLA else
                        "ARCHIVO DE DEMOSTRACIÓN: los datos son sintéticos, no sirven para "
                        "trabajar."), font=F_NOTA)
+    _TXT_HORIZONTE = (
+        f"año completo {datos['anio_activo']} (banco de prueba)"
+        if datos["semestre_activo"] == SEMESTRE_ANIO_COMPLETO else
+        f"semestre {datos['semestre_activo']} de {datos['anio_activo']} "
+        f"({'enero–junio' if datos['semestre_activo'] == 1 else 'julio–diciembre'}) "
+        f"MÁS el mes anterior completo — {semanas[0]} a {semanas[-1]}, "
+        f"{len(semanas)} semanas, {len(MESES_VENTANA)} meses")
     filas_ins = [
         ("", ""),
         ("A. QUÉ ES Y QUÉ NO ES", "sec"),
@@ -2523,6 +2635,17 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
          "al ciclo de turnos; `orden_rotacion` = su posición de arranque (1..N, sin repetir "
          "dentro de la misma especialidad y área); `activo` = no lo saca de las listas, de la "
          "capacidad y del ciclo sin borrarlo.", ""),
+        ("3-bis. ARRANQUE DE LA ROTACIÓN DE TURNOS — se hace UNA VEZ, y solo una. Tome una "
+         "semana real cualquiera y escriba en TECNICOS.orden_rotacion la posición que cada "
+         "técnico tenía ESA semana (1 = primer turno del anillo, 2 = el siguiente, y así, sin "
+         "repetir dentro de la misma especialidad y área). Luego ponga el lunes de esa semana "
+         "en PARAMETROS.semana_referencia. Desde ahí el libro calcula solo TODAS las semanas "
+         "hacia adelante y hacia atrás: no hay que volver a cargar turnos nunca.", ""),
+        ("⚠ semana_referencia NO SE VUELVE A TOCAR, tampoco al cambiar de semestre ni al "
+         "empezar un archivo nuevo. La rotación se calcula por la distancia en semanas hasta "
+         "esa fecha: si la mueve, el ciclo se reinicia y el técnico que venía de T3 vuelve a "
+         "Banco. Es el único parámetro del libro que puede romper la continuidad en silencio.",
+         "aviso"),
         ("4. CALENDARIO — marque el patrón semanal y cargue feriados y paros de planta.", ""),
         ("5. PLAN_VACACIONES — periodos de vacaciones y permisos por técnico.", ""),
         ("6. PRESUPUESTO — el plan de gasto por mes y categoría.", ""),
@@ -2559,6 +2682,40 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
          "—plan contra real por categoría— y abra el DASHBOARD con el mes elegido en el "
          "selector. El tablero corta el mes en curso hasta el día ANTERIOR a la fecha de "
          "datos, y lo dice en pantalla.", ""),
+        ("", ""),
+        ("D-bis. QUÉ PERIODO CUBRE ESTE ARCHIVO, Y CÓMO SE ROTA", "sec"),
+        (f"HORIZONTE: {_TXT_HORIZONTE}. La grilla de ASIGNACIONES, el selector de semanas, el "
+         f"selector de meses del tablero y las hojas de SEGUIMIENTO cubren exactamente ese "
+         f"periodo — ni más ni menos. Lo verá escrito en PARAMETROS (anio_activo y "
+         f"semestre_activo) y en el título de ASIGNACIONES.", ""),
+        ("El mes anterior al semestre entra completo a propósito: es el COLCHÓN. Al abrir el "
+         "archivo nuevo, la semana en curso y las anteriores ya tienen turnos, capacidad y "
+         "seguimiento, y no hay un día sin cubrir en la costura entre los dos archivos.", ""),
+        ("No cubre el año entero por dos razones prácticas: el archivo pesaría de más, y nadie "
+         "pega doce meses de órdenes en enero — las fechas se mueven y se agregan operaciones "
+         "sobre la marcha. Se trabaja por semestres y se rota de archivo, que es como se "
+         "trabajaba antes con hojas sueltas, pero sin perder la continuidad.", ""),
+        ("CAMBIAR DE SEMESTRE NO SE HACE EDITANDO PARAMETROS: las filas de la grilla y de los "
+         "bloques mensuales son filas escritas, no fórmulas, así que no pueden aparecer solas. "
+         "Se REGENERA el archivo con el semestre nuevo (quien lo genere usa "
+         "--semestre 2 --anio-activo 2026, por ejemplo).", ""),
+        ("PROCEDIMIENTO DE ROTACIÓN DE ARCHIVO — paso a paso:", "sec"),
+        ("1. Guarde el archivo del semestre que cierra con su fecha en el nombre (por ejemplo "
+         "MantPlan_2026_S1.xlsx). Queda como registro histórico consultable: no se borra ni se "
+         "sobrescribe.", ""),
+        ("2. Genere o abra el archivo del semestre nuevo.", ""),
+        ("3. NO toque semana_referencia. Es el paso que más cuesta recordar y el único que "
+         "rompe la rotación si se hace mal.", ""),
+        ("4. Copie desde el archivo cerrado: los catálogos CAT_*, TECNICOS, PLAN_VACACIONES y "
+         "el presupuesto del año (el plan mensual completo, los 12 meses).", ""),
+        ("5. Cargue el ARRASTRE del presupuesto: en el bloque de entrada de PRESUPUESTO, la "
+         "columna de arrastre, el gasto REAL ya cerrado de los meses que no están en este "
+         "archivo. Sin eso, el acumulado empieza en el mes de colchón — y el libro lo dice: el "
+         "encabezado del acumulado avisa de que cubre solo este archivo.", ""),
+        ("6. Pegue las órdenes: las del semestre nuevo y las que quedaron abiertas. Las "
+         "pendientes siguen abiertas en el ERP, así que entran solas en la misma exportación; "
+         "no hay que copiarlas a mano de un archivo a otro.", ""),
+        ("7. Borre las filas de ejemplo si quedan, y revise VALIDACION antes de publicar.", ""),
         ("", ""),
         ("E. QUÉ NO TOCAR", "sec"),
         ("DOS COLORES, DOS SIGNIFICADOS. AZUL = usted escribe aquí. ROJO MUY CLARO "
@@ -2658,6 +2815,11 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         # DASHBOARD: la fecha de datos es el ancla del libro, no HOY().
         if p == "fecha_datos":
             v = datos["hoy"]
+        # Horizonte del archivo (se inyecta al generar; editarlo exige regenerar).
+        if p == "anio_activo":
+            v = datos["anio_activo"]
+        if p == "semestre_activo":
+            v = datos["semestre_activo"]
         # Un valor que empieza por "=" es una celda DERIVADA (fórmula): se
         # muestra con estilo de celda calculada (negro), no de input (azul),
         # y no lleva validación de entrada.
@@ -2665,6 +2827,16 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         fmt = FMT_FECHA if isinstance(v, date) else ("0.00" if isinstance(v, float) else None)
         celda(ws, 4 + i, 2, v, font=F_TXT if es_formula else F_EDIT, fmt=fmt)
         celda(ws, 4 + i, 3, d, font=F_NOTA)
+    # AVISO VISIBLE junto a semana_referencia. No basta con ponerlo en la
+    # descripción: es el parámetro que, tocado al rotar de archivo, reinicia la
+    # rotación de turnos en silencio. Se pinta la fila entera.
+    # El aviso va en la columna D de esa misma fila (D está libre) para no
+    # desplazar ninguna fila: FILA_PARAM es la dirección de cada parámetro.
+    _fr_ref = FILA_PARAM["semana_referencia"]
+    celda(ws, _fr_ref, 4, "⚠ NO MODIFICAR al cambiar de semestre: reiniciaría la rotación "
+                          "de turnos", font=F_SEC, fill=FILL_ROJO)
+    for _c in (1, 2):
+        ws.cell(row=_fr_ref, column=_c).fill = FILL_ROJO
     celda(ws, 3, 5, "listas auxiliares", font=F_SEC)
     # 6.2: los turnos ya no viven aquí — su fuente única es CAT_TURNOS y la
     # lista de validación (lista_turnos) se arma en esa hoja. Aquí solo quedan
@@ -2675,11 +2847,16 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     celda(ws, 4, 9, "días (1 = lunes):", font=F_NOTA)
     for i, d in enumerate(DIAS):
         celda(ws, 5 + i, 9, d)
-    for colw, w in (("A", 24), ("B", 26), ("C", 66), ("E", 26), ("G", 14), ("I", 14)):
+    for colw, w in (("A", 24), ("B", 26), ("C", 66), ("D", 62), ("E", 26), ("G", 14), ("I", 14)):
         ws.column_dimensions[colw].width = w
     dv = DataValidation(type="list", formula1='"lunes,domingo"', allow_blank=False)
     ws.add_data_validation(dv)
     dv.add(f"B{FILA_PARAM['primer_dia_semana']}")
+    # Semestre activo: 1, 2 o 0 (año completo, banco). Ayuda, no barrera.
+    dv_sem = DataValidation(type="list", formula1='"1,2,0"', allow_blank=False,
+                            showErrorMessage=False)
+    ws.add_data_validation(dv_sem)
+    dv_sem.add(f"B{FILA_PARAM['semestre_activo']}")
     dv2 = DataValidation(type="decimal", operator="between", formula1="0", formula2="1")
     ws.add_data_validation(dv2)
     dv2.add(f"B{FILA_PARAM['factor_productividad']}")
@@ -2934,7 +3111,12 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     ws = wb.create_sheet("ASIGNACIONES")
     ws.sheet_properties.tabColor = "4472C4"
     A = TAB["tblAsignaciones"]
-    celda(ws, 1, 1, "ASIGNACIONES — el turno se DERIVA de la rotación (6.3) y arrastra a \"VAC\" si el "
+    _hz = ("año completo" if datos["semestre_activo"] == SEMESTRE_ANIO_COMPLETO
+           else f"semestre {datos['semestre_activo']} de {datos['anio_activo']} "
+                f"+ el mes anterior")
+    celda(ws, 1, 1, f"ASIGNACIONES — grilla del HORIZONTE de este archivo ({_hz}): "
+                    f"{semanas[0]} … {semanas[-1]}, {len(semanas)} semanas. "
+                    "El turno se DERIVA de la rotación (6.3) y arrastra a \"VAC\" si el "
                     "técnico está en PLAN_VACACIONES esa fecha (6.4), dejando su posición vacía "
                     "(hueco). Precedencia: turno_manual > (domingo) > VAC > rotación. REGLA-5 lee el "
                     "turno efectivo. Para cubrir un hueco, el supervisor escribe en turno_manual.",
@@ -3085,6 +3267,28 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             "categoría en catálogo cae en la fila SIN CLASIFICAR: el gasto nunca desaparece."], start=2):
         celda(ws, i, 1, t, font=F_NOTA)
 
+    # ---- ARRASTRE DEL SEMESTRE ANTERIOR ----
+    # El PLAN es manual y cubre los 12 meses del año: eso no cambia con el
+    # horizonte semestral. El gasto REAL, en cambio, solo puede sumar lo que está
+    # en ESTE archivo, así que en el archivo del segundo semestre el acumulado
+    # empezaría en junio. `arrastre_real` es la columna manual donde se copia el
+    # real ya cerrado de los meses que quedan FUERA del horizonte.
+    # Se calcula aquí QUÉ meses son, para rotularlo sin ambigüedad.
+    _anio_p = datos["anio_presupuesto"]
+    _meses_dentro = {m for a_, m in datos["meses_horizonte"] if a_ == _anio_p}
+    MESES_FUERA = [m for m in range(1, 13)
+                   if m not in _meses_dentro and m < (min(_meses_dentro) if _meses_dentro else 1)]
+    COL_ARR = 18                               # columna R
+    if MESES_FUERA:
+        TXT_ARR = (f"arrastre real {_anio_p}-{MESES_FUERA[0]:02d}…{_anio_p}-{MESES_FUERA[-1]:02d} "
+                   f"(meses FUERA de este archivo)")
+        TXT_YTD_SIN = (f'"acumulado SOLO de este archivo (desde {_anio_p}-'
+                       f'{min(_meses_dentro):02d}) — falta cargar el arrastre"')
+    else:
+        TXT_ARR = "arrastre real (NO APLICA: este archivo cubre desde enero — dejar en 0)"
+        TXT_YTD_SIN = '"YTD real (este archivo cubre el año desde enero)"'
+    TXT_YTD_CON = '"YTD real = arrastre + este archivo"'
+
     # ---- BLOQUE DE ENTRADA (manual) ----
     # HOLGURA: el bloque tenía exactamente una fila por categoría existente. Una
     # categoría nueva en CAT_ACTIVIDADES se quedaba SIN FILA y su gasto
@@ -3098,7 +3302,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                       f"categoría salen de CAT_ACTIVIDADES; hay holgura para {CAP_CAT_PPTO}.",
           font=F_SEC)
     encabezados(ws, fe0 + 1, ["categoria", "clasificacion"] + MESES_AB
-                + ["presupuesto_anual", "suma_12_meses", "cuadre"])
+                + ["presupuesto_anual", "suma_12_meses", "cuadre", TXT_ARR])
     FILA_ENT = fe0 + 2                       # primera ranura de categoría
     for k in range(CAP_CAT_PPTO):
         fr = FILA_ENT + k
@@ -3112,9 +3316,14 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         celda(ws, fr, 16, f'=IF($A{fr}="","",SUM($C{fr}:$N{fr}))', fmt=FMT_DINERO)
         celda(ws, fr, 17, f'=IF($A{fr}="","",IF(ROUND($P{fr}-$O{fr},2)=0,"cuadra",'
                           f'"DESCUADRE: "&TEXT($P{fr}-$O{fr},"+#,##0;-#,##0")&" vs anual"))')
+        # Arrastre: MANUAL (azul) y por categoría. Vacío en el archivo generado;
+        # lo copia el usuario del archivo del semestre cerrado.
+        celda(ws, fr, COL_ARR, None, font=F_EDIT, fmt=FMT_DINERO)
     fe1 = FILA_ENT + CAP_CAT_PPTO - 1        # última ranura
+    RG_ARR = f"$R${FILA_ENT}:$R${fe1}"       # rango del arrastre (una celda por categoría)
+    RG_CLAS_ENT = f"$B${FILA_ENT}:$B${fe1}"
     celda(ws, fe1 + 1, 1, "TOTAL", font=F_SEC)
-    for col in list(range(C0, C0 + 12)) + [15, 16]:
+    for col in list(range(C0, C0 + 12)) + [15, 16, COL_ARR]:
         L_ = get_column_letter(col)
         celda(ws, fe1 + 1, col, f"=SUM({L_}{FILA_ENT}:{L_}{fe1})", fmt=FMT_DINERO)
     # Aviso de holgura agotada: si el catálogo llega a definir más categorías que
@@ -3125,9 +3334,21 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
                          allow_blank=True)
     ws.add_data_validation(dvp)
     dvp.add(f"C{FILA_ENT}:O{fe1}")
+    dvp.add(f"R{FILA_ENT}:R{fe1}")
     ws.conditional_formatting.add(
         f"Q{FILA_ENT}:Q{fe1}",
         FormulaRule(formula=[f'LEFT($Q{FILA_ENT},9)="DESCUADRE"'], fill=FILL_ROJO))
+    if not MESES_FUERA:
+        # El archivo cubre el año desde enero: un arrastre aquí DUPLICARÍA gasto.
+        # Se avisa en rojo; no se bloquea, como todo en este libro.
+        # FormulaRule y no CellIs "<>0": una celda VACÍA también es distinta de 0
+        # y pintaría de rojo las 12 ranuras del archivo recién generado.
+        ws.conditional_formatting.add(
+            f"R{FILA_ENT}:R{fe1}",
+            FormulaRule(formula=[f'AND($R{FILA_ENT}<>"",$R{FILA_ENT}<>0)'], fill=FILL_ROJO))
+    celda(ws, fe1 + 1, COL_ARR + 1,
+          "← el arrastre NO entra en la comparación mensual: solo en la columna YTD del "
+          "bloque REAL. Así CONTROL y DIFERENCIA siguen cuadrando mes a mes.", font=F_NOTA)
 
     # ---- BLOQUE DE COMPARACIÓN (derivado) ----
     # Mismas CAP_CAT_PPTO ranuras que el bloque de entrada, y en el mismo orden:
@@ -3152,12 +3373,13 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     o_cat = R.col("tblOrdenes", "categoria_presupuesto")
     bloques, fb = {}, fc0 + 3
 
-    def matriz(fila0, titulo, fmt, celda_fn, extra=(), ytd_fn=None):
+    def matriz(fila0, titulo, fmt, celda_fn, extra=(), ytd_fn=None, enc_ytd=None):
         """Emite una matriz categorías × 12 meses + YTD. Las filas se conocen ANTES
         de escribir (son deterministas), así los subtotales pueden referenciar a
         sus propias filas dentro del mismo bloque."""
         celda(ws, fila0, 1, titulo, font=F_SEC)
-        encabezados(ws, fila0 + 1, ["categoria", "clasificacion"] + MESES_AB + ["YTD"])
+        encabezados(ws, fila0 + 1, ["categoria", "clasificacion"] + MESES_AB
+                    + [enc_ytd or "YTD"])
         filas = {f: fila0 + 2 + i for i, f in enumerate(filas_comp)}
         for i, (etiqueta, _fn) in enumerate(extra):
             filas[etiqueta] = fila0 + 2 + len(filas_comp) + i
@@ -3176,7 +3398,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             # las de % y estado no se pueden sumar: llevan su propia fórmula sobre
             # los YTD ya acumulados (SUMPRODUCT sobre texto daría #VALUE!).
             celda(ws, fr, 15, guardar(
-                f, fr, ytd_fn(f) if ytd_fn
+                f, fr, ytd_fn(f, filas) if ytd_fn
                 else f"=SUMPRODUCT(({ARR12}<={cel_ytd})*($C{fr}:$N{fr}))"), fmt=fmt)
         for etiqueta, fn in extra:
             fr = filas[etiqueta]
@@ -3228,9 +3450,35 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
         return (f'=SUMIFS({o_col},{o_anio},p_anio_presupuesto,{o_mes},{m},'
                 f'{o_cat},$A{fs[f]})')
 
+    def arrastre_de(f):
+        """Término de ARRASTRE que le toca a esta fila en el acumulado.
+
+        Solo entra en la columna YTD, nunca en un mes: por eso CONTROL y
+        DIFERENCIA —que son mensuales— siguen cuadrando con el arrastre cargado.
+        `SIN CLASIFICAR` no lleva arrastre (no es una categoría del catálogo y no
+        tiene celda donde cargarlo), así que los subtotales y el total suman
+        exactamente las mismas celdas que las filas que agregan.
+        """
+        if isinstance(f, tuple):
+            return f"+$R${FILA_ENT + f[1]}"
+        if f in SUBTOTALES:
+            return f'+SUMIF({RG_CLAS_ENT},"{SUBTOTALES[f]}",{RG_ARR})'
+        if f == "TOTAL GENERAL":
+            return f"+SUM({RG_ARR})"
+        return ""                            # SIN CLASIFICAR
+
+    def ytd_con_arrastre(f, fs):
+        fr = fs[f]
+        return f"=SUMPRODUCT(({ARR12}<={cel_ytd})*($C{fr}:$N{fr})){arrastre_de(f)}"
+
     bloques["real"], fb = matriz(
-        fb, "REAL (gasto del mes; mismo campo y misma convención de mes que COSTOS)",
+        fb, "REAL (gasto del mes; mismo campo y misma convención de mes que COSTOS). "
+            "El acumulado de la columna final SUMA EL ARRASTRE del bloque de entrada.",
         FMT_DINERO, f_real,
+        # El encabezado del acumulado se rotula solo y NO miente: mientras el
+        # arrastre esté vacío dice que el acumulado cubre solo este archivo.
+        enc_ytd=f"=IF(SUM({RG_ARR})>0,{TXT_YTD_CON},{TXT_YTD_SIN})",
+        ytd_fn=ytd_con_arrastre,
         extra=[("CONTROL — total de COSTOS del mes",
                 lambda m, fs: f'=SUMIFS({o_col},{o_anio},p_anio_presupuesto,{o_mes},{m})'),
                ("DIFERENCIA (debe ser 0)",
@@ -3239,14 +3487,17 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
 
     bloques["desv"], fb = matriz(
         fb, "DESVIACIÓN (real − presupuesto)", FMT_DINERO,
-        lambda f, m, fs: f"={cm(m)}{bloques['real'][f]}-{cm(m)}{bloques['ppto'][f]}")
+        lambda f, m, fs: f"={cm(m)}{bloques['real'][f]}-{cm(m)}{bloques['ppto'][f]}",
+        # El acumulado de la desviación arrastra el mismo término: si no, dejaría
+        # de cumplirse que desviación_YTD = real_YTD − presupuesto_YTD.
+        ytd_fn=ytd_con_arrastre)
 
     bloques["pct"], fb = matriz(
         fb, "DESVIACIÓN %", "0.0%",
         lambda f, m, fs: (f'=IF({cm(m)}{bloques["ppto"][f]}=0,"",'
                           f'{cm(m)}{bloques["desv"][f]}/{cm(m)}{bloques["ppto"][f]})'),
-        ytd_fn=lambda f: (f'=IF($O${bloques["ppto"][f]}=0,"",'
-                          f'$O${bloques["desv"][f]}/$O${bloques["ppto"][f]})'))
+        ytd_fn=lambda f, _fs: (f'=IF($O${bloques["ppto"][f]}=0,"",'
+                               f'$O${bloques["desv"][f]}/$O${bloques["ppto"][f]})'))
 
     bloques["estado"], fb = matriz(
         fb, "ESTADO (semáforo · tolerancia = p_tolerancia_desviacion_presupuesto)", None,
@@ -3256,7 +3507,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
             f'IF(ABS({cm(m)}{bloques["desv"][f]}/{cm(m)}{bloques["ppto"][f]})'
             f'<=p_tolerancia_desviacion_presupuesto,"dentro",'
             f'IF({cm(m)}{bloques["desv"][f]}>0,"sobre","bajo"))))'),
-        ytd_fn=lambda f: (
+        ytd_fn=lambda f, _fs: (
             f'=IF(AND($O${bloques["ppto"][f]}=0,$O${bloques["real"][f]}=0),"",'
             f'IF($O${bloques["ppto"][f]}=0,"sobre",'
             f'IF(ABS($O${bloques["desv"][f]}/$O${bloques["ppto"][f]})'
@@ -3662,7 +3913,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
 
     # 7.2: solo "día" sigue siendo literal (dominio fijo); el resto sale de su
     # catálogo o de los datos a través de un rango con nombre.
-    criterios = [("semana", 2, "lista_semanas_plan", semanas[1]),
+    criterios = [("semana", 2, "lista_semanas_plan", datos["semana_foco"]),
                  ("día", 4, ["(todos)"] + list(DIAS), "(todos)"),
                  ("turno", 6, "lista_f_turno", "(todos)"),
                  ("coordinador", 8, "lista_f_coordinador", "(todos)"),
@@ -4528,7 +4779,7 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
     # 7.2: mismo criterio que PLAN_SEMANAL — los cuatro selectores salen de un
     # rango con nombre. B3 usa `lista_semanas_plan` (TODAS las semanas con datos),
     # que era el mismo bug de 7.1: antes listaba solo las 4 de la ventana.
-    for etiqueta, colc, lista, defecto in [("semana", 2, "lista_semanas_plan", semanas[1]),
+    for etiqueta, colc, lista, defecto in [("semana", 2, "lista_semanas_plan", datos["semana_foco"]),
                                            ("turno", 4, "lista_f_turno", "(todos)"),
                                            ("coordinador", 6, "lista_f_coordinador", "(todos)"),
                                            ("sub-área", 8, "lista_f_subarea", "(todos)")]:
@@ -5404,10 +5655,19 @@ def construir_libro(datos, esperado, ruta, refs="estructuradas"):
 
 
 def imprimir_resumen(datos, esperado):
-    hoy, semanas = datos["hoy"], datos["semanas"]
+    hoy = datos["hoy"]
+    # La grilla cubre ahora el horizonte semestral (~31 semanas): imprimir las 31
+    # en tablas de una columna por semana no se lee. El resumen muestra la VENTANA
+    # DEL PLAN (la semana de foco, la anterior y las dos siguientes), que es lo que
+    # se verifica a mano; los totales sí son del horizonte completo.
+    _i = datos["semanas"].index(datos["semana_foco"])
+    semanas = datos["semanas"][max(0, _i - 1):_i + 3]
     print(f"MantPlan — datos sintéticos anclados a HOY = {hoy.isoformat()}")
+    print(f"Horizonte: año {datos['anio_activo']} · semestre {datos['semestre_activo']} "
+          f"({datos['semanas'][0]} … {datos['semanas'][-1]}, {len(datos['semanas'])} semanas, "
+          f"{len(datos['meses_horizonte'])} meses)")
     print(f"Órdenes: {len(datos['ordenes'])} · Ejecución: {len(datos['ejecucion'])} · "
-          f"Asignaciones: {len(datos['asignaciones'])} · Semanas del plan: {', '.join(semanas)}")
+          f"Asignaciones: {len(datos['asignaciones'])} · Ventana del plan: {', '.join(semanas)}")
     print(f"Serie de semanas con datos: {len(esperado['serie_semanas'])} "
           f"({esperado['serie_semanas'][0]} … {esperado['serie_semanas'][-1]}), "
           f"{len(esperado['semanas_con_datos'])} con órdenes")
@@ -5456,13 +5716,13 @@ def imprimir_resumen(datos, esperado):
         techs = sorted([t for t in TECNICOS_ACTIVOS if t[TEC_ESP] == esp
                         and t[TEC_AREA] == area and t[TEC_ROT] == SI],
                        key=lambda x: x[TEC_ORDROT])
-        print("    " + "técnico(orden)".ljust(23) + "".join(s.rjust(10) for s in datos["semanas"]))
+        print("    " + "técnico(orden)".ljust(23) + "".join(s.rjust(10) for s in semanas))
         for t in techs:
             fila = "".join(
                 next(p for (nb, p, _tu) in pos_lunes[(esp, area, sem)] if nb == t[1]).rjust(10)
-                for sem in datos["semanas"])
+                for sem in semanas)
             print("    " + f"{t[1][:18]} (o{t[TEC_ORDROT]})".ljust(23) + fila)
-        for sem in datos["semanas"]:
+        for sem in semanas:
             # Cobertura por POSICIÓN derivada (rotación 6.3, intacta): siempre
             # 1/1/1/(N-3). Los huecos VAC (6.4) se listan aparte: el turno efectivo
             # de esa posición es "VAC", pero la posición sigue asignada al técnico.
@@ -5482,7 +5742,7 @@ def imprimir_resumen(datos, esperado):
         print(f"  {v['tecnico']}: {v['fecha_inicio']} … {v['fecha_fin']} ({v['motivo']})")
     tec_vac = datos["plan_vacaciones"][0]["tecnico"]
     print(f"  {tec_vac} — turno efectivo por semana (lunes) [posición derivada se conserva]:")
-    for sem in datos["semanas"]:
+    for sem in semanas:
         a = next(a for a in datos["asignaciones"] if a["tecnico"] == tec_vac
                  and a["semana"] == sem and a["dia"] == "lunes")
         disp = a["horas_disponibles"]
@@ -5490,17 +5750,17 @@ def imprimir_resumen(datos, esperado):
               f"· turno={a['turno']:>4} · {disp} h")
     cap_vac = FACTOR_PRODUCTIVIDAD * sum(
         a["horas_disponibles"] for a in datos["asignaciones"]
-        if a["tecnico"] == tec_vac and a["semana"] == datos["semanas"][1])
-    print(f"  Capacidad de {tec_vac} en {datos['semanas'][1]} (semana de VAC completa): "
+        if a["tecnico"] == tec_vac and a["semana"] == semanas[1])
+    print(f"  Capacidad de {tec_vac} en {semanas[1]} (semana de VAC completa): "
           f"{cap_vac:.2f} h (0 h)")
 
     print("\nSEGUIMIENTO DE HORAS REALES (6.5, capa de cumplimiento; NO cambia PERFIL_HH):")
     print("  horas_reales por técnico × semana (56 turno / 48 banco / 0 VAC; feriado resta):")
-    print("    " + "técnico".ljust(12) + "".join(s.rjust(11) for s in datos["semanas"]))
+    print("    " + "técnico".ljust(12) + "".join(s.rjust(11) for s in semanas))
     seg = {(s["tecnico"], s["semana"]): s for s in esperado["seguimiento_hh"]}
     for _tid, nombre, *_ in TECNICOS_ACTIVOS:
         fila = "".join(f"{seg[(nombre, sem)]['posicion'] or '-':>3}:{seg[(nombre, sem)]['horas_reales']:>2.0f}h"
-                       .rjust(11) for sem in datos["semanas"])
+                       .rjust(11) for sem in semanas)
         print("    " + nombre[:11].ljust(12) + fila)
     print("  superavit_deficit (=reales−48): +8 turno · 0 banco · −48 VAC · −8 banco en feriado")
     print("  Déficit de capacidad por VAC (esp × semana, técnicos_vac × 48 h):")
@@ -5593,7 +5853,7 @@ def imprimir_resumen(datos, esperado):
     print(f"  VALIDACION → en día no laborable: {ve['en_dia_no_habil']} · "
           f"área desconocida: {ve['exc_area_desconocida']} · sub desconocida: {ve['exc_sub_desconocida']}")
     print("  Capacidad PERFIL_HH (hh_disponible) por semana del plan:")
-    for sem in datos["semanas"]:
+    for sem in semanas:
         p = esperado["perfil"][("MEC", sem)]
         print(f"    MEC {sem}: disp {p['hh_disponible']:.0f} · %carga "
               f"{p['pct_carga']:.1%}" if p['pct_carga'] else f"    MEC {sem}: disp {p['hh_disponible']:.0f}")
@@ -5665,6 +5925,16 @@ def main(argv=None):
                     help="§7: semanas de la ventana realmente programada (default 4)")
     ap.add_argument("--semilla", type=int, default=SEMILLA_BANCO,
                     help=f"§7: semilla determinista del banco (default {SEMILLA_BANCO})")
+    # HORIZONTE SEMESTRAL: qué semestre cubre el archivo. Por defecto, el del
+    # ancla. Rotar de archivo = regenerar con el semestre siguiente.
+    ap.add_argument("--semestre", type=int, choices=[1, 2], default=None,
+                    help="semestre que cubre el archivo (1 = ene–jun, 2 = jul–dic). "
+                         "Por defecto, el del ancla. El horizonte añade el mes anterior.")
+    ap.add_argument("--anio-activo", type=int, default=None,
+                    help="año que cubre el archivo. Por defecto, el del ancla.")
+    ap.add_argument("--semana-referencia", default=None,
+                    help="AAAA-MM-DD (lunes) del ancla de la rotación. Se fija UNA VEZ "
+                         f"y no se cambia al rotar de archivo (default {SEMANA_REFERENCIA_FIJA}).")
     args = ap.parse_args(argv)
 
     t0 = time.perf_counter()
@@ -5676,14 +5946,24 @@ def main(argv=None):
         hoy = datos["hoy"]
     else:
         hoy = date.fromisoformat(args.fecha_ancla) if args.fecha_ancla else date.today()
-        datos = generar_datos_plantilla(hoy) if args.plantilla else generar_datos(hoy)
+        ref = (date.fromisoformat(args.semana_referencia) if args.semana_referencia
+               else SEMANA_REFERENCIA_FIJA)
+        if ref.weekday() != 0:
+            ap.error("--semana-referencia debe ser un LUNES: es el ancla del ciclo semanal")
+        gen = generar_datos_plantilla if args.plantilla else generar_datos
+        datos = gen(hoy, anio_activo=args.anio_activo, semestre_activo=args.semestre,
+                    semana_referencia=ref)
     esperado = calcular_esperado(datos)
     construir_libro(datos, esperado, args.salida, refs=args.refs)
     seg = time.perf_counter() - t0
     modo = ("BANCO §7" if args.anio_completo
             else "PLANTILLA" if args.plantilla else "demo")
+    hz = (f"año completo" if datos["semestre_activo"] == SEMESTRE_ANIO_COMPLETO
+          else f"S{datos['semestre_activo']} {datos['anio_activo']}")
     print(f"Generado {args.salida} (refs {args.refs}, ancla {hoy.isoformat()}, "
-          f"{modo}, {len(datos['ordenes'])} órdenes, {seg:.1f} s)")
+          f"{modo}, horizonte {hz}: {datos['semanas'][0]}…{datos['semanas'][-1]} "
+          f"({len(datos['semanas'])} sem, {len(datos['asignaciones'])} asignaciones), "
+          f"{len(datos['ordenes'])} órdenes, {seg:.1f} s)")
     if args.resumen:
         print()
         imprimir_resumen(datos, esperado)

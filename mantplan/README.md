@@ -1,4 +1,4 @@
-# MantPlan — Entregable A: `MantPlan.xlsx` (v3.7.0)
+# MantPlan — Entregable A: `MantPlan.xlsx` (v3.8.0)
 
 Planificador semanal de mantenimiento reimplementado limpio: **sin macros, sin
 enlaces externos, agnóstico de empresa y de ERP**. Las 10 reglas de negocio
@@ -52,7 +52,9 @@ filas**, y producen números idénticos (verificado, ver §1). Los dos libros de
 
 ```bash
 pip install openpyxl
-# Dataset por defecto (4 semanas) — el que se usa a diario
+# Dataset por defecto — el que se usa a diario. El horizonte es el SEMESTRE del
+# ancla más el mes anterior (~31 semanas); se puede fijar a mano.
+
 python generar_mantplan.py --fecha-ancla 2026-07-27
 python generar_mantplan.py --fecha-ancla 2026-07-27 --salida MantPlan_compatible.xlsx --refs compatibles
 python generar_mantplan.py --resumen                              # números esperados (rotación, VAC, seguimiento)
@@ -66,12 +68,60 @@ python generar_mantplan.py --anio-completo --salida MantPlan_banco.xlsx
 python generar_mantplan.py --anio-completo --salida MantPlan_banco_compatible.xlsx --refs compatibles
 python generar_mantplan.py --anio-completo --n-ordenes 1000 --semanas-programadas 4 --semilla 20260101
 
+# Rotación de archivo: se regenera con el semestre nuevo y la MISMA semana de
+# referencia (que es la que mantiene la continuidad de la rotación de turnos).
+python generar_mantplan.py --plantilla --semestre 1 --anio-activo 2026 --salida MantPlan_2026_S1.xlsx
+python generar_mantplan.py --plantilla --semestre 2 --anio-activo 2026 --salida MantPlan_2026_S2.xlsx
+
 # Comprobación estructural del XML de los rangos con nombre (los SEIS libros).
 # No recalcula: audita xl/workbook.xml. Devuelve 1 si encuentra algún fallo.
 python verificar_nombres.py MantPlan*.xlsx
 ```
 
 ## Decisiones técnicas
+
+### 0. Horizonte semestral: qué periodo cubre un archivo
+
+La grilla de `ASIGNACIONES` estaba dimensionada a los datos de ejemplo —**4
+semanas**—, así que pasada la última no había turnos, ni capacidad, ni
+seguimiento. Inservible para uso real. El año completo se descartó por peso y
+porque nadie pega doce meses de órdenes en enero: las fechas se mueven y se
+agregan operaciones sobre la marcha.
+
+El horizonte es **un semestre de calendario más el mes anterior completo**: 7
+meses, ~31 semanas, ~3.472 filas de grilla. Se declara en `PARAMETROS` con
+`anio_activo` y `semestre_activo` (1 = ene–jun · 2 = jul–dic · 0 = año completo,
+que solo usa el banco).
+
+- **El mes anterior es el COLCHÓN**, y por eso entra completo: al abrir el archivo
+  nuevo, la semana en curso y las anteriores ya tienen turnos, capacidad y
+  seguimiento, y no hay días sin cubrir en la costura entre archivos.
+- Las semanas del horizonte son las **semanas ISO cuyo lunes cae en esos 7
+  meses**. Acotar por el lunes —y no por los días— hace que cada semana pertenezca
+  a un solo mes, así que el selector de meses, los bloques mes a mes y
+  `SEGUIMIENTO_MENSUAL` no pueden desincronizarse. Consecuencia declarada: los días
+  del mes de colchón anteriores a su primer lunes quedan fuera de la grilla; están
+  fuera del semestre, así que no afecta a lo que se planifica.
+- **Todo** lo que dependía del calendario pasa al horizonte: `lista_semanas_plan`
+  (31, no 58), `lista_meses_dash` (7, no 18), los bloques mes a mes de
+  `ADHERENCIA` / `PERFIL_HH` / `BACKLOG`, `SEGUIMIENTO_HH` y `SEGUIMIENTO_MENSUAL`.
+  `PLAN_VACACIONES` se deriva por fecha y no necesita lista propia.
+- **Cambiar de semestre exige REGENERAR**, no editar el parámetro: las filas de la
+  grilla y de los bloques mensuales son filas escritas, no fórmulas, y no pueden
+  aparecer solas.
+- **El banco conserva el año completo** (18 meses, año ISO entero): existe para
+  probar a volumen, no para trabajar.
+
+**La `semana_referencia` es fija y no se toca nunca.** Era el primer lunes de la
+grilla; con el horizonte móvil, eso habría movido el ancla en cada archivo nuevo y
+**reiniciado la rotación** —el técnico que venía de T3 volvería a Banco—. Ahora es
+una fecha fija del proyecto (`2026-01-05`, ajustable una vez con
+`--semana-referencia`), su fila va **en rojo** en `PARAMETROS` con el aviso
+«NO MODIFICAR al cambiar de semestre», y el `INSTRUCTIVO` explica el arranque
+inicial y los 7 pasos de la rotación de archivo. Verificado: con la misma
+referencia, los 14 rotativos encadenan +1 posición en la frontera junio→julio y las
+80 posiciones del mes de colchón son idénticas en los dos archivos; con la
+referencia movida, los 14 cambian.
 
 ### 1. Verificación: doble implementación + recálculo real
 
@@ -83,7 +133,7 @@ python verificar_nombres.py MantPlan*.xlsx
 - Cada valor recalculado se comparó contra el motor Python: **14.994
   comparaciones automáticas, 0 desviaciones**, incluidas la rotación derivada de
   turnos y las **vacaciones que arrastran** (cobertura, avance, huecos VAC y
-  turno efectivo de las 448 filas de ASIGNACIONES), el calendario laboral
+  turno efectivo de las 3.472 filas de ASIGNACIONES), el calendario laboral
   (es_habil, backlog_habiles, capacidad por día), los desgloses por sub-área y la
   reconciliación área = Σ sub-áreas.
 - Caso de reordenamiento (VERIFICACION.md §3.4): un libro con las 200 filas de
@@ -188,9 +238,9 @@ no se imputa al costo de la orden.
 - El ocultamiento se decide **al generar el archivo** (Excel sin macros no
   puede ocultar filas por fórmula): tras re-importar con semanas nuevas, esas
   filas calculan solas pero pueden requerir "Mostrar filas" para verse.
-- Los **desplegables** de `PLAN_SEMANAL` y `EXPORTAR` mantienen la ventana
-  operativa de 4 semanas del plan (más "(todos)"), que es donde la ventana
-  corta tiene sentido.
+- Los **desplegables** de `PLAN_SEMANAL` y `EXPORTAR` ofrecen las semanas del
+  HORIZONTE del archivo (más "(todos)"), y abren en la **semana de foco** (la del
+  ancla), no en la primera del horizonte, que estaría vacía.
 
 ### 5. Pegado en un solo bloque y capacidad mensual (1.200 filas)
 
@@ -449,7 +499,7 @@ cambia *qué* turno, no *cuántas* horas.
 
 **Doble implementación.** La derivación existe como función pura
 (`turno_derivado`, con `posicion_ciclo_de` y `etiqueta_anillo`) y como fórmula del
-libro en ambas variantes; coinciden celda a celda (las 448 filas).
+libro en ambas variantes; coinciden celda a celda (las 3.472 filas).
 
 ### Vacaciones que arrastran (6.4)
 
@@ -535,7 +585,7 @@ especialidad: **Supervisor Mecánico** (MEC), **Supervisor Eléctrico** (ELE),
 ### §7 — Banco de prueba: un año en crudo + ventana programada
 
 Es una **opción del generador**, no el default. Sin flags sale exactamente el
-dataset de 4 semanas de siempre; con `--anio-completo` sale un banco con el
+dataset del horizonte semestral de siempre; con `--anio-completo` sale un banco con el
 volumen de un año para inspección humana.
 
 | flag | default | qué hace |
@@ -659,6 +709,28 @@ dentro de cada grupo el orden del catálogo—. Consecuencia declarada: si se
 **reordenan** las categorías del catálogo, las etiquetas se mueven pero los
 importes ya escritos no, porque son dato del usuario y viven en su fila. Está
 dicho en el `INSTRUCTIVO`.
+
+**Arrastre del semestre anterior (v3.8.0).** El plan es manual y cubre los 12
+meses; el **real** solo puede sumar lo que está en el archivo, así que con el
+horizonte semestral el acumulado del archivo de S2 empezaría en junio. El bloque de
+entrada gana la columna **`arrastre real`**: manual (azul), **una celda por
+categoría**, rotulada con los meses exactos que le tocan
+(`arrastre real 2026-01…2026-05 (meses FUERA de este archivo)`), calculados al
+generar. Si el archivo cubre desde enero, el rótulo dice `NO APLICA` y un formato
+condicional pinta en rojo cualquier importe distinto de cero.
+
+Va como **columna** y no como fila suelta porque en ese bloque las categorías
+**son** las filas: una fila única no podría ser «por categoría».
+
+El arrastre entra **solo en el acumulado**, nunca en un mes — por eso `CONTROL` y
+`DIFERENCIA`, que son mensuales, siguen cuadrando. Las matrices de `real` y de
+`desviación` lo suman en su columna YTD (la de desviación también, para que siga
+cumpliéndose `desviación_YTD = real_YTD − presupuesto_YTD`); `SIN CLASIFICAR` no lo
+lleva, porque no es categoría de catálogo y no tiene celda donde cargarlo. Y el
+encabezado del acumulado **no miente**: mientras el arrastre esté vacío dice
+«acumulado SOLO de este archivo (desde 2026-06)», y con arrastre pasa a «YTD real =
+arrastre + este archivo». El DASHBOARD no cambia: acumula las celdas mensuales, así
+que sigue mostrando el horizonte del archivo.
 
 **El real sale de COSTOS.** Se calcula con el **mismo campo** que ya usa `COSTOS`
 (`costo_total`, REGLA-8) y la **misma convención de mes** (`anio`/`mes` de la
@@ -912,16 +984,21 @@ A/B/C» para siempre, no podía filtrar por sus áreas, y —lo peor— en la pl
 el selector de meses tenía 2 entradas: al pegar un año real **no podía
 seleccionar sus propios meses** y el tablero quedaba inservible.
 
-**Meses y semanas: ventana de calendario, no «lo que hay».** El selector de mes
-ofrece siempre **18 meses** (los 3 últimos del año anterior, los 12 del año de la
-fecha de datos y los 3 primeros del siguiente) y el de semana, **el año ISO
-completo** más 2 antes y 2 después. Se generan igual haya 8 órdenes o 100.000. Los
-bloques mensuales de `ADHERENCIA`, `PERFIL_HH` y `BACKLOG` cubren la **misma**
-ventana: si cubrieran solo los meses con datos, un mes recién cargado sería
-seleccionable pero no tendría fila que leer.
+**Meses y semanas: calendario, no «lo que hay».** Los selectores se generan igual
+haya 8 órdenes o 100.000, y los bloques mensuales de `ADHERENCIA`, `PERFIL_HH` y
+`BACKLOG` cubren la **misma** ventana que el selector: si cubrieran solo los meses
+con datos, un mes recién cargado sería seleccionable pero no tendría fila que leer.
 
-Un mes sin datos muestra los KPI **en blanco**, no un error y no un cero. La
-distinción importa: **blanco = no hay dato; cero = hubo trabajo y no se cumplió.**
+Desde v3.8.0 esa ventana **es el horizonte del archivo** (7 meses y ~31 semanas del
+semestre activo más el mes anterior) en la plantilla y el demo, y sigue siendo la
+ventana de calendario ancha (18 meses, año ISO entero) en el banco, que cubre el año
+a propósito. En v3.7.0 y anteriores era ancha en los tres, y ofrecía meses y semanas
+que la grilla de `ASIGNACIONES` no cubría — otra forma del mismo defecto.
+
+Un mes sin órdenes muestra la **adherencia en blanco**, no un error y no un cero: la
+distinción importa, **blanco = no hay dato; cero = hubo trabajo y no se cumplió.** La
+**carga**, en cambio, sale **0 %** y no en blanco, porque su capacidad **sí** se
+conoce: la grilla del horizonte la cubre, y «no hay trabajo programado» es un hecho.
 
 **Catálogos: fórmula, holgura y compactación.** Cada lista derivada de un catálogo
 es ahora una fórmula contra él, con tres piezas: una columna de orden en la propia
@@ -998,7 +1075,8 @@ que no se pueden recalcular con LibreOffice.
 
 200 órdenes (tablas con capacidad 1.200) · 162 filas de ejecución (3
 huérfanas) · 4 ajustes (2 aplicados + 2 demos de error) · **16 técnicos**
-(7 MEC + 7 ELE rotativos en PRODUCCION + 2 AUT fijos) · **448 asignaciones**
+(7 MEC + 7 ELE rotativos en PRODUCCION + 2 AUT fijos) · **3.472 asignaciones**
+(31 semanas del horizonte × 16 técnicos × 7 días)
 · semanas del plan **2026-S30 … 2026-S33** · semana de referencia de la
 rotación (lunes) **2026-07-13** · **Ana Sánchez (MEC, orden 5) de vacaciones** S30–S32
 (demo 6.4) · serie completa de reportes: 2026-S09 … 2027-S01.
@@ -1232,7 +1310,7 @@ del bono) · `EXPORTAR` (correo semanal en una celda, 4 selectores).
 **B. Trabajo diario** — `ORDENES` (`tblOrdenes`, 1.200 filas × 47 columnas: 12
 importadas A:L, 5 editables en azul, 30 calculadas incl. `es_habil`,
 `backlog_habiles`, `clase_mantenimiento`, `rubro` y `mes_clave`; `id_operacion` al final) ·
-`ASIGNACIONES` (448 filas; rotación
+`ASIGNACIONES` (3.472 filas; rotación
 derivada `n_ciclo`/`posicion_ciclo`, `en_vacaciones`, `turno_manual`/`turno`
 efectivo, `supervisor`, `trabaja_domingo`, `fecha`, REGLA-5 y franja horaria) ·
 `AJUSTES` (`tblAjustes`, 300 filas) · `PLAN_VACACIONES` (`tblVacaciones`) ·

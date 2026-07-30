@@ -329,6 +329,73 @@ comodín—, porque eso habría eliminado el único indicador que detecta el pro
 
 ---
 
+## 18. Un archivo cubre un SEMESTRE, no un año, y se rota
+
+**Decisión.** El archivo cubre un semestre de calendario más el mes anterior
+completo: 7 meses, ~31 semanas de grilla. Cerrado el semestre, se guarda con su
+fecha en el nombre y se genera el siguiente.
+
+**Motivo.** Las dos alternativas son peores. Dimensionar la grilla a los datos de
+ejemplo —4 semanas— dejaba el archivo **inservible** pasada la cuarta: sin turnos,
+sin capacidad, sin seguimiento. Y el año completo pesa de más para lo que se gana,
+porque nadie pega doce meses de órdenes en enero: las fechas se mueven y se agregan
+operaciones sobre la marcha. Rotar de archivo por periodos es, además, como se
+trabajaba antes con hojas sueltas; lo que faltaba era que la rotación no perdiera la
+continuidad.
+
+**El mes anterior entra completo a propósito**: es el colchón. Al abrir el archivo
+nuevo, la semana en curso y las anteriores ya tienen turnos y capacidad, y no hay
+un día sin cubrir en la costura entre los dos archivos.
+
+**Consecuencia.** Cambiar de semestre **es regenerar**, no editar un parámetro: las
+filas de la grilla y de los bloques mensuales son filas escritas, no fórmulas. El
+`INSTRUCTIVO` lleva el procedimiento de rotación en 7 pasos, y el archivo cerrado
+queda como registro histórico consultable.
+
+---
+
+## 19. La semana de referencia de la rotación se fija UNA VEZ
+
+**Decisión.** `semana_referencia` es una fecha fija, independiente del horizonte, y
+no se toca nunca más — tampoco al cambiar de semestre.
+
+**Motivo.** El turno de cada técnico sale de la **distancia en semanas** hasta esa
+fecha (aritmética modular sobre el anillo). Antes era «el primer lunes de la
+grilla», que con un horizonte móvil se habría movido en cada archivo nuevo: el
+ciclo se reiniciaría y el técnico que venía de T3 volvería a Banco. Es el fallo más
+silencioso posible — no da error, no descuadra ningún total, simplemente el turno
+de todos está mal.
+
+**Consecuencia.** Es el único parámetro del libro que puede romper la continuidad
+sin avisar, así que se avisa por triplicado: su descripción empieza por «⚠ NO
+MODIFICAR al cambiar de semestre», su fila va pintada en rojo en `PARAMETROS`, y el
+`INSTRUCTIVO` explica el arranque inicial (poner los turnos reales de una semana en
+`orden_rotacion`, fijar ese lunes, y no volver a tocarlo). La verificación lo
+comprueba de las dos maneras: con la misma referencia, los 14 rotativos encadenan
++1 posición en la frontera entre semestres; con la referencia movida, los 14
+cambian.
+
+---
+
+## 20. El acumulado del presupuesto dice si es parcial
+
+**Decisión.** El gasto real acumulado del año se compone del **arrastre** (lo que
+el usuario copia del archivo cerrado) más lo que hay en este archivo. Si el
+arrastre está vacío, el encabezado del acumulado dice que cubre **solo este
+archivo**.
+
+**Motivo.** Con archivos semestrales, el real acumulado de un archivo de segundo
+semestre empieza en junio. Presentar eso como «YTD» sería mentir en la única cifra
+que alguien va a llevar a una reunión de presupuesto. El plan sí cubre los 12 meses
+(es manual), así que la comparación solo es honesta si el real también.
+
+**Consecuencia.** El arrastre entra **únicamente en el acumulado**, nunca en un
+mes: así la reconciliación mensual (`CONTROL` y `DIFERENCIA`) sigue cuadrando y no
+se puede usar el arrastre para tapar un descuadre. Y el rótulo es una fórmula, no
+un texto fijo: no puede quedar desactualizado.
+
+---
+
 ## Lo que esta herramienta no puede calcular
 
 No es una omisión, es una consecuencia de qué datos entran: MTBF, MTTR,

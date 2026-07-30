@@ -4,7 +4,7 @@ Documento de traspaso: qué está terminado, qué contiene y qué queda por hace
 
 ---
 
-## Estado: entregable A CERRADO (v3.7.0)
+## Estado: entregable A CERRADO (v3.8.0)
 
 El planificador semanal de mantenimiento en Excel está terminado y verificado.
 Se entrega listo para usar, sin trabajo pendiente dentro de su alcance.
@@ -56,6 +56,21 @@ harían falta eventos de parada, tiempos de operación, producción y movimiento
 almacén, y ninguno de esos datos entra en el libro. Está dicho en el `INSTRUCTIVO`
 para que nadie los pida esperando un número que sería inventado.
 
+### Qué periodo cubre un archivo, y cómo se rota
+
+Un archivo cubre un **semestre de calendario más el mes anterior completo**: 7
+meses, ~31 semanas de grilla, ~3.472 filas de `ASIGNACIONES`. Se declara en
+`PARAMETROS` (`anio_activo`, `semestre_activo`) y **cambiarlo exige regenerar**, no
+editar el parámetro: las filas de la grilla y de los bloques mensuales son filas
+escritas, no fórmulas. El banco es la excepción: conserva el año completo.
+
+Cerrado el semestre se guarda el archivo con su fecha en el nombre (queda como
+registro histórico) y se genera el siguiente. **Lo único que no se toca nunca es
+`semana_referencia`**: es el ancla modular de la rotación de turnos, y moverla
+reinicia el ciclo en silencio. El `INSTRUCTIVO` lleva el procedimiento en 7 pasos,
+incluido cargar el **arrastre** del presupuesto (el real ya cerrado de los meses que
+no están en el archivo nuevo).
+
 ### Cómo se pone en marcha en otra planta
 
 Mapear catálogos. Cero código. En orden: `PARAMETROS` → catálogos `CAT_*`
@@ -75,6 +90,10 @@ python generar_mantplan.py --fecha-ancla 2026-07-27 --salida MantPlan.xlsx
 python generar_mantplan.py --fecha-ancla 2026-07-27 --salida MantPlan_compatible.xlsx --refs compatibles
 python generar_mantplan.py --anio-completo --salida MantPlan_banco.xlsx
 python generar_mantplan.py --anio-completo --salida MantPlan_banco_compatible.xlsx --refs compatibles
+
+# Rotación de archivo: mismo comando con el semestre nuevo. La semana de
+# referencia NO se cambia (es lo que mantiene la continuidad de la rotación).
+python generar_mantplan.py --plantilla --semestre 2 --anio-activo 2026 --salida MantPlan_2026_S2.xlsx
 
 # Y SIEMPRE, sobre los seis: comprobación estructural del XML de los nombres.
 python verificar_nombres.py MantPlan*.xlsx
@@ -115,6 +134,9 @@ de datos.
 
 ## Riesgos y avisos para quien retome
 
+- **`semana_referencia` es intocable.** Es el único parámetro del libro que puede
+  romper algo sin dar error: mueve el ancla modular de la rotación y reinicia el
+  ciclo de turnos en silencio. Va en rojo en `PARAMETROS` por eso.
 - **Los `git tag` no se pueden empujar** desde este entorno: el proxy de salida
   devuelve 403. Si hace falta etiquetar, se hace desde otra máquina.
 - **LibreOffice no evalúa `XLOOKUP`**: solo se pueden recalcular y verificar las

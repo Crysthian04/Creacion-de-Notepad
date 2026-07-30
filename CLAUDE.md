@@ -6,7 +6,7 @@ Contexto para retomar el trabajo sin releer todo el historial.
 
 | Carpeta | Qué es | Estado |
 |---|---|---|
-| `mantplan/` | **MantPlan** — planificador semanal de mantenimiento en Excel, sin macros. Entregable A. | **v3.7.0, cerrado** |
+| `mantplan/` | **MantPlan** — planificador semanal de mantenimiento en Excel, sin macros. Entregable A. | **v3.8.0, cerrado** |
 | `task-manager/` | Proyecto independiente, sin relación con MantPlan. | — |
 | `asignacion-6-distribucion-planta/` | Proyecto independiente. | — |
 
@@ -67,8 +67,9 @@ presentación · trabajo diario · configuración. Ocultas (con `hidden`, nunca
 11. **`VALIDACION` reporta y nunca bloquea.** Las validaciones de celda son
     ayudas, no barreras: no rechazan lo que se pega.
 12. **Listas por calendario y por catálogo, nunca congeladas**: los selectores de
-    mes (18) y semana (año ISO completo) se generan siempre igual, y las listas de
-    catálogo son fórmulas con holgura y compactación.
+    mes y semana se generan siempre igual —cubren el **horizonte del archivo**, ni
+    más ni menos que la grilla— y las listas de catálogo son fórmulas con holgura
+    y compactación.
 
 13. **Lo generado se marca aunque no lleve fórmula.** En las hojas de resultado
     el rojo claro significa «esto lo genera el libro», no «aquí hay una fórmula».
@@ -79,6 +80,16 @@ presentación · trabajo diario · configuración. Ocultas (con `hidden`, nunca
 15. **Los nombres definidos se auditan sobre el XML**, no recalculando: un
     `definedName` escrito con `=` delante hace que Excel repare el libro y borre
     los nombres, y LibreOffice lo tolera. Ver `verificar_nombres.py`.
+16. **Un archivo cubre un SEMESTRE + el mes anterior** (7 meses, ~31 semanas,
+    ~3.472 filas de grilla), no 4 semanas ni el año. `anio_activo` y
+    `semestre_activo` en `PARAMETROS`; cambiarlos exige **regenerar**. Solo el
+    banco conserva el año completo.
+17. **`semana_referencia` se fija UNA VEZ y no se toca nunca**, tampoco al rotar de
+    archivo: es el ancla modular de la rotación y moverla reinicia el ciclo en
+    silencio. Constante `SEMANA_REFERENCIA_FIJA`, fila en rojo en `PARAMETROS`.
+18. **El acumulado del presupuesto dice si es parcial.** Columna manual de
+    arrastre por categoría; entra solo en el YTD, nunca en un mes, así que
+    `CONTROL` y `DIFERENCIA` siguen cuadrando.
 
 ### Convención de color (dos códigos, no tres)
 
