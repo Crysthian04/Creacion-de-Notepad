@@ -1,0 +1,48 @@
+bloque,clave,etiqueta,valor,tipo,catalogo,notas
+IDENTIFICACION,codigo_analisis,Código del análisis,,TEXTO,,Identificador interno del estudio RCM.
+IDENTIFICACION,version_analisis,Versión del análisis,1,ENTERO,,Incrementa en cada sellado de revisión.
+IDENTIFICACION,prefijo_item,Prefijo de ítem de partición,IT-,TEXTO,,
+IDENTIFICACION,prefijo_modo,Prefijo de modo de falla,FM-,TEXTO,,
+IDENTIFICACION,prefijo_tarea,Prefijo de tarea,T-,TEXTO,,
+IDENTIFICACION,prefijo_material,Prefijo de material,MAT-,TEXTO,,
+IDENTIFICACION,prefijo_paquete,Prefijo de paquete,PK-,TEXTO,,
+IDENTIFICACION,digitos_correlativo,Dígitos del correlativo,4,ENTERO,,T-0001 con 4 dígitos.
+CRITICIDAD_PESOS,peso_ehs,Peso de la categoría EH&S,0.40,DECIMAL,,La suma de los cuatro pesos debe ser 1.
+CRITICIDAD_PESOS,peso_calidad,Peso de la categoría Calidad,0.20,DECIMAL,,
+CRITICIDAD_PESOS,peso_servicio,Peso de la categoría Servicio,0.25,DECIMAL,,
+CRITICIDAD_PESOS,peso_costo,Peso de la categoría Costo,0.15,DECIMAL,,
+CRITICIDAD_PESOS,escala_min,Valor mínimo de la escala,1,ENTERO,,Escala de probabilidad y consecuencia.
+CRITICIDAD_PESOS,escala_max,Valor máximo de la escala,5,ENTERO,,
+CRITICIDAD_UMBRALES,umbral_clase_a,Umbral de clase A (crítico),15,DECIMAL,,Puntaje ponderado mínimo para clase A.
+CRITICIDAD_UMBRALES,umbral_clase_b,Umbral de clase B (semicrítico),10,DECIMAL,,
+CRITICIDAD_UMBRALES,umbral_clase_c,Umbral de clase C (importante),5,DECIMAL,,Por debajo de este valor la clase es D.
+ADAPTADOR,adaptador_activo,Adaptador CMMS activo,SAP_PM,LISTA,ADAPTADOR,Determina el formato de exportación.
+LIMITES_TEXTO,sap_texto_breve,SAP - límite de texto breve,40,ENTERO,,
+LIMITES_TEXTO,sap_texto_ampliado,SAP - límite de texto ampliado,4000,ENTERO,,
+LIMITES_TEXTO,maximo_descripcion,Maximo - límite de descripción,100,ENTERO,,
+LIMITES_TEXTO,maximo_texto_largo,Maximo - límite de texto largo,4000,ENTERO,,
+SAP,sap_tipo_plan,Tipo de plan de mantenimiento,ESTRATEGIA,LISTA,TIPO_PLAN_SAP,Estrategia por paquetes o ciclo individual.
+SAP,sap_estrategia,Estrategia de mantenimiento,,TEXTO,,Clave de estrategia SAP.
+SAP,sap_planta,Centro de planificación,,TEXTO,,
+SAP,sap_grupo_planificador,Grupo planificador,,TEXTO,,
+SAP,sap_tipo_orden,Clase de orden,PM01,TEXTO,,
+SAP,sap_clase_actividad,Clase de actividad PM,,TEXTO,,
+SAP,sap_puesto_trabajo,Puesto de trabajo responsable,,TEXTO,,
+SAP,sap_tolerancia_positiva,Tolerancia positiva (%),10,ENTERO,,Desplazamiento admitido hacia adelante.
+SAP,sap_tolerancia_negativa,Tolerancia negativa (%),10,ENTERO,,
+SAP,sap_horizonte_apertura,Horizonte de apertura (%),80,ENTERO,,
+SAP,sap_calendario_fabrica,Calendario de fábrica,,TEXTO,,
+MAXIMO,maximo_orgid,ORGID,,TEXTO,,
+MAXIMO,maximo_siteid,SITEID,,TEXTO,,
+MAXIMO,maximo_prioridad_default,Prioridad por defecto,3,ENTERO,,
+MAXIMO,maximo_worktype,Tipo de trabajo,PM,TEXTO,,
+MAXIMO,maximo_crewid,Cuadrilla por defecto,,TEXTO,,
+EMPAQUETADO,jornada_horas,Duración de la jornada (h),8,DECIMAL,,Base para calcular ventanas de intervención.
+EMPAQUETADO,dias_operacion_anio,Días de operación al año,365,ENTERO,,Base para normalizar frecuencias de uso.
+EMPAQUETADO,horas_operacion_dia,Horas de operación al día,24,DECIMAL,,Convierte frecuencias en HRS a calendario.
+EMPAQUETADO,tolerancia_agrupacion_pct,Tolerancia de agrupación (%),10,ENTERO,,Diferencia máxima de frecuencia dentro de un paquete.
+SEGURIDAD,hash_algoritmo,Algoritmo de hash de contraseñas,SHA-256,TEXTO,,No modificar sin regenerar los hashes de rol.
+SEGURIDAD,salt_rol,Salt de los hashes de rol,,TEXTO,,Generado en el primer alta de contraseñas.
+SEGURIDAD,hash_rol_analista,Hash de la contraseña de analista,,HASH,,Vacío = rol sin contraseña asignada.
+SEGURIDAD,hash_rol_aprobador,Hash de la contraseña de aprobador,,HASH,,
+VALIDACION,umbral_discrepancia_intervalo_pct,Umbral de discrepancia de intervalo (%),25,ENTERO,,Regla 15. Inactiva hasta que exista el archivo de confiabilidad.

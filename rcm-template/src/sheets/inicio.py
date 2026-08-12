@@ -1,28 +1,24 @@
-"""Placeholder builder for the `INICIO` cover sheet.
+"""`INICIO`: cover sheet and console.
 
-Phase 1 only needs a structurally valid workbook, so this builder writes the
-cover heading and a note stating that the workbook is a pipeline artifact, not
-a usable template yet. The real console -- role selector, stage traffic lights
-and command buttons -- is built in phase 9.
-
-User facing strings are Spanish by contract; identifiers and comments are
-English.
+Phase 9 turns this into the real console -- role selector, stage traffic lights
+and the command buttons. Until then it carries the identification of the
+workbook and states plainly which sheets already exist, so a half-built template
+is never mistaken for a finished one.
 """
 
 from __future__ import annotations
 
-from openpyxl.styles import Alignment, Font
 from openpyxl.worksheet.worksheet import Worksheet
 
-from src.sheets.base import VISIBLE, SheetSpec
+from src.common import styles
+from src.common.layout import SheetLayout
+from src.sheets.base import VISIBLE, BuildContext, SheetSpec
 
-SPEC = SheetSpec(key="inicio", title="INICIO", visibility=VISIBLE)
+SPEC = SheetSpec(key="inicio", title="INICIO", visibility=VISIBLE, role="LECTOR")
 
-_TITLE = "Plantilla RCM2 / MSG-3"
-_SUBTITLE = "Analisis RCM de una maquina individual"
-_PLACEHOLDER_NOTE = (
-    "Libro de verificacion del proceso de compilacion (Fase 1). "
-    "Todavia no contiene hojas de analisis."
+_NOTE = (
+    "Este libro se compila desde el repositorio; no se edita a mano su estructura. "
+    "Los botones de la consola requieren Excel de escritorio con macros habilitadas."
 )
 
 
@@ -31,16 +27,36 @@ class InicioSheetBuilder:
 
     spec = SPEC
 
-    def build(self, worksheet: Worksheet) -> None:
-        worksheet["B2"] = _TITLE
-        worksheet["B2"].font = Font(size=18, bold=True)
+    def build(self, worksheet: Worksheet, context: BuildContext) -> None:
+        layout = SheetLayout(worksheet, first_column=2)
+        layout.title(
+            context.label("app.titulo"),
+            context.label("app.subtitulo"),
+        )
 
-        worksheet["B3"] = _SUBTITLE
-        worksheet["B3"].font = Font(size=11, italic=True)
+        layout.section("Identificación del libro", width=3)
+        layout.key_values(
+            [
+                ("Versión de la plantilla", context.config.version, ""),
+                ("Adaptador CMMS activo", "=PARAM_ADAPTADOR_ACTIVO", "Se configura en Parametros."),
+                ("Tipo de plan SAP", "=PARAM_SAP_TIPO_PLAN", "Estrategia o ciclo individual."),
+            ],
+            value_style=styles.READONLY,
+        )
 
-        worksheet["B5"] = _PLACEHOLDER_NOTE
-        worksheet["B5"].alignment = Alignment(wrap_text=True, vertical="top")
+        layout.section("Consola", width=3)
+        layout.note(_NOTE)
+        layout.blank()
+        layout.note(
+            "Hojas disponibles en esta versión: "
+            + ", ".join(spec.title for spec in _built_specs(context))
+        )
 
         worksheet.column_dimensions["A"].width = 3
-        worksheet.column_dimensions["B"].width = 90
-        worksheet.sheet_view.showGridLines = False
+
+
+def _built_specs(context: BuildContext) -> list[SheetSpec]:
+    """Specs of the sheets registered in this build, for the cover listing."""
+    from src.sheets import registry
+
+    return [builder.spec for builder in registry()]

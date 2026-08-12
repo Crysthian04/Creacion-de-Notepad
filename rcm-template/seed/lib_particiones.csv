@@ -1,0 +1,68 @@
+plantilla,orden,nivel,codigo_taxonomia,descripcion
+Bomba centrífuga,10,1,PU,Bomba centrífuga
+Bomba centrífuga,20,2,PU-PT,Transmisión de potencia
+Bomba centrífuga,30,3,PU-PT-ACO,Acoplamiento
+Bomba centrífuga,40,2,PU-PM,Unidad de bombeo
+Bomba centrífuga,50,3,PU-PM-IMP,Impulsor / rodete
+Bomba centrífuga,60,3,PU-PM-EJE,Eje
+Bomba centrífuga,70,3,PU-PM-CAR,Carcasa / voluta
+Bomba centrífuga,80,3,PU-PM-ANI,Anillos de desgaste
+Bomba centrífuga,90,3,PU-PM-COR,Cojinetes radiales
+Bomba centrífuga,100,3,PU-PM-COA,Cojinete axial
+Bomba centrífuga,110,3,PU-PM-BAN,Bancada y anclajes
+Bomba centrífuga,120,2,PU-SS,Sistema de sello de eje
+Bomba centrífuga,130,3,PU-SS-SME,Sello mecánico
+Bomba centrífuga,140,3,PU-SS-PLA,Plan de sello (flushing)
+Bomba centrífuga,150,2,PU-LU,Sistema de lubricación
+Bomba centrífuga,160,3,PU-LU-DEP,Depósito y nivel de aceite
+Bomba centrífuga,170,3,PU-LU-FIL,Filtro de aceite
+Bomba centrífuga,180,2,PU-CM,Control y monitoreo
+Bomba centrífuga,190,3,PU-CM-INS,Instrumentación de proceso
+Bomba centrífuga,200,3,PU-CM-PRO,Protecciones y enclavamientos
+Bomba centrífuga,210,2,PU-MI,Misceláneos
+Bomba centrífuga,220,3,PU-MI-TUB,Tuberías y bridas asociadas
+Motor eléctrico,10,1,EM,Motor eléctrico
+Motor eléctrico,20,2,EM-MO,Motor eléctrico
+Motor eléctrico,30,3,EM-MO-EST,Bobinado del estator
+Motor eléctrico,40,3,EM-MO-ROT,Rotor
+Motor eléctrico,50,3,EM-MO-COJ,Cojinetes
+Motor eléctrico,60,3,EM-MO-AIS,Aislamiento eléctrico
+Motor eléctrico,70,3,EM-MO-CAJ,Caja de bornes y conexiones
+Motor eléctrico,80,2,EM-CO,Sistema de refrigeración
+Motor eléctrico,90,3,EM-CO-VEN,Ventilador y tapa deflectora
+Motor eléctrico,100,3,EM-CO-REJ,Rejillas y conductos de aire
+Motor eléctrico,110,2,EM-CM,Control y monitoreo
+Motor eléctrico,120,3,EM-CM-PRO,Protecciones (térmica y diferencial)
+Motor eléctrico,130,3,EM-CM-SEN,Sensores de temperatura y vibración
+Motor eléctrico,140,2,EM-LU,Sistema de lubricación
+Motor eléctrico,150,3,EM-LU-GRA,Puntos de engrase
+Motor eléctrico,160,2,EM-MI,Misceláneos
+Motor eléctrico,170,3,EM-MI-CAR,Carcasa y patas de fijación
+Válvula de control,10,1,VA,Válvula de control
+Válvula de control,20,2,VA-VB,Cuerpo de válvula
+Válvula de control,30,3,VA-VB-OBT,Obturador y asiento
+Válvula de control,40,3,VA-VB-VAS,Vástago
+Válvula de control,50,3,VA-VB-EMP,Empaquetadura
+Válvula de control,60,3,VA-VB-CUE,Cuerpo y bridas
+Válvula de control,70,2,VA-AC,Actuador
+Válvula de control,80,3,VA-AC-NEU,Actuador neumático
+Válvula de control,90,3,VA-AC-RES,Resorte de retorno
+Válvula de control,100,2,VA-CM,Control y monitoreo
+Válvula de control,110,3,VA-CM-POS,Posicionador
+Válvula de control,120,3,VA-CM-SOL,Electroválvula piloto
+Válvula de control,130,3,VA-CM-FIN,Finales de carrera
+Compresor de tornillo,10,1,CO,Compresor de tornillo
+Compresor de tornillo,20,2,CO-CP,Unidad de compresión
+Compresor de tornillo,30,3,CO-CP-ROT,Rotores / tornillos
+Compresor de tornillo,40,3,CO-CP-COJ,Cojinetes
+Compresor de tornillo,50,2,CO-LU,Sistema de lubricación
+Compresor de tornillo,60,3,CO-LU-FIL,Filtro de aceite
+Compresor de tornillo,70,3,CO-LU-SEP,Separador aire-aceite
+Compresor de tornillo,80,2,CO-CO,Sistema de refrigeración
+Compresor de tornillo,90,3,CO-CO-INT,Intercambiador / postenfriador
+Compresor de tornillo,100,3,CO-CO-VEN,Ventilador de refrigeración
+Compresor de tornillo,110,2,CO-CM,Control y monitoreo
+Compresor de tornillo,120,3,CO-CM-SEN,Sensores de presión y temperatura
+Compresor de tornillo,130,3,CO-CM-REG,Regulación de capacidad
+Compresor de tornillo,140,2,CO-MI,Misceláneos
+Compresor de tornillo,150,3,CO-MI-FIL,Filtro de aspiración

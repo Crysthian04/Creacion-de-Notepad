@@ -79,7 +79,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--seed-demo",
         action="store_true",
-        help="Incluye el analisis de ejemplo de seed/ (disponible desde la fase 2).",
+        help="Incluye el análisis de ejemplo de seed/ (disponible desde la fase 2).",
     )
     parser.add_argument(
         "--no-com",
@@ -121,7 +121,7 @@ def run_build(
     # Fail on a bad VBA component list before doing any work.
     component_paths = config.vba_component_paths()
 
-    log(f"[1/4] Construyendo la estructura del libro (version {config.version})...")
+    log(f"[1/4] Construyendo la estructura del libro (versión {config.version})...")
     workbook, specs = build_workbook(config, seed_demo=seed_demo)
     sheet_titles = [spec.title for spec in specs]
 
@@ -166,7 +166,7 @@ def run_build(
         log(f"[3/4] Etapa de Excel {result.com_stage}. Salida sin macros.")
         if sign_project:
             raise BuildError(
-                "No se puede firmar un libro sin macros: la etapa de Excel no se ejecuto."
+                "No se puede firmar un libro sin macros: la etapa de Excel no se ejecutó."
             )
         result.signing_note = "No aplicable: libro sin macros."
 
@@ -193,7 +193,7 @@ def _run_com_stage(
     with excel_com.excel_session() as application:
         workbook = excel_com.convert_to_xlsm(application, intermediate_path, macro_path)
         result.imported_components = excel_com.import_vba_components(workbook, component_paths)
-        log(f"      Modulos importados: {', '.join(result.imported_components) or 'ninguno'}")
+        log(f"      Módulos importados: {', '.join(result.imported_components) or 'ninguno'}")
 
         password = excel_com.password_from_env(config.protection.worksheet_password_env)
         result.protected_sheets = excel_com.protect_worksheets(workbook, password)
@@ -201,7 +201,7 @@ def _run_com_stage(
             log(f"      Hojas protegidas: {result.protected_sheets}")
         else:
             log(
-                f"      Sin proteccion de hojas ({config.protection.worksheet_password_env} "
+                f"      Sin protección de hojas ({config.protection.worksheet_password_env} "
                 "no definida)."
             )
 

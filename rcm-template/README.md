@@ -14,9 +14,23 @@ la que comparten SAP PM e IBM Maximo.
 
 ## Estado
 
-**Fase 1 de 10 — pipeline de compilación.** El build produce hoy un libro de
-verificación con una sola hoja; las hojas de análisis llegan en las fases 2 a 9.
-El plan de fases completo está en la especificación del proyecto.
+**Fases 1 a 3 de 10 completadas.**
+
+| Fase | Entregable | Estado |
+|---|---|---|
+| 1 | Pipeline de compilación, `.xlsm` con VBA importado y firmado | Listo |
+| 2 | `Parametros`, `Diccionario`, catálogos, librerías, carga desde `seed/` | Listo |
+| 3 | `Contexto Operacional`, `Criticidad del Activo`, `Particion`, `AMFE` | Listo |
+| 4 | `Arbol de Decision` + `modDecisionEngine` | Pendiente |
+| 5 | `Lista de Tareas` + `modTextBuilder` + `modValidate` + `Calidad del Plan` | Pendiente |
+| 6 | `modPackaging` + `Empaquetado` + `Plan de Mantenimiento` + `Materiales` | Pendiente |
+| 7 | Adaptadores SAP PM y Maximo + `modExport` + golden files | Pendiente |
+| 8 | `Plan Previo` + `modImportGap` + `Gap List` + `Resumen` | Pendiente |
+| 9 | `modUI`, roles, `modChangeControl`, `INICIO`, protección | Pendiente |
+| 10 | Documentación, manual de usuario, pruebas completas, versión 1.0 | Pendiente |
+
+El libro que se compila hoy tiene 11 hojas y no lleva macros funcionales todavía:
+el único módulo VBA es la prueba de humo que valida el pipeline.
 
 ## Requisitos
 

@@ -1,0 +1,105 @@
+clave,es,en
+app.titulo,Plantilla RCM2 / MSG-3,RCM2 / MSG-3 Template
+app.subtitulo,Análisis RCM de una máquina individual,RCM analysis of a single machine
+hoja.inicio,INICIO,HOME
+hoja.parametros,Parametros,Parameters
+hoja.diccionario,Diccionario,Dictionary
+hoja.contexto,Contexto Operacional,Operating Context
+hoja.criticidad,Criticidad del Activo,Asset Criticality
+hoja.particion,Particion,Breakdown
+hoja.amfe,AMFE,FMEA
+hoja.arbol,Arbol de Decision,Decision Tree
+hoja.tareas,Lista de Tareas,Task List
+hoja.empaquetado,Empaquetado,Packaging
+hoja.plan,Plan de Mantenimiento,Maintenance Plan
+hoja.materiales,Materiales,Materials
+hoja.materiales_crear,Materiales por Crear,Materials To Create
+hoja.sop,SOP-SWI,SOP-SWI
+hoja.plan_previo,Plan Previo,Previous Plan
+hoja.gap,Gap List,Gap List
+hoja.calidad,Calidad del Plan,Plan Quality
+hoja.resumen,Resumen,Summary
+hoja.control_cambios,Change Control,Change Control
+hoja.checklist,Checklist,Checklist
+sec.identificacion,Identificación del activo,Asset identification
+sec.funcionamiento,Declaración de funcionamiento,Statement of function
+sec.condiciones,Condiciones de operación,Operating conditions
+sec.desempeno,Estándares de desempeño,Performance standards
+sec.insumos,Insumos y productos,Inputs and outputs
+sec.catalogos,Catálogos,Catalogues
+sec.parametros,Parámetros,Parameters
+col.area_sistema,Área / sistema,Area / system
+col.equipo,Equipo,Equipment
+col.fabricante,Fabricante,Manufacturer
+col.modelo,Modelo,Model
+col.serial,Número de serie,Serial number
+col.numero_cmms,Número en el CMMS,CMMS number
+col.ubicacion,Ubicación técnica,Functional location
+col.fecha,Fecha,Date
+col.revisor,Revisor,Reviewer
+col.id_item,ID de ítem,Item ID
+col.id_modo,ID de modo,Failure mode ID
+col.id_tarea,ID de tarea,Task ID
+col.descripcion,Descripción,Description
+col.funcion,Función,Function
+col.falla_funcional,Falla funcional,Functional failure
+col.modo_falla,Modo de falla,Failure mode
+col.causa,Causa,Cause
+col.efecto,Efecto,Effect
+col.evidente,¿Evidente al operador?,Evident to the operator?
+col.seguridad,¿Afecta la seguridad?,Safety consequence?
+col.ambiental,¿Afecta el medio ambiente?,Environmental consequence?
+col.operacional,¿Afecta la operación?,Operational consequence?
+col.categoria_consecuencia,Categoría de consecuencia,Consequence category
+col.tipo_tarea,Tipo de tarea,Task type
+col.descripcion_tarea,Descripción de la tarea,Task description
+col.frecuencia_valor,Frecuencia,Frequency
+col.frecuencia_unidad,Unidad de frecuencia,Frequency unit
+col.base_frecuencia,Base de frecuencia,Frequency basis
+col.oficio,Oficio,Craft
+col.cantidad_personas,Personas,People
+col.duracion_valor,Duración,Duration
+col.duracion_unidad,Unidad de duración,Duration unit
+col.estado_equipo,Estado del equipo,Equipment state
+col.requiere_permiso,Permiso requerido,Permit required
+col.codigo_actividad,Código de actividad,Activity code
+col.materiales,Materiales,Materials
+col.herramientas,Herramientas,Tools
+col.referencia_doc,Referencia documental,Document reference
+col.criticidad,Criticidad,Criticality
+col.origen,Origen,Origin
+col.justificacion,Justificación,Justification
+col.regla_aplicada,Regla aplicada,Applied rule
+col.estado,Estado,Status
+col.version,Versión,Version
+col.hash_fila,Hash de fila,Row hash
+col.intervalo_sugerido,Intervalo sugerido,Suggested interval
+col.fuente_intervalo,Fuente del intervalo,Interval source
+col.codigo_taxonomia,Código ISO 14224,ISO 14224 code
+col.nivel,Nivel,Level
+col.item,Ítem,Item
+col.concatenado,Concatenado,Concatenated
+col.longitud,Longitud,Length
+col.clave,Clave,Key
+col.etiqueta,Etiqueta,Label
+col.valor,Valor,Value
+col.tipo,Tipo,Type
+col.notas,Notas,Notes
+col.orden,Orden,Order
+col.activo,Activo,Active
+col.codigo,Código,Code
+col.probabilidad,Probabilidad,Probability
+col.consecuencia,Consecuencia,Consequence
+col.peso,Peso,Weight
+col.puntaje,Puntaje,Score
+col.clase,Clase,Class
+btn.importar_libreria,Importar librería,Import library
+btn.ejecutar_arbol,Ejecutar árbol de decisión,Run decision tree
+btn.validar,Validar plan,Validate plan
+btn.empaquetar,Empaquetar,Package
+btn.exportar,Exportar,Export
+btn.comparar,Comparar con plan previo,Compare with previous plan
+btn.sellar,Sellar revisión,Seal revision
+msg.solo_lectura,Campo calculado. No editar.,Calculated field. Do not edit.
+msg.requiere_macros,Esta acción requiere Excel de escritorio con macros habilitadas.,This action requires desktop Excel with macros enabled.
+msg.rol_insuficiente,El rol activo no permite esta acción.,The active role does not allow this action.

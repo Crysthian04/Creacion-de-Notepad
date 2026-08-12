@@ -23,10 +23,10 @@ XL_OPEN_XML_WORKBOOK_MACRO_ENABLED = 52  # .xlsm
 
 # VBComponent type constants (vbext_ComponentType enumeration).
 _COMPONENT_TYPE_NAMES = {
-    1: "modulo estandar",
-    2: "modulo de clase",
+    1: "módulo estándar",
+    2: "módulo de clase",
     3: "formulario",
-    100: "modulo de documento",
+    100: "módulo de documento",
 }
 
 # Excel raises this HRESULT when the VBA project object model is not trusted.
@@ -135,7 +135,7 @@ def import_vba_components(workbook: Any, components: list[Path]) -> list[str]:
         project = workbook.VBProject
     except Exception as exc:  # noqa: BLE001 - translated into an actionable message below.
         raise ExcelComError(
-            "Excel no permitio el acceso al proyecto VBA. Habilite 'Confiar en el acceso "
+            "Excel no permitió el acceso al proyecto VBA. Habilite 'Confiar en el acceso "
             "al modelo de objetos de proyectos de VBA' en el Centro de confianza."
         ) from exc
 
@@ -150,7 +150,7 @@ def import_vba_components(workbook: Any, components: list[Path]) -> list[str]:
                     f"Error 1004 al importar '{path.name}': el acceso al modelo de objetos "
                     "de VBA sigue bloqueado."
                 ) from exc
-            raise ExcelComError(f"Fallo la importacion de '{path.name}': {exc}") from exc
+            raise ExcelComError(f"Falló la importación de '{path.name}': {exc}") from exc
         imported.append(str(component.Name))
     return imported
 
@@ -184,7 +184,7 @@ def run_macro(application: Any, macro: str, *args: Any) -> Any:
     try:
         return application.Run(macro, *args)
     except Exception as exc:  # noqa: BLE001 - COM errors carry no useful type.
-        raise ExcelComError(f"Fallo la ejecucion de la macro '{macro}': {exc}") from exc
+        raise ExcelComError(f"Falló la ejecución de la macro '{macro}': {exc}") from exc
 
 
 def protect_worksheets(workbook: Any, password: str | None) -> int:

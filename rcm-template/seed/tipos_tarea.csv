@@ -1,0 +1,18 @@
+codigo,etiqueta,categoria_msg3,codigo_actividad,oficio_sugerido,es_predictiva,requiere_intervalo,requiere_justificacion,frecuencia_min_dias,frecuencia_max_dias,activo
+LI,Limpieza,LUB-SERV,LIMP,MEC,N,S,N,1,365,S
+LB,Lubricación,LUB-SERV,LUBR,LUB,N,S,N,1,365,S
+SE,Servicio,LUB-SERV,SERV,MEC,N,S,N,1,365,S
+IO,Inspección por operador,OPC,INSP,OPE,N,S,N,1,30,S
+RP,Recorrido de planta,OPC,INSP,OPE,N,S,N,1,30,S
+IVF,Inspección / verificación funcional,INS,INSP,MEC,N,S,N,7,1095,S
+VO,Verificación operativa (búsqueda de falla oculta),FNC,BUSQ,INS,N,S,N,7,1095,S
+RE,Restauración programada,RST,RENO,MEC,N,S,S,90,7300,S
+DS,Descarte / sustitución cíclica,DIS,REEM,MEC,N,S,S,90,7300,S
+OF,Operar hasta la falla,NHF,,,N,N,N,0,0,S
+RD,Rediseño,NHF,REDI,,N,N,N,0,0,S
+CBM-TER,Termografía,VCK,PRED,PRE,S,S,N,7,730,S
+CBM-VIB,Análisis de vibraciones,VCK,PRED,PRE,S,S,N,7,730,S
+CBM-US,Ultrasonido,VCK,PRED,PRE,S,S,N,7,730,S
+CBM-AL,Análisis de lubricante,VCK,PRED,PRE,S,S,N,7,730,S
+CBM-ACM,Análisis de corriente de motor,VCK,PRED,PRE,S,S,N,7,730,S
+CBM-AMV,Análisis de motor / válvula,VCK,PRED,PRE,S,S,N,7,730,S

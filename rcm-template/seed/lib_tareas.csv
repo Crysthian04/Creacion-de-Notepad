@@ -1,0 +1,50 @@
+codigo_taxonomia,codigo_modo_iso,tipo_tarea,descripcion_tarea,oficio,cantidad_personas,frecuencia_valor,frecuencia_unidad,base_frecuencia,duracion_valor,duracion_unidad,estado_equipo,requiere_permiso,codigo_actividad
+PU-PM-IMP,LOO,IVF,Medir caudal y presión de descarga y comparar contra la curva de diseño; registrar desviación mayor al 10%,MEC,1,3,M,CALENDARIO,45,MIN,MARCHA,NO,INSP
+PU-PM-IMP,VIB,CBM-VIB,Tomar espectro de vibración en cojinetes de la bomba; alarma a 4.5 mm/s RMS y paro a 7.1 mm/s RMS,PRE,1,1,M,CALENDARIO,30,MIN,MARCHA,NO,PRED
+PU-PM-COR,OHE,CBM-TER,Registrar termografía de los alojamientos de cojinetes; alarma con delta mayor a 20 K sobre la referencia,PRE,1,3,M,CALENDARIO,20,MIN,MARCHA,NO,PRED
+PU-PM-COR,VIB,CBM-VIB,Analizar la banda de frecuencias de rodamiento y registrar factor de cresta; alarma a 4.5 mm/s RMS,PRE,1,1,M,CALENDARIO,30,MIN,MARCHA,NO,PRED
+PU-PM-COR,OHE,DS,Sustituir los rodamientos radiales por juego nuevo según especificación del fabricante,MEC,2,4,A,CALENDARIO,6,HR,PARO,LOTO,REEM
+PU-PM-COA,OHE,CBM-VIB,Medir vibración axial y comparar contra el valor de referencia de puesta en marcha,PRE,1,1,M,CALENDARIO,20,MIN,MARCHA,NO,PRED
+PU-PM-EJE,STD,IVF,Verificar la alineación del conjunto motor-bomba con reloj comparador; tolerancia 0.05 mm,MEC,2,1,A,CALENDARIO,3,HR,PARO,LOTO,INSP
+PU-PM-ANI,LOO,RE,Restaurar la holgura de los anillos de desgaste al valor de fábrica,MEC,2,6,A,CALENDARIO,8,HR,PARO,LOTO,RENO
+PU-PM-CAR,ELP,IVF,"Inspeccionar la carcasa en busca de fugas, corrosión y humedades; registrar todo indicio",OPE,1,1,S,CALENDARIO,10,MIN,MARCHA,NO,INSP
+PU-PM-CAR,ELP,CBM-US,Medir espesor de pared por ultrasonido en los puntos de erosión definidos; mínimo admisible según memoria de cálculo,PRE,1,2,A,CALENDARIO,2,HR,PARO,NO,PRED
+PU-PM-BAN,VIB,IVF,Verificar el par de apriete de los pernos de anclaje contra el valor de la tabla de apriete,MEC,1,1,A,CALENDARIO,1,HR,PARO,LOTO,INSP
+PU-SS-SME,ELP,IO,Verificar ausencia de goteo en el sello mecánico; reportar cualquier goteo visible,OPE,1,1,D,CALENDARIO,5,MIN,MARCHA,NO,INSP
+PU-SS-SME,ELP,DS,Sustituir el sello mecánico por uno nuevo del mismo código,MEC,2,3,A,CALENDARIO,4,HR,PARO,LOTO,REEM
+PU-SS-PLA,PLU,IVF,Verificar el caudal del plan de sello contra el valor de placa; limpiar si está por debajo,MEC,1,6,M,CALENDARIO,45,MIN,MARCHA,NO,INSP
+PU-PT-ACO,STD,IVF,Inspeccionar los elementos elásticos del acoplamiento; sustituir ante grietas o deformación,MEC,1,6,M,CALENDARIO,1,HR,PARO,LOTO,INSP
+PU-LU-DEP,LOO,IO,Verificar el nivel de aceite contra la marca de mínimo del visor,OPE,1,1,D,CALENDARIO,5,MIN,MARCHA,NO,INSP
+PU-LU-DEP,LOO,LB,Reponer aceite hasta la marca de nivel con el lubricante especificado en la carta de lubricación,LUB,1,1,M,CALENDARIO,15,MIN,MARCHA,NO,LUBR
+PU-LU-DEP,LOO,CBM-AL,"Tomar muestra de aceite y analizar viscosidad, contenido de agua y conteo de partículas",PRE,1,6,M,CALENDARIO,20,MIN,MARCHA,NO,PRED
+PU-LU-FIL,PLU,DS,Sustituir el filtro de aceite por uno nuevo del código especificado,MEC,1,1,A,CALENDARIO,1,HR,PARO,NO,REEM
+PU-CM-PRO,FTF,VO,Probar el disparo de la protección de baja presión simulando la condición; verificar que el equipo se detiene,INS,2,6,M,CALENDARIO,2,HR,PARO,LOTO,BUSQ
+PU-CM-INS,AIR,IVF,Calibrar el transmisor de presión contra patrón trazable; error admisible 0.5% del span,INS,1,1,A,CALENDARIO,2,HR,PARO,NO,CALI
+PU-MI-TUB,ELP,IO,Inspeccionar juntas bridadas en busca de fugas y goteos; reportar todo indicio,OPE,1,1,S,CALENDARIO,10,MIN,MARCHA,NO,INSP
+EM-MO-EST,BRD,CBM-ACM,Analizar la corriente del motor para detectar asimetrías y armónicos de falla,PRE,1,6,M,CALENDARIO,30,MIN,MARCHA,NO,PRED
+EM-MO-AIS,BRD,IVF,Medir la resistencia de aislamiento a 500 V; mínimo admisible 1 MΩ por kV más 1 MΩ,ELE,1,1,A,CALENDARIO,1,HR,PARO,ELECTRICO,INSP
+EM-MO-AIS,BRD,IVF,Medir el índice de polarización; valor mínimo admisible 2.0,ELE,1,2,A,CALENDARIO,2,HR,PARO,ELECTRICO,INSP
+EM-MO-COJ,VIB,CBM-VIB,Tomar espectro de vibración en los cojinetes del motor; alarma a 4.5 mm/s RMS,PRE,1,1,M,CALENDARIO,20,MIN,MARCHA,NO,PRED
+EM-MO-ROT,LOO,CBM-ACM,Analizar el espectro de corriente en busca de bandas laterales de barras rotas,PRE,1,1,A,CALENDARIO,45,MIN,MARCHA,NO,PRED
+EM-CO-VEN,OHE,IVF,Inspeccionar el ventilador y la tapa deflectora; verificar fijación e integridad de las aspas,ELE,1,6,M,CALENDARIO,30,MIN,PARO,LOTO,INSP
+EM-CO-REJ,OHE,LI,Limpiar rejillas y aletas de refrigeración hasta dejar libre el paso de aire,MEC,1,3,M,CALENDARIO,45,MIN,PARO,LOTO,LIMP
+EM-CO-REJ,OHE,CBM-TER,Registrar termografía de la carcasa del motor; alarma con delta mayor a 20 K sobre la referencia,PRE,1,3,M,CALENDARIO,15,MIN,MARCHA,NO,PRED
+EM-MO-CAJ,ELP,CBM-TER,Registrar termografía de la caja de bornes con el motor en carga; alarma con delta mayor a 15 K entre fases,PRE,1,6,M,CALENDARIO,15,MIN,MARCHA,ELECTRICO,PRED
+EM-MO-CAJ,ELP,IVF,Verificar el par de apriete de los bornes de conexión contra el valor del fabricante,ELE,1,1,A,CALENDARIO,1,HR,PARO,ELECTRICO,INSP
+EM-CM-PRO,FTF,VO,Probar el disparo del relé térmico por inyección de corriente; verificar tiempo y umbral de actuación,ELE,2,1,A,CALENDARIO,2,HR,PARO,ELECTRICO,BUSQ
+EM-LU-GRA,OHE,LB,Engrasar los cojinetes con la cantidad y el tipo de grasa de la carta de lubricación,LUB,1,3,M,CALENDARIO,20,MIN,MARCHA,NO,LUBR
+VA-VB-OBT,LCP,IVF,Probar la hermeticidad en posición cerrada y registrar la fuga admisible según clase de asiento,INS,2,1,A,CALENDARIO,3,HR,PARO,LOTO,INSP
+VA-VB-OBT,LCP,RE,Rectificar o sustituir obturador y asiento hasta recuperar la clase de hermeticidad original,MEC,2,4,A,CALENDARIO,8,HR,PARO,LOTO,RENO
+VA-VB-EMP,ELP,IO,Inspeccionar la empaquetadura en busca de fugas visibles en el paso del vástago,OPE,1,1,S,CALENDARIO,5,MIN,MARCHA,NO,INSP
+VA-VB-EMP,ELP,DS,Sustituir la empaquetadura del vástago por un juego nuevo,MEC,1,3,A,CALENDARIO,3,HR,PARO,LOTO,REEM
+VA-VB-VAS,STD,IVF,Verificar la carrera completa del vástago y registrar el tiempo de recorrido,INS,1,6,M,CALENDARIO,1,HR,PARO,NO,INSP
+VA-AC-NEU,DOP,CBM-AMV,Registrar la firma de operación del actuador y comparar contra la referencia de puesta en marcha,PRE,1,1,A,CALENDARIO,2,HR,PARO,NO,PRED
+VA-AC-RES,FTF,VO,Probar el fallo seguro cortando el aire de instrumentos; verificar que la válvula alcanza la posición segura,INS,2,1,A,CALENDARIO,2,HR,PARO,LOTO,BUSQ
+VA-CM-SOL,FTF,VO,Probar el disparo de la electroválvula piloto y verificar la despresurización del actuador,INS,2,6,M,CALENDARIO,90,MIN,PARO,LOTO,BUSQ
+VA-CM-POS,AIR,IVF,"Calibrar el posicionador en los puntos 0, 50 y 100% de la señal; error admisible 1%",INS,1,1,A,CALENDARIO,2,HR,PARO,NO,CALI
+CO-CP-ROT,LOO,IVF,Medir caudal y presión de descarga y comparar contra los datos de placa,MEC,1,6,M,CALENDARIO,1,HR,MARCHA,NO,INSP
+CO-LU-SEP,PLU,DS,Sustituir el separador aire-aceite por uno nuevo del código especificado,MEC,1,4000,HRS,USO,3,HR,PARO,LOTO,REEM
+CO-CO-INT,OHE,LI,Limpiar el postenfriador hasta recuperar la temperatura de descarga de diseño,MEC,2,6,M,CALENDARIO,4,HR,PARO,LOTO,LIMP
+CO-CO-INT,OHE,IO,Verificar la temperatura de descarga contra el límite del panel de control,OPE,1,1,D,CALENDARIO,5,MIN,MARCHA,NO,INSP
+CO-MI-FIL,PLU,DS,Sustituir el filtro de aspiración por uno nuevo del código especificado,MEC,1,2000,HRS,USO,1,HR,PARO,NO,REEM
+CO-CM-SEN,AIR,IVF,Calibrar los sensores de presión y temperatura de descarga contra patrón trazable,INS,1,1,A,CALENDARIO,2,HR,PARO,NO,CALI

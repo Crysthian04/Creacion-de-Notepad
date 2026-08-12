@@ -17,8 +17,8 @@ _OFFICE_VERSIONS = ("16.0", "15.0", "14.0")
 
 _VBOM_REGISTRY_PATH = r"HKEY_CURRENT_USER\Software\Microsoft\Office\{version}\Excel\Security"
 _VBOM_UI_PATH = (
-    "Excel > Archivo > Opciones > Centro de confianza > Configuracion del Centro de "
-    "confianza > Configuracion de macros > 'Confiar en el acceso al modelo de objetos "
+    "Excel > Archivo > Opciones > Centro de confianza > Configuración del Centro de "
+    "confianza > Configuración de macros > 'Confiar en el acceso al modelo de objetos "
     "de proyectos de VBA'"
 )
 
@@ -70,10 +70,10 @@ def check_environment() -> PreflightReport:
                 severity=Severity.BLOCKER,
                 message=(
                     f"La etapa COM requiere Windows con Excel instalado; "
-                    f"esta maquina es '{sys.platform}'."
+                    f"esta máquina es '{sys.platform}'."
                 ),
                 remedy=(
-                    "Ejecute el build en Windows, o use --no-com para generar solo el "
+                    "Ejecute el build en Windows, o use --no-com para generar sólo el "
                     ".xlsx sin macros."
                 ),
             )
@@ -98,7 +98,7 @@ def _check_pywin32() -> list[PreflightIssue]:
             PreflightIssue(
                 code="pywin32-missing",
                 severity=Severity.BLOCKER,
-                message="El paquete 'pywin32' no esta instalado.",
+                message="El paquete 'pywin32' no está instalado.",
                 remedy="Ejecute: pip install -r requirements.txt",
             )
         ]
@@ -115,10 +115,10 @@ def _check_excel_registered() -> list[PreflightIssue]:
             PreflightIssue(
                 code="excel-missing",
                 severity=Severity.BLOCKER,
-                message="No se encontro Excel de escritorio registrado en este equipo.",
+                message="No se encontró Excel de escritorio registrado en este equipo.",
                 remedy=(
                     "Instale Microsoft Excel para escritorio. Excel Online y las "
-                    "versiones de la Microsoft Store no exponen la automatizacion COM."
+                    "versiones de la Microsoft Store no exponen la automatización COM."
                 ),
             )
         ]
@@ -157,7 +157,7 @@ def _check_vbom_trust() -> list[PreflightIssue]:
                     "No se pudo confirmar el ajuste 'Confiar en el acceso al modelo de "
                     "objetos de proyectos de VBA'."
                 ),
-                remedy=f"Si el build falla con error 1004, habilitelo en: {_VBOM_UI_PATH}",
+                remedy=f"Si el build falla con error 1004, habilítelo en: {_VBOM_UI_PATH}",
             )
         ]
 
@@ -169,10 +169,10 @@ def _check_vbom_trust() -> list[PreflightIssue]:
             code="vbom-disabled",
             severity=Severity.BLOCKER,
             message=(
-                "El acceso al modelo de objetos de proyectos de VBA esta deshabilitado; "
-                "la importacion de modulos fallaria con error 1004."
+                "El acceso al modelo de objetos de proyectos de VBA está deshabilitado; "
+                "la importación de módulos fallaría con error 1004."
             ),
-            remedy=(f"Habilitelo en: {_VBOM_UI_PATH}. Equivale a AccessVBOM=1 en {registry_paths}"),
+            remedy=(f"Habilítelo en: {_VBOM_UI_PATH}. Equivale a AccessVBOM=1 en {registry_paths}"),
         )
     ]
 

@@ -47,20 +47,20 @@ def sign_workbook(path: Path, config: BuildConfig) -> SigningResult:
     thumbprint = thumbprint_from_env(config)
     if not thumbprint:
         raise SigningError(
-            f"Se solicito --sign pero la variable {config.signing.thumbprint_env} "
-            "no esta definida. Defina la huella digital del certificado de firma."
+            f"Se solicitó --sign pero la variable {config.signing.thumbprint_env} "
+            "no está definida. Defina la huella digital del certificado de firma."
         )
 
     signtool = _find_signtool()
     if signtool is None:
         raise SigningError(
-            "No se encontro 'signtool.exe'. Instale el Windows SDK o agregue signtool al PATH."
+            "No se encontró 'signtool.exe'. Instale el Windows SDK o agregue signtool al PATH."
         )
 
     if not _office_sip_registered():
         raise SigningError(
-            "Los Subject Interface Packages de Office no estan registrados; la firma se "
-            f"escribiria en un formato que Excel ignora. Referencia: {_SIP_DOC_URL}"
+            "Los Subject Interface Packages de Office no están registrados; la firma se "
+            f"escribiría en un formato que Excel ignora. Referencia: {_SIP_DOC_URL}"
         )
 
     command = [
@@ -79,7 +79,7 @@ def sign_workbook(path: Path, config: BuildConfig) -> SigningResult:
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()
-        raise SigningError(f"signtool fallo con codigo {completed.returncode}: {detail}")
+        raise SigningError(f"signtool falló con código {completed.returncode}: {detail}")
 
     return SigningResult(signed=True, reason="Firmado con signtool.", thumbprint=thumbprint)
 
