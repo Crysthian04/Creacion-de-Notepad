@@ -1,0 +1,13 @@
+# Build output. The manifest of a tagged release is committed by hand.
+dist/*
+!dist/.gitkeep
+
+# Excel lock files left behind by an interrupted COM stage.
+~$*.xls*
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/

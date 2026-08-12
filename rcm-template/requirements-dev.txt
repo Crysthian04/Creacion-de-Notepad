@@ -1,0 +1,6 @@
+# Development dependencies. Install on top of requirements.txt.
+
+-r requirements.txt
+
+pytest~=8.3
+ruff~=0.6

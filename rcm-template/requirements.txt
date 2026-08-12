@@ -1,0 +1,9 @@
+# Runtime dependencies of the build.
+# Python 3.11 or newer.
+
+openpyxl~=3.1.5
+PyYAML~=6.0
+
+# COM automation of Excel. Windows only: on any other platform the build skips
+# the COM stage and produces a macro-free .xlsx.
+pywin32~=308; sys_platform == "win32"

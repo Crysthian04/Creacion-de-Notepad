@@ -1,0 +1,32 @@
+# Build configuration for the RCM template generator.
+# Every value that drives the build lives here; nothing is hard coded in build.py.
+# Business constants do NOT belong in this file -- they live in seed/ or in the
+# `Parametros` worksheet (see the project specification, working rules).
+
+version: "0.1.0"
+
+workbook:
+  # {version} is substituted at build time.
+  default_output: "dist/RCM_Template_v{version}.xlsm"
+  properties:
+    title: "Plantilla RCM2 / MSG-3"
+    subject: "Analisis RCM de una maquina individual"
+    creator: "RCM Template Generator"
+
+vba:
+  source_dir: "vba"
+  # Components are imported in this order. The list grows as modules land in
+  # later phases; phase 1 ships a single smoke-test module to prove the pipeline.
+  components:
+    - modSmokeTest.bas
+
+protection:
+  # Passwords are read from the environment at build time and are never stored
+  # in the repository. An unset variable means "skip that protection step".
+  vba_project_password_env: "RCM_VBA_PROJECT_PASSWORD"
+  worksheet_password_env: "RCM_SHEET_PASSWORD"
+
+signing:
+  thumbprint_env: "RCM_CERT_THUMBPRINT"
+  timestamp_url: "http://timestamp.digicert.com"
+  digest_algorithm: "sha256"
