@@ -95,6 +95,45 @@ con una sola fila en 1—. Además, `UDI` sobrevive dentro de `X` porque la lín
 Es un defecto de la misma familia que D1: el modelo recibe la identidad de la fila. **Ninguna de las
 dos versiones elimina `UDI`. Ninguna trata `Product ID` como lo que es: una llave, no una variable.**
 
+#### Consecuencia sobre el SMOTE de la v1 (interacción D2 × D3)
+
+Hay un efecto de segundo orden que conviene desarrollar, porque explica un resultado observado y no
+solo un riesgo teórico.
+
+SMOTE genera cada muestra sintética interpolando linealmente entre una muestra minoritaria y uno de
+sus *k* vecinos más cercanos, con la distancia euclídea como criterio de vecindad. En la v1 ese
+remuestreo (L51-52) no opera sobre las cinco o seis variables de proceso —temperaturas, par,
+velocidad de giro, desgaste de herramienta—, sino sobre el espacio expandido por `get_dummies`
+(L41): **miles de columnas dummy, casi todas en cero, una por cada `Product ID`**.
+
+En un espacio de esa dimensionalidad aparece el fenómeno de concentración de distancias: a medida
+que crece el número de dimensiones, la distancia al vecino más cercano y la distancia al más lejano
+tienden a igualarse, y el contraste relativo entre ambas tiende a cero. El concepto de «vecino más
+cercano» pierde poder discriminante: el vecino que SMOTE elige deja de ser un punto genuinamente
+parecido y pasa a ser prácticamente uno cualquiera del conjunto minoritario.
+
+Las consecuencias son tres:
+
+1. **Las muestras sintéticas dejan de ser plausibles.** La interpolación entre dos puntos que no son
+   vecinos en ningún sentido físico produce combinaciones de par, velocidad y desgaste que no
+   corresponden a ningún estado real de la máquina.
+2. **Las columnas dummy también se interpolan.** Cada muestra sintética recibe valores fraccionarios
+   —0,37 en la columna de una pieza y 0,63 en la de otra— sobre variables que solo admiten 0 o 1. El
+   resultado no es una pieza: es una superposición de dos identificadores que no existe.
+3. **El desbalance queda formalmente corregido y sustancialmente no.** El conteo de clases se iguala,
+   pero lo que se agregó a la clase minoritaria es ruido estructurado, no información sobre la
+   frontera de decisión.
+
+Esto es, con alta probabilidad, la explicación de por qué el balanceo de la v1 no mejoró el
+desempeño tanto como cabía esperar. El defecto no estaba en SMOTE ni en la decisión de balancear:
+estaba en el espacio sobre el que SMOTE fue obligado a trabajar, heredado de la línea 41. Eliminar
+`Product ID` antes del remuestreo habría dejado a SMOTE operando sobre las variables de proceso, que
+es donde la interpolación entre vecinos sí tiene sentido.
+
+**Lección para el proyecto nuevo:** un preprocesamiento defectuoso no se manifiesta necesariamente
+como un error visible, sino como una técnica correcta que rinde por debajo de lo esperado sin causa
+aparente. Es un modo de fallo silencioso y por eso conviene dejarlo documentado.
+
 ---
 
 ### D3 — GRAVE · SMOTE fuera del bucle de validación cruzada (v1)
@@ -297,15 +336,46 @@ Eso está bien y se conserva. Lo que falta en las dos:
 
 ## 5. Traspaso a la Etapa 2
 
-Dos observaciones que conectan esta auditoría con el pipeline nuevo:
+Tres reglas que esta auditoría traslada al pipeline nuevo. No son observaciones históricas: son
+restricciones de diseño que el código debe hacer cumplir.
 
-- La regla **«el clasificador se entrena solo con columnas `res_*`»** de la especificación es la
-  versión endurecida del defecto **D1**. No se trata de recordar qué columnas eliminar, sino de
-  construir la matriz de características por lista blanca.
-- El defecto **D3** (SMOTE fuera del pliegue) **desaparece por construcción**: el conjunto balanceado
-  de la sección 6.1 de la especificación se genera balanceado desde el simulador —10 clases × 3
-  niveles de severidad × 400 condiciones— y no necesita remuestreo sintético. SMOTE no entra al
-  proyecto nuevo.
+- **Regla 1 (deriva de D1 y D2) — lista blanca, nunca `drop`.** La regla «el clasificador se entrena
+  solo con columnas `res_*`» de la especificación es la versión endurecida del defecto D1. La matriz
+  de características se construye seleccionando explícitamente las columnas de residuos, no
+  eliminando las no deseadas. La diferencia importa: un `drop` falla en silencio cuando alguien
+  agrega una columna nueva al dataset, y esa columna entra al modelo sin que nadie lo note. Una lista
+  blanca falla ruidosamente, que es como debe fallar.
+
+- **Regla 2 (deriva de D3) — sin remuestreo sintético.** El defecto D3 **desaparece por
+  construcción**: el conjunto balanceado de la sección 6.1 de la especificación se genera balanceado
+  desde el simulador —10 clases × 3 niveles de severidad × 400 condiciones— y no necesita SMOTE.
+  El desbalance del conjunto de prevalencia realista se trata con `class_weight='balanced'`, no
+  fabricando muestras. SMOTE no entra al proyecto nuevo.
+
+- **Regla 3 (deriva de D7) — el conjunto de prueba se toca una sola vez.** Esta es vinculante y hay
+  que decirla sin ambigüedad:
+
+  > La comparación entre el clasificador base y el Random Forest, y la elección de hiperparámetros,
+  > se resuelven **exclusivamente con el conjunto de validación**. El conjunto de prueba se usa
+  > **una sola vez, al final, para reportar** — nunca para decidir.
+
+  Y, sobre todo, **debe quedar impuesto por la estructura del código, no confiado a la disciplina de
+  quien lo corra**. Un comentario que diga «no mirar el test todavía» no es un control: es una
+  intención. Mecanismos concretos que lo hacen estructural:
+
+  - La función que selecciona el modelo recibe únicamente `(X_train, y_train, X_val, y_val)` en su
+    firma. No tiene acceso léxico al conjunto de prueba, así que no puede evaluarlo aunque el código
+    se modifique por descuido.
+  - La partición devuelve los conjuntos de prueba en un contenedor sellado que la etapa de selección
+    no abre; solo la función final de reporte lo hace.
+  - La evaluación sobre el test se ejecuta en un único punto del pipeline, después de que el modelo
+    ganador ya está congelado y serializado.
+  - Un contador de accesos al conjunto de prueba, registrado en `resultados/metricas.json`. Si al
+    terminar la corrida marca más de uno por conjunto, la corrida se declara inválida.
+
+  El motivo de fondo es que en la v1 este defecto no produjo ningún síntoma visible: el número
+  reportado se ve igual de bien esté sesgado o no. Los defectos que no se manifiestan son los que
+  necesitan un control estructural, porque no hay revisión posterior que los detecte.
 
 ### Resumen de decisiones
 
