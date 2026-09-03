@@ -1,0 +1,2061 @@
+{
+  "corrida_valida": true,
+  "aperturas_del_conjunto_de_prueba": {
+    "prueba_balanceada": 1,
+    "prevalencia_realista": 1
+  },
+  "motivos_de_apertura": {
+    "prueba_balanceada": [
+      "evaluación final del informe"
+    ],
+    "prevalencia_realista": [
+      "evaluación final del informe"
+    ]
+  },
+  "semilla_maestra": 20260902,
+  "parametros_provisionales": [
+    "N_rev",
+    "Q_nom",
+    "SC_nom",
+    "SH_nom",
+    "T_space_sp",
+    "UA_cd",
+    "UA_ev",
+    "V_disp",
+    "W_vent_cd",
+    "W_vent_ev",
+    "dSH_linea",
+    "eta_motor",
+    "eta_s",
+    "eta_v0",
+    "fp",
+    "k_v",
+    "m_a_cd",
+    "m_a_ev",
+    "refrigerante",
+    "tension_linea"
+  ],
+  "calibracion_ua": {
+    "UA_ev": 1822.4989897110515,
+    "UA_cd": 2854.3186207408294,
+    "convergio": true,
+    "rmse_relativo": 1.1118981745323552e-11,
+    "residuos": {
+      "corrida0:T_evap": 1.5721646207111917e-11,
+      "corrida0:T_cond": -3.055333763768431e-13
+    },
+    "n_evaluaciones": 95,
+    "x0": [
+      1550.0,
+      2400.0
+    ],
+    "cotas": [
+      [
+        300.0,
+        8000.0
+      ],
+      [
+        500.0,
+        12000.0
+      ]
+    ],
+    "origen_datos": "Punto de diseño de catálogo (PROVISIONAL, sustituir por hoja `Registro Campo` de la Fase 1)",
+    "provisional": true,
+    "fecha": "2026-09-02"
+  },
+  "parametros_equipo": {
+    "refrigerante": {
+      "valor": "R410A",
+      "fuente": "Placa del equipo",
+      "provisional": true
+    },
+    "Q_nom": {
+      "valor": 17584.0,
+      "fuente": "Placa / catálogo",
+      "provisional": true
+    },
+    "V_disp": {
+      "valor": 7.9e-05,
+      "fuente": "Catálogo del compresor",
+      "provisional": true
+    },
+    "N_rev": {
+      "valor": 48.3,
+      "fuente": "Placa (60 Hz, 2 polos, deslizamiento típico)",
+      "provisional": true
+    },
+    "eta_v0": {
+      "valor": 0.92,
+      "fuente": "Curvas del fabricante",
+      "provisional": true
+    },
+    "k_v": {
+      "valor": 0.055,
+      "fuente": "Curvas del fabricante",
+      "provisional": true
+    },
+    "eta_s": {
+      "valor": 0.7,
+      "fuente": "Catálogo o estimada en campo",
+      "provisional": true
+    },
+    "eta_motor": {
+      "valor": 0.9,
+      "fuente": "Catálogo del motor",
+      "provisional": true
+    },
+    "UA_ev": {
+      "valor": 1822.4989897110515,
+      "fuente": "CALIBRADA con datos de campo (src.calibracion)",
+      "provisional": true
+    },
+    "UA_cd": {
+      "valor": 2854.3186207408294,
+      "fuente": "CALIBRADA con datos de campo (src.calibracion)",
+      "provisional": true
+    },
+    "m_a_ev": {
+      "valor": 1.45,
+      "fuente": "Placa / medición con balómetro",
+      "provisional": true
+    },
+    "m_a_cd": {
+      "valor": 2.05,
+      "fuente": "Placa / medición con anemómetro",
+      "provisional": true
+    },
+    "SH_nom": {
+      "valor": 5.0,
+      "fuente": "Manual de servicio",
+      "provisional": true
+    },
+    "SC_nom": {
+      "valor": 8.0,
+      "fuente": "Manual de servicio",
+      "provisional": true
+    },
+    "dSH_linea": {
+      "valor": 3.0,
+      "fuente": "Estimado (ganancia de calor en línea de succión)",
+      "provisional": true
+    },
+    "T_space_sp": {
+      "valor": 24.0,
+      "fuente": "Panel de control",
+      "provisional": true
+    },
+    "W_vent_ev": {
+      "valor": 700.0,
+      "fuente": "Placa del motoventilador",
+      "provisional": true
+    },
+    "W_vent_cd": {
+      "valor": 500.0,
+      "fuente": "Placa del motoventilador",
+      "provisional": true
+    },
+    "tension_linea": {
+      "valor": 208.0,
+      "fuente": "Medición en campo",
+      "provisional": true
+    },
+    "fp": {
+      "valor": 0.88,
+      "fuente": "Analizador de redes",
+      "provisional": true
+    },
+    "cp_aire": {
+      "valor": 1005.0,
+      "fuente": "Propiedad física (Çengel), no provisional",
+      "provisional": false
+    },
+    "P_atm": {
+      "valor": 101325.0,
+      "fuente": "Presión atmosférica estándar, no provisional",
+      "provisional": false
+    }
+  },
+  "particion": {
+    "filas": {
+      "entrenamiento": 8400,
+      "validacion": 1770,
+      "prueba": 1830
+    },
+    "condiciones": {
+      "train": 280,
+      "val": 59,
+      "test": 61
+    },
+    "condiciones_compartidas_entre_particiones": 0
+  },
+  "seleccion_de_modelo": {
+    "criterio": "F1 macro sobre el conjunto de VALIDACIÓN",
+    "ganador": "random_forest",
+    "candidatos": {
+      "arbol_decision": {
+        "mejores_parametros": {
+          "max_depth": 16,
+          "min_samples_leaf": 1,
+          "min_samples_split": 2
+        },
+        "f1_macro_cv": 0.9796493969412186,
+        "f1_macro_validacion": 0.9802748401806929
+      },
+      "random_forest": {
+        "mejores_parametros": {
+          "max_depth": null,
+          "max_features": "sqrt",
+          "min_samples_leaf": 1,
+          "n_estimators": 300
+        },
+        "f1_macro_cv": 0.9919152077793194,
+        "f1_macro_validacion": 0.9904307846023871
+      }
+    }
+  },
+  "columnas_de_entrada": [
+    "res_SH_evap",
+    "res_SH_total",
+    "res_SC",
+    "res_split_cond",
+    "res_approach_evap",
+    "res_SH_des",
+    "res_rp",
+    "res_dT_air_ev",
+    "res_dT_air_cd",
+    "res_COP",
+    "res_kW_TR"
+  ],
+  "metricas": {
+    "validacion": {
+      "conjunto": "validacion",
+      "n_muestras": 1770,
+      "matriz_confusion": [
+        [
+          175,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          176,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          3,
+          0,
+          174,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          176,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          176,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          176,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          172,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          176,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          175,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          177
+        ]
+      ],
+      "matriz_confusion_normalizada": [
+        [
+          0.9887005649717514,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.011299435028248588,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.9943502824858758,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.005649717514124294,
+          0.0
+        ],
+        [
+          0.01694915254237288,
+          0.0,
+          0.9830508474576272,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.9943502824858758,
+          0.0,
+          0.005649717514124294,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.9943502824858758,
+          0.0,
+          0.0,
+          0.0,
+          0.005649717514124294,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.9943502824858758,
+          0.0,
+          0.0,
+          0.0,
+          0.005649717514124294
+        ],
+        [
+          0.02824858757062147,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.9717514124293786,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.005649717514124294,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.9943502824858758,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.005649717514124294,
+          0.0,
+          0.0,
+          0.005649717514124294,
+          0.0,
+          0.0,
+          0.0,
+          0.9887005649717514,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "recall_por_clase": {
+        "sano": 0.9887005649717514,
+        "condensador_sucio": 0.9943502824858758,
+        "evaporador_sucio": 0.9830508474576272,
+        "carga_baja": 0.9943502824858758,
+        "sobrecarga": 0.9943502824858758,
+        "txv_restringida": 0.9943502824858758,
+        "txv_sobrealimenta": 0.9717514124293786,
+        "compresor_desgastado": 0.9943502824858758,
+        "incondensables": 0.9887005649717514,
+        "restriccion_linea_liquido": 1.0
+      },
+      "f1_por_clase": {
+        "sano": 0.9695290858725761,
+        "condensador_sucio": 0.9943502824858758,
+        "evaporador_sucio": 0.9914529914529915,
+        "carga_baja": 0.9971671388101983,
+        "sobrecarga": 0.9943502824858758,
+        "txv_restringida": 0.9943502824858758,
+        "txv_sobrealimenta": 0.98005698005698,
+        "compresor_desgastado": 0.9971671388101983,
+        "incondensables": 0.9887005649717514,
+        "restriccion_linea_liquido": 0.9971830985915493
+      },
+      "precision_por_clase": {
+        "sano": 0.9510869565217391,
+        "condensador_sucio": 0.9943502824858758,
+        "evaporador_sucio": 1.0,
+        "carga_baja": 1.0,
+        "sobrecarga": 0.9943502824858758,
+        "txv_restringida": 0.9943502824858758,
+        "txv_sobrealimenta": 0.9885057471264368,
+        "compresor_desgastado": 1.0,
+        "incondensables": 0.9887005649717514,
+        "restriccion_linea_liquido": 0.9943820224719101
+      },
+      "soporte_por_clase": {
+        "sano": 177,
+        "condensador_sucio": 177,
+        "evaporador_sucio": 177,
+        "carga_baja": 177,
+        "sobrecarga": 177,
+        "txv_restringida": 177,
+        "txv_sobrealimenta": 177,
+        "compresor_desgastado": 177,
+        "incondensables": 177,
+        "restriccion_linea_liquido": 177
+      },
+      "f1_macro": 0.9904307846023871,
+      "f1_ponderado": 0.9904307846023872,
+      "recall_macro": 0.9903954802259888,
+      "pr_auc_por_clase": {
+        "sano": 0.9957057684150693,
+        "condensador_sucio": 0.9999049553566572,
+        "evaporador_sucio": 0.999157974793568,
+        "carga_baja": 1.0,
+        "sobrecarga": 0.9999999999999999,
+        "txv_restringida": 0.9998751443643288,
+        "txv_sobrealimenta": 0.9993023842993038,
+        "compresor_desgastado": 1.0,
+        "incondensables": 0.9996248798198133,
+        "restriccion_linea_liquido": 0.9998068289706445
+      },
+      "pr_auc_macro": 0.9993377936019385,
+      "exactitud_global": 0.9903954802259887,
+      "proporcion_de_clases": {
+        "sano": 0.1,
+        "condensador_sucio": 0.1,
+        "evaporador_sucio": 0.1,
+        "carga_baja": 0.1,
+        "sobrecarga": 0.1,
+        "txv_restringida": 0.1,
+        "txv_sobrealimenta": 0.1,
+        "compresor_desgastado": 0.1,
+        "incondensables": 0.1,
+        "restriccion_linea_liquido": 0.1
+      },
+      "texto_reporte": "                           precision    recall  f1-score   support\n\n                     sano       0.95      0.99      0.97       177\n        condensador_sucio       0.99      0.99      0.99       177\n         evaporador_sucio       1.00      0.98      0.99       177\n               carga_baja       1.00      0.99      1.00       177\n               sobrecarga       0.99      0.99      0.99       177\n          txv_restringida       0.99      0.99      0.99       177\n        txv_sobrealimenta       0.99      0.97      0.98       177\n     compresor_desgastado       1.00      0.99      1.00       177\n           incondensables       0.99      0.99      0.99       177\nrestriccion_linea_liquido       0.99      1.00      1.00       177\n\n                 accuracy                           0.99      1770\n                macro avg       0.99      0.99      0.99      1770\n             weighted avg       0.99      0.99      0.99      1770\n"
+    },
+    "prueba_balanceada": {
+      "conjunto": "prueba_balanceada",
+      "n_muestras": 1830,
+      "matriz_confusion": [
+        [
+          182,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          0,
+          183,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          182,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          182,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          183,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          182,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          182,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          183,
+          0,
+          0
+        ],
+        [
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          182,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1,
+          0,
+          181
+        ]
+      ],
+      "matriz_confusion_normalizada": [
+        [
+          0.994535519125683,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.00546448087431694,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.00546448087431694,
+          0.0,
+          0.994535519125683,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.994535519125683,
+          0.0,
+          0.00546448087431694,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.994535519125683,
+          0.0,
+          0.00546448087431694,
+          0.0,
+          0.0
+        ],
+        [
+          0.00546448087431694,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.994535519125683,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.00546448087431694,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.994535519125683,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.00546448087431694,
+          0.0,
+          0.0,
+          0.00546448087431694,
+          0.0,
+          0.9890710382513661
+        ]
+      ],
+      "recall_por_clase": {
+        "sano": 0.994535519125683,
+        "condensador_sucio": 1.0,
+        "evaporador_sucio": 0.994535519125683,
+        "carga_baja": 0.994535519125683,
+        "sobrecarga": 1.0,
+        "txv_restringida": 0.994535519125683,
+        "txv_sobrealimenta": 0.994535519125683,
+        "compresor_desgastado": 1.0,
+        "incondensables": 0.994535519125683,
+        "restriccion_linea_liquido": 0.9890710382513661
+      },
+      "f1_por_clase": {
+        "sano": 0.9918256130790191,
+        "condensador_sucio": 0.997275204359673,
+        "evaporador_sucio": 0.9972602739726028,
+        "carga_baja": 0.9972602739726028,
+        "sobrecarga": 0.997275204359673,
+        "txv_restringida": 0.994535519125683,
+        "txv_sobrealimenta": 0.9972602739726028,
+        "compresor_desgastado": 0.991869918699187,
+        "incondensables": 0.9972602739726028,
+        "restriccion_linea_liquido": 0.9945054945054945
+      },
+      "precision_por_clase": {
+        "sano": 0.9891304347826086,
+        "condensador_sucio": 0.9945652173913043,
+        "evaporador_sucio": 1.0,
+        "carga_baja": 1.0,
+        "sobrecarga": 0.9945652173913043,
+        "txv_restringida": 0.994535519125683,
+        "txv_sobrealimenta": 1.0,
+        "compresor_desgastado": 0.9838709677419355,
+        "incondensables": 1.0,
+        "restriccion_linea_liquido": 1.0
+      },
+      "soporte_por_clase": {
+        "sano": 183,
+        "condensador_sucio": 183,
+        "evaporador_sucio": 183,
+        "carga_baja": 183,
+        "sobrecarga": 183,
+        "txv_restringida": 183,
+        "txv_sobrealimenta": 183,
+        "compresor_desgastado": 183,
+        "incondensables": 183,
+        "restriccion_linea_liquido": 183
+      },
+      "f1_macro": 0.9956328050019142,
+      "f1_ponderado": 0.9956328050019141,
+      "recall_macro": 0.9956284153005465,
+      "pr_auc_por_clase": {
+        "sano": 0.9992847451420543,
+        "condensador_sucio": 0.9999104165629644,
+        "evaporador_sucio": 1.0,
+        "carga_baja": 1.0,
+        "sobrecarga": 0.9999409245310885,
+        "txv_restringida": 0.9998232275371565,
+        "txv_sobrealimenta": 0.9999703017343787,
+        "compresor_desgastado": 0.9996691582380774,
+        "incondensables": 0.9998831127085708,
+        "restriccion_linea_liquido": 0.9991799912824112
+      },
+      "pr_auc_macro": 0.99976618777367,
+      "exactitud_global": 0.9956284153005465,
+      "proporcion_de_clases": {
+        "sano": 0.1,
+        "condensador_sucio": 0.1,
+        "evaporador_sucio": 0.1,
+        "carga_baja": 0.1,
+        "sobrecarga": 0.1,
+        "txv_restringida": 0.1,
+        "txv_sobrealimenta": 0.1,
+        "compresor_desgastado": 0.1,
+        "incondensables": 0.1,
+        "restriccion_linea_liquido": 0.1
+      },
+      "texto_reporte": "                           precision    recall  f1-score   support\n\n                     sano       0.99      0.99      0.99       183\n        condensador_sucio       0.99      1.00      1.00       183\n         evaporador_sucio       1.00      0.99      1.00       183\n               carga_baja       1.00      0.99      1.00       183\n               sobrecarga       0.99      1.00      1.00       183\n          txv_restringida       0.99      0.99      0.99       183\n        txv_sobrealimenta       1.00      0.99      1.00       183\n     compresor_desgastado       0.98      1.00      0.99       183\n           incondensables       1.00      0.99      1.00       183\nrestriccion_linea_liquido       1.00      0.99      0.99       183\n\n                 accuracy                           1.00      1830\n                macro avg       1.00      1.00      1.00      1830\n             weighted avg       1.00      1.00      1.00      1830\n"
+    },
+    "prevalencia_realista": {
+      "conjunto": "prevalencia_realista",
+      "n_muestras": 3000,
+      "matriz_confusion": [
+        [
+          2065,
+          1,
+          5,
+          0,
+          1,
+          0,
+          9,
+          5,
+          0,
+          2
+        ],
+        [
+          1,
+          214,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          1,
+          0,
+          167,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          171,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          33,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          88,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          20,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          96,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          45,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          74
+        ]
+      ],
+      "matriz_confusion_normalizada": [
+        [
+          0.9889846743295019,
+          0.0004789272030651341,
+          0.0023946360153256703,
+          0.0,
+          0.0004789272030651341,
+          0.0,
+          0.004310344827586207,
+          0.0023946360153256703,
+          0.0,
+          0.0009578544061302681
+        ],
+        [
+          0.004629629629629629,
+          0.9907407407407407,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.004629629629629629,
+          0.0
+        ],
+        [
+          0.005952380952380952,
+          0.0,
+          0.9940476190476191,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.9941860465116279,
+          0.0,
+          0.005813953488372093,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "recall_por_clase": {
+        "sano": 0.9889846743295019,
+        "condensador_sucio": 0.9907407407407407,
+        "evaporador_sucio": 0.9940476190476191,
+        "carga_baja": 0.9941860465116279,
+        "sobrecarga": 1.0,
+        "txv_restringida": 1.0,
+        "txv_sobrealimenta": 1.0,
+        "compresor_desgastado": 1.0,
+        "incondensables": 1.0,
+        "restriccion_linea_liquido": 1.0
+      },
+      "f1_por_clase": {
+        "sano": 0.9939831528279182,
+        "condensador_sucio": 0.9930394431554525,
+        "evaporador_sucio": 0.9823529411764705,
+        "carga_baja": 0.9970845481049563,
+        "sobrecarga": 0.9850746268656716,
+        "txv_restringida": 0.9943502824858758,
+        "txv_sobrealimenta": 0.8163265306122449,
+        "compresor_desgastado": 0.9746192893401016,
+        "incondensables": 0.989010989010989,
+        "restriccion_linea_liquido": 0.9866666666666667
+      },
+      "precision_por_clase": {
+        "sano": 0.9990324141267537,
+        "condensador_sucio": 0.9953488372093023,
+        "evaporador_sucio": 0.9709302325581395,
+        "carga_baja": 1.0,
+        "sobrecarga": 0.9705882352941176,
+        "txv_restringida": 0.9887640449438202,
+        "txv_sobrealimenta": 0.6896551724137931,
+        "compresor_desgastado": 0.9504950495049505,
+        "incondensables": 0.9782608695652174,
+        "restriccion_linea_liquido": 0.9736842105263158
+      },
+      "soporte_por_clase": {
+        "sano": 2088,
+        "condensador_sucio": 216,
+        "evaporador_sucio": 168,
+        "carga_baja": 172,
+        "sobrecarga": 33,
+        "txv_restringida": 88,
+        "txv_sobrealimenta": 20,
+        "compresor_desgastado": 96,
+        "incondensables": 45,
+        "restriccion_linea_liquido": 74
+      },
+      "f1_macro": 0.9712508470246346,
+      "f1_ponderado": 0.9912954256636725,
+      "recall_macro": 0.9967959080629489,
+      "pr_auc_por_clase": {
+        "sano": 0.9999162384164063,
+        "condensador_sucio": 0.9991204947321428,
+        "evaporador_sucio": 0.9994611768963789,
+        "carga_baja": 1.0,
+        "sobrecarga": 1.0,
+        "txv_restringida": 0.9997431864611386,
+        "txv_sobrealimenta": 0.9934782608695651,
+        "compresor_desgastado": 0.9991598976772338,
+        "incondensables": 0.9980012346813829,
+        "restriccion_linea_liquido": 1.0
+      },
+      "pr_auc_macro": 0.9988880489734248,
+      "exactitud_global": 0.991,
+      "proporcion_de_clases": {
+        "sano": 0.696,
+        "condensador_sucio": 0.072,
+        "carga_baja": 0.05733333333333333,
+        "evaporador_sucio": 0.056,
+        "compresor_desgastado": 0.032,
+        "txv_restringida": 0.029333333333333333,
+        "restriccion_linea_liquido": 0.024666666666666667,
+        "incondensables": 0.015,
+        "sobrecarga": 0.011,
+        "txv_sobrealimenta": 0.006666666666666667
+      },
+      "texto_reporte": "                           precision    recall  f1-score   support\n\n                     sano       1.00      0.99      0.99      2088\n        condensador_sucio       1.00      0.99      0.99       216\n         evaporador_sucio       0.97      0.99      0.98       168\n               carga_baja       1.00      0.99      1.00       172\n               sobrecarga       0.97      1.00      0.99        33\n          txv_restringida       0.99      1.00      0.99        88\n        txv_sobrealimenta       0.69      1.00      0.82        20\n     compresor_desgastado       0.95      1.00      0.97        96\n           incondensables       0.98      1.00      0.99        45\nrestriccion_linea_liquido       0.97      1.00      0.99        74\n\n                 accuracy                           0.99      3000\n                macro avg       0.95      1.00      0.97      3000\n             weighted avg       0.99      0.99      0.99      3000\n"
+    },
+    "prevalencia_sin_class_weight": {
+      "conjunto": "prevalencia_realista_sin_class_weight",
+      "n_muestras": 3000,
+      "matriz_confusion": [
+        [
+          2066,
+          1,
+          5,
+          0,
+          1,
+          0,
+          9,
+          5,
+          0,
+          1
+        ],
+        [
+          2,
+          213,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          1,
+          0,
+          167,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          171,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          33,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          87,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          20,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          95,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          45,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          74
+        ]
+      ],
+      "matriz_confusion_normalizada": [
+        [
+          0.9894636015325671,
+          0.0004789272030651341,
+          0.0023946360153256703,
+          0.0,
+          0.0004789272030651341,
+          0.0,
+          0.004310344827586207,
+          0.0023946360153256703,
+          0.0,
+          0.0004789272030651341
+        ],
+        [
+          0.009259259259259259,
+          0.9861111111111112,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.004629629629629629,
+          0.0
+        ],
+        [
+          0.005952380952380952,
+          0.0,
+          0.9940476190476191,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.9941860465116279,
+          0.0,
+          0.005813953488372093,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.9886363636363636,
+          0.0,
+          0.0,
+          0.0,
+          0.011363636363636364
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.010416666666666666,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.9895833333333334,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "recall_por_clase": {
+        "sano": 0.9894636015325671,
+        "condensador_sucio": 0.9861111111111112,
+        "evaporador_sucio": 0.9940476190476191,
+        "carga_baja": 0.9941860465116279,
+        "sobrecarga": 1.0,
+        "txv_restringida": 0.9886363636363636,
+        "txv_sobrealimenta": 1.0,
+        "compresor_desgastado": 0.9895833333333334,
+        "incondensables": 1.0,
+        "restriccion_linea_liquido": 1.0
+      },
+      "f1_por_clase": {
+        "sano": 0.9937469937469937,
+        "condensador_sucio": 0.9906976744186047,
+        "evaporador_sucio": 0.9823529411764705,
+        "carga_baja": 0.9970845481049563,
+        "sobrecarga": 0.9850746268656716,
+        "txv_restringida": 0.9886363636363636,
+        "txv_sobrealimenta": 0.8163265306122449,
+        "compresor_desgastado": 0.9693877551020408,
+        "incondensables": 0.989010989010989,
+        "restriccion_linea_liquido": 0.9866666666666667
+      },
+      "precision_por_clase": {
+        "sano": 0.9980676328502416,
+        "condensador_sucio": 0.9953271028037384,
+        "evaporador_sucio": 0.9709302325581395,
+        "carga_baja": 1.0,
+        "sobrecarga": 0.9705882352941176,
+        "txv_restringida": 0.9886363636363636,
+        "txv_sobrealimenta": 0.6896551724137931,
+        "compresor_desgastado": 0.95,
+        "incondensables": 0.9782608695652174,
+        "restriccion_linea_liquido": 0.9736842105263158
+      },
+      "soporte_por_clase": {
+        "sano": 2088,
+        "condensador_sucio": 216,
+        "evaporador_sucio": 168,
+        "carga_baja": 172,
+        "sobrecarga": 33,
+        "txv_restringida": 88,
+        "txv_sobrealimenta": 20,
+        "compresor_desgastado": 96,
+        "incondensables": 45,
+        "restriccion_linea_liquido": 74
+      },
+      "f1_macro": 0.9698985089341001,
+      "f1_ponderado": 0.9906274342124257,
+      "recall_macro": 0.9942028075172622,
+      "pr_auc_por_clase": {
+        "sano": 0.9999154762819745,
+        "condensador_sucio": 0.9992688341405975,
+        "evaporador_sucio": 0.9995605545589022,
+        "carga_baja": 1.0,
+        "sobrecarga": 0.9999999999999999,
+        "txv_restringida": 0.9997431864611385,
+        "txv_sobrealimenta": 0.987037037037037,
+        "compresor_desgastado": 0.9989520135440145,
+        "incondensables": 0.9974721341522824,
+        "restriccion_linea_liquido": 1.0
+      },
+      "pr_auc_macro": 0.9981949236175947,
+      "exactitud_global": 0.9903333333333333,
+      "proporcion_de_clases": {
+        "sano": 0.696,
+        "condensador_sucio": 0.072,
+        "carga_baja": 0.05733333333333333,
+        "evaporador_sucio": 0.056,
+        "compresor_desgastado": 0.032,
+        "txv_restringida": 0.029333333333333333,
+        "restriccion_linea_liquido": 0.024666666666666667,
+        "incondensables": 0.015,
+        "sobrecarga": 0.011,
+        "txv_sobrealimenta": 0.006666666666666667
+      },
+      "texto_reporte": "                           precision    recall  f1-score   support\n\n                     sano       1.00      0.99      0.99      2088\n        condensador_sucio       1.00      0.99      0.99       216\n         evaporador_sucio       0.97      0.99      0.98       168\n               carga_baja       1.00      0.99      1.00       172\n               sobrecarga       0.97      1.00      0.99        33\n          txv_restringida       0.99      0.99      0.99        88\n        txv_sobrealimenta       0.69      1.00      0.82        20\n     compresor_desgastado       0.95      0.99      0.97        96\n           incondensables       0.98      1.00      0.99        45\nrestriccion_linea_liquido       0.97      1.00      0.99        74\n\n                 accuracy                           0.99      3000\n                macro avg       0.95      0.99      0.97      3000\n             weighted avg       0.99      0.99      0.99      3000\n"
+    }
+  },
+  "modelo_de_severidad": {
+    "mae_validacion": 0.024576157180446406,
+    "r2_validacion": 0.9824772678940643,
+    "n_entrenamiento": 7560,
+    "mae_prueba": 0.025237247330820257,
+    "r2_prueba": 0.9813240091003025
+  },
+  "importancia_permutacion": {
+    "res_SH_evap": {
+      "media": 0.02973921225641435,
+      "desv": 0.002988067968163734
+    },
+    "res_SH_total": {
+      "media": 0.02148111284767641,
+      "desv": 0.0020134557770968343
+    },
+    "res_SC": {
+      "media": 0.34443377810082654,
+      "desv": 0.009317913532005862
+    },
+    "res_split_cond": {
+      "media": 0.13924545731168186,
+      "desv": 0.007753328855648921
+    },
+    "res_approach_evap": {
+      "media": 0.020141369583538425,
+      "desv": 0.004005551892405167
+    },
+    "res_SH_des": {
+      "media": 0.1866241047918304,
+      "desv": 0.005666882409416733
+    },
+    "res_rp": {
+      "media": 0.027146920188882172,
+      "desv": 0.0018424841426191746
+    },
+    "res_dT_air_ev": {
+      "media": 0.0021837496104139984,
+      "desv": 0.0012891363555394496
+    },
+    "res_dT_air_cd": {
+      "media": 0.0030974897734483142,
+      "desv": 0.0012133640102333998
+    },
+    "res_COP": {
+      "media": -0.00021786914649281065,
+      "desv": 0.0006258556249401185
+    },
+    "res_kW_TR": {
+      "media": -0.0007818179683688808,
+      "desv": 0.0006258920578894298
+    }
+  },
+  "contraste_con_la_fisica": {
+    "condensador_sucio": {
+      "residuo_caracteristico_esperado": "res_split_cond",
+      "residuo_dominante_en_los_datos": "res_split_cond",
+      "puesto_del_esperado_en_los_datos": 1,
+      "residuo_raiz_del_arbol": "res_split_cond",
+      "coincide_en_los_datos": true,
+      "coincide_en_el_arbol": true,
+      "entre_los_tres_primeros": true,
+      "esta_entre_los_declarados": true,
+      "exactitud_del_arbol": 1.0,
+      "tamano_de_efecto": {
+        "res_SH_evap": 0.20365168722149501,
+        "res_SH_total": 0.03904455348675121,
+        "res_SC": 0.1451167749659866,
+        "res_split_cond": 16.78320789789913,
+        "res_approach_evap": 2.3055033620293486,
+        "res_SH_des": 4.7838345084068035,
+        "res_rp": 6.803146244797935,
+        "res_dT_air_ev": 2.6626312976696753,
+        "res_dT_air_cd": 6.411269091657059,
+        "res_COP": 4.009849898337991,
+        "res_kW_TR": 4.535050193054214
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 0.0,
+        "res_SH_total": 0.0,
+        "res_SC": 0.0,
+        "res_split_cond": 1.0,
+        "res_approach_evap": 0.0,
+        "res_SH_des": 0.0,
+        "res_rp": 0.0,
+        "res_dT_air_ev": 0.0,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.0,
+        "res_kW_TR": 0.0
+      }
+    },
+    "evaporador_sucio": {
+      "residuo_caracteristico_esperado": "res_approach_evap",
+      "residuo_dominante_en_los_datos": "res_approach_evap",
+      "puesto_del_esperado_en_los_datos": 1,
+      "residuo_raiz_del_arbol": "res_approach_evap",
+      "coincide_en_los_datos": true,
+      "coincide_en_el_arbol": true,
+      "entre_los_tres_primeros": true,
+      "esta_entre_los_declarados": true,
+      "exactitud_del_arbol": 0.9943502824858758,
+      "tamano_de_efecto": {
+        "res_SH_evap": 0.08746513831212839,
+        "res_SH_total": 0.08358843979285845,
+        "res_SC": 0.04129171235006846,
+        "res_split_cond": 5.995872511708621,
+        "res_approach_evap": 11.578293740984115,
+        "res_SH_des": 7.353235187775849,
+        "res_rp": 8.523264079931081,
+        "res_dT_air_ev": 5.22061756895991,
+        "res_dT_air_cd": 4.738158532679676,
+        "res_COP": 3.580695431698893,
+        "res_kW_TR": 4.086364309084465
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 0.0,
+        "res_SH_total": 0.0,
+        "res_SC": 0.0,
+        "res_split_cond": 0.0,
+        "res_approach_evap": 0.9551726860004688,
+        "res_SH_des": 0.011236301495332033,
+        "res_rp": 0.0,
+        "res_dT_air_ev": 0.02210012890794589,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.005712038066742177,
+        "res_kW_TR": 0.005778845529511071
+      }
+    },
+    "carga_baja": {
+      "residuo_caracteristico_esperado": "res_SC",
+      "residuo_dominante_en_los_datos": "res_SH_des",
+      "puesto_del_esperado_en_los_datos": 4,
+      "residuo_raiz_del_arbol": "res_SH_evap",
+      "coincide_en_los_datos": false,
+      "coincide_en_el_arbol": false,
+      "entre_los_tres_primeros": false,
+      "esta_entre_los_declarados": false,
+      "exactitud_del_arbol": 1.0,
+      "tamano_de_efecto": {
+        "res_SH_evap": 11.755932621045622,
+        "res_SH_total": 13.054844712331212,
+        "res_SC": 10.513309601629201,
+        "res_split_cond": 1.9780667637746159,
+        "res_approach_evap": 1.3070783233791383,
+        "res_SH_des": 16.645826177518757,
+        "res_rp": 0.14228343444686858,
+        "res_dT_air_ev": 3.6382779036255934,
+        "res_dT_air_cd": 1.7499977880393194,
+        "res_COP": 1.6787893275456018,
+        "res_kW_TR": 1.8010323800186068
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 1.0,
+        "res_SH_total": 0.0,
+        "res_SC": 0.0,
+        "res_split_cond": 0.0,
+        "res_approach_evap": 0.0,
+        "res_SH_des": 0.0,
+        "res_rp": 0.0,
+        "res_dT_air_ev": 0.0,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.0,
+        "res_kW_TR": 0.0
+      }
+    },
+    "sobrecarga": {
+      "residuo_caracteristico_esperado": "res_SC",
+      "residuo_dominante_en_los_datos": "res_SC",
+      "puesto_del_esperado_en_los_datos": 1,
+      "residuo_raiz_del_arbol": "res_SC",
+      "coincide_en_los_datos": true,
+      "coincide_en_el_arbol": true,
+      "entre_los_tres_primeros": true,
+      "esta_entre_los_declarados": true,
+      "exactitud_del_arbol": 1.0,
+      "tamano_de_efecto": {
+        "res_SH_evap": 0.1835418825145603,
+        "res_SH_total": 0.06596334138876435,
+        "res_SC": 19.093221239228956,
+        "res_split_cond": 4.301612344637671,
+        "res_approach_evap": 1.4533316488382353,
+        "res_SH_des": 3.066546916386995,
+        "res_rp": 3.712621686536363,
+        "res_dT_air_ev": 2.0821683550627803,
+        "res_dT_air_cd": 1.0976543469076392,
+        "res_COP": 0.753615001083932,
+        "res_kW_TR": 0.8173247736104249
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 0.0,
+        "res_SH_total": 0.0,
+        "res_SC": 1.0,
+        "res_split_cond": 0.0,
+        "res_approach_evap": 0.0,
+        "res_SH_des": 0.0,
+        "res_rp": 0.0,
+        "res_dT_air_ev": 0.0,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.0,
+        "res_kW_TR": 0.0
+      }
+    },
+    "txv_restringida": {
+      "residuo_caracteristico_esperado": "res_SH_evap",
+      "residuo_dominante_en_los_datos": "res_SH_des",
+      "puesto_del_esperado_en_los_datos": 3,
+      "residuo_raiz_del_arbol": "res_SH_evap",
+      "coincide_en_los_datos": false,
+      "coincide_en_el_arbol": true,
+      "entre_los_tres_primeros": true,
+      "esta_entre_los_declarados": false,
+      "exactitud_del_arbol": 1.0,
+      "tamano_de_efecto": {
+        "res_SH_evap": 14.088964510160077,
+        "res_SH_total": 15.634151486000627,
+        "res_SC": 0.12170542352348959,
+        "res_split_cond": 0.14974252082307893,
+        "res_approach_evap": 0.0795077566038448,
+        "res_SH_des": 19.43243946743996,
+        "res_rp": 0.010988118375262668,
+        "res_dT_air_ev": 0.018876187160630997,
+        "res_dT_air_cd": 0.11849231369731354,
+        "res_COP": 0.1047356084815272,
+        "res_kW_TR": 0.08593847425190473
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 1.0,
+        "res_SH_total": 0.0,
+        "res_SC": 0.0,
+        "res_split_cond": 0.0,
+        "res_approach_evap": 0.0,
+        "res_SH_des": 0.0,
+        "res_rp": 0.0,
+        "res_dT_air_ev": 0.0,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.0,
+        "res_kW_TR": 0.0
+      }
+    },
+    "txv_sobrealimenta": {
+      "residuo_caracteristico_esperado": "res_SH_evap",
+      "residuo_dominante_en_los_datos": "res_SH_des",
+      "puesto_del_esperado_en_los_datos": 3,
+      "residuo_raiz_del_arbol": "res_SH_des",
+      "coincide_en_los_datos": false,
+      "coincide_en_el_arbol": false,
+      "entre_los_tres_primeros": true,
+      "esta_entre_los_declarados": false,
+      "exactitud_del_arbol": 0.9943502824858758,
+      "tamano_de_efecto": {
+        "res_SH_evap": 6.007213888546894,
+        "res_SH_total": 6.389050103491251,
+        "res_SC": 0.028504162374673632,
+        "res_split_cond": 0.021162630223200755,
+        "res_approach_evap": 0.07496468028282091,
+        "res_SH_des": 8.31429193984239,
+        "res_rp": 0.005594651736455064,
+        "res_dT_air_ev": 0.03793609905278045,
+        "res_dT_air_cd": 0.2141992721667355,
+        "res_COP": 0.07102691660626448,
+        "res_kW_TR": 0.09564409986679645
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 0.051078541734755976,
+        "res_SH_total": 0.0,
+        "res_SC": 0.0,
+        "res_split_cond": 0.0037613740077993402,
+        "res_approach_evap": 0.0,
+        "res_SH_des": 0.9375045818651002,
+        "res_rp": 0.0,
+        "res_dT_air_ev": 0.0,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.0,
+        "res_kW_TR": 0.007655502392344498
+      }
+    },
+    "compresor_desgastado": {
+      "residuo_caracteristico_esperado": "res_SH_des",
+      "residuo_dominante_en_los_datos": "res_SH_des",
+      "puesto_del_esperado_en_los_datos": 1,
+      "residuo_raiz_del_arbol": "res_SH_des",
+      "coincide_en_los_datos": true,
+      "coincide_en_el_arbol": true,
+      "entre_los_tres_primeros": true,
+      "esta_entre_los_declarados": true,
+      "exactitud_del_arbol": 1.0,
+      "tamano_de_efecto": {
+        "res_SH_evap": 0.077481251381193,
+        "res_SH_total": 0.05945080175075326,
+        "res_SC": 0.03501274054745726,
+        "res_split_cond": 3.7749758040268198,
+        "res_approach_evap": 5.161345797154885,
+        "res_SH_des": 9.60182589031197,
+        "res_rp": 6.711927943528373,
+        "res_dT_air_ev": 6.288757731262948,
+        "res_dT_air_cd": 3.0592598518981786,
+        "res_COP": 2.3607141526588036,
+        "res_kW_TR": 2.655091641972162
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 0.0,
+        "res_SH_total": 0.0,
+        "res_SC": 0.0,
+        "res_split_cond": 0.0,
+        "res_approach_evap": 0.011234866828087135,
+        "res_SH_des": 0.9554349561053472,
+        "res_rp": 0.022094580654295874,
+        "res_dT_air_ev": 0.011235596412269788,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.0,
+        "res_kW_TR": 0.0
+      }
+    },
+    "incondensables": {
+      "residuo_caracteristico_esperado": "res_rp",
+      "residuo_dominante_en_los_datos": "res_split_cond",
+      "puesto_del_esperado_en_los_datos": 3,
+      "residuo_raiz_del_arbol": "res_split_cond",
+      "coincide_en_los_datos": false,
+      "coincide_en_el_arbol": false,
+      "entre_los_tres_primeros": true,
+      "esta_entre_los_declarados": true,
+      "exactitud_del_arbol": 1.0,
+      "tamano_de_efecto": {
+        "res_SH_evap": 0.13680756123977286,
+        "res_SH_total": 0.08374604841350826,
+        "res_SC": 9.920313406882704,
+        "res_split_cond": 12.90935692644091,
+        "res_approach_evap": 0.5773283938503647,
+        "res_SH_des": 4.696024828498495,
+        "res_rp": 6.455230369516902,
+        "res_dT_air_ev": 0.646098167916294,
+        "res_dT_air_cd": 0.24572105417461032,
+        "res_COP": 2.274976082455533,
+        "res_kW_TR": 2.3912430900719057
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 0.0,
+        "res_SH_total": 0.0,
+        "res_SC": 0.0,
+        "res_split_cond": 1.0,
+        "res_approach_evap": 0.0,
+        "res_SH_des": 0.0,
+        "res_rp": 0.0,
+        "res_dT_air_ev": 0.0,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.0,
+        "res_kW_TR": 0.0
+      }
+    },
+    "restriccion_linea_liquido": {
+      "residuo_caracteristico_esperado": "res_SC",
+      "residuo_dominante_en_los_datos": "res_SH_des",
+      "puesto_del_esperado_en_los_datos": 4,
+      "residuo_raiz_del_arbol": "res_SH_des",
+      "coincide_en_los_datos": false,
+      "coincide_en_el_arbol": false,
+      "entre_los_tres_primeros": false,
+      "esta_entre_los_declarados": false,
+      "exactitud_del_arbol": 1.0,
+      "tamano_de_efecto": {
+        "res_SH_evap": 7.244127064073294,
+        "res_SH_total": 7.9620633724154395,
+        "res_SC": 4.7217380260645,
+        "res_split_cond": 1.7930586128834198,
+        "res_approach_evap": 4.515554600914731,
+        "res_SH_des": 12.920093920335285,
+        "res_rp": 3.43288270680731,
+        "res_dT_air_ev": 3.024062114756935,
+        "res_dT_air_cd": 1.3341759114799232,
+        "res_COP": 1.0167711739263787,
+        "res_kW_TR": 1.0454351815153027
+      },
+      "importancia_del_arbol": {
+        "res_SH_evap": 0.0,
+        "res_SH_total": 0.0,
+        "res_SC": 0.0,
+        "res_split_cond": 0.0,
+        "res_approach_evap": 0.0,
+        "res_SH_des": 1.0,
+        "res_rp": 0.0,
+        "res_dT_air_ev": 0.0,
+        "res_dT_air_cd": 0.0,
+        "res_COP": 0.0,
+        "res_kW_TR": 0.0
+      }
+    }
+  },
+  "deteccion_vs_severidad": {
+    "carga_baja": {
+      "(0.15, 0.25]": 0.96875,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    },
+    "compresor_desgastado": {
+      "(0.15, 0.25]": 1.0,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    },
+    "condensador_sucio": {
+      "(0.15, 0.25]": 1.0,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    },
+    "evaporador_sucio": {
+      "(0.15, 0.25]": 0.96875,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    },
+    "incondensables": {
+      "(0.15, 0.25]": 0.9655172413793104,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    },
+    "restriccion_linea_liquido": {
+      "(0.15, 0.25]": 0.9354838709677419,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    },
+    "sobrecarga": {
+      "(0.15, 0.25]": 1.0,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    },
+    "txv_restringida": {
+      "(0.15, 0.25]": 0.9705882352941176,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    },
+    "txv_sobrealimenta": {
+      "(0.15, 0.25]": 0.9696969696969697,
+      "(0.25, 0.35]": 1.0,
+      "(0.35, 0.45]": 1.0,
+      "(0.45, 0.55]": 1.0,
+      "(0.55, 0.65]": 1.0,
+      "(0.65, 0.75]": 1.0,
+      "(0.75, 0.85]": 1.0,
+      "(0.85, 0.95]": 1.0
+    }
+  },
+  "sensibilidad_al_ruido": {
+    "0.5": {
+      "f1_macro": 1.0,
+      "exactitud": 1.0,
+      "diagnostico_incipiente": 1.0,
+      "deteccion_incipiente": 1.0,
+      "n_filas": 3600
+    },
+    "1.0": {
+      "f1_macro": 0.9882654422980309,
+      "exactitud": 0.9882352941176471,
+      "diagnostico_incipiente": 0.9869281045751634,
+      "deteccion_incipiente": 0.9934640522875817,
+      "n_filas": 3600
+    },
+    "2.0": {
+      "f1_macro": 0.9324417954717623,
+      "exactitud": 0.9313725490196079,
+      "diagnostico_incipiente": 0.8104575163398693,
+      "deteccion_incipiente": 0.9084967320261438,
+      "n_filas": 3600
+    }
+  },
+  "prevalencia_objetivo": {
+    "sano": 0.7,
+    "condensador_sucio": 0.08,
+    "evaporador_sucio": 0.06,
+    "carga_baja": 0.05,
+    "txv_restringida": 0.03,
+    "compresor_desgastado": 0.03,
+    "restriccion_linea_liquido": 0.02,
+    "incondensables": 0.015,
+    "sobrecarga": 0.01,
+    "txv_sobrealimenta": 0.005
+  },
+  "figuras": {
+    "fig1_diagrama_ph": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig1_diagrama_ph.png",
+    "fig2a_matriz_confusion_balanceado": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig2a_matriz_confusion_balanceado.png",
+    "fig2b_matriz_confusion_prevalencia": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig2b_matriz_confusion_prevalencia.png",
+    "fig3a_curvas_pr_balanceado": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig3a_curvas_pr_balanceado.png",
+    "fig3b_curvas_pr_prevalencia": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig3b_curvas_pr_prevalencia.png",
+    "fig4_importancia_permutacion": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig4_importancia_permutacion.png",
+    "fig7_mapa_firmas": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig7_mapa_firmas.png",
+    "fig5_deteccion_vs_severidad": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig5_deteccion_vs_severidad.png",
+    "fig6_sensibilidad_ruido": "/home/user/Creacion-de-Notepad/proyecto-fdd/figuras/fig6_sensibilidad_ruido.png"
+  }
+}

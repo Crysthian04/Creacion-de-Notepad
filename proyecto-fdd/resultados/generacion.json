@@ -1,0 +1,54 @@
+{
+  "semilla_maestra": 20260902,
+  "factor_ruido": 1.0,
+  "n_cond_entrenamiento": 400,
+  "n_muestras_prevalencia": 3000,
+  "filas_balanceado": 12000,
+  "filas_prevalencia": 3000,
+  "convergencia_balanceado": {
+    "intentos": 12000,
+    "convergidos": 12000,
+    "descartados": 0,
+    "fraccion_descartada": 0.0,
+    "condiciones_descartadas": 0,
+    "descartes_por_clase": {},
+    "descartes_por_motivo": {}
+  },
+  "convergencia_prevalencia": {
+    "intentos": 3000,
+    "convergidos": 3000,
+    "descartados": 0,
+    "fraccion_descartada": 0.0,
+    "condiciones_descartadas": 0,
+    "descartes_por_clase": {},
+    "descartes_por_motivo": {}
+  },
+  "prevalencia_objetivo": {
+    "sano": 0.7,
+    "condensador_sucio": 0.08,
+    "evaporador_sucio": 0.06,
+    "carga_baja": 0.05,
+    "txv_restringida": 0.03,
+    "compresor_desgastado": 0.03,
+    "restriccion_linea_liquido": 0.02,
+    "incondensables": 0.015,
+    "sobrecarga": 0.01,
+    "txv_sobrealimenta": 0.005
+  },
+  "prevalencia_obtenida": {
+    "sano": 0.696,
+    "condensador_sucio": 0.072,
+    "carga_baja": 0.05733333333333333,
+    "evaporador_sucio": 0.056,
+    "compresor_desgastado": 0.032,
+    "txv_restringida": 0.029333333333333333,
+    "restriccion_linea_liquido": 0.024666666666666667,
+    "incondensables": 0.015,
+    "sobrecarga": 0.011,
+    "txv_sobrealimenta": 0.006666666666666667
+  },
+  "rutas": {
+    "balanceado": "/home/user/Creacion-de-Notepad/proyecto-fdd/data/dataset_balanceado.parquet",
+    "prevalencia": "/home/user/Creacion-de-Notepad/proyecto-fdd/data/dataset_prevalencia.parquet"
+  }
+}

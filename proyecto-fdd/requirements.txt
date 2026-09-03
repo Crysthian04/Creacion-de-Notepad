@@ -1,0 +1,15 @@
+# Proyecto FDD — Fase 5. Versiones FIJADAS: la reproducibilidad exige que la
+# semilla y el entorno estén controlados a la vez (defecto D10 de la auditoría).
+# Probado con Python 3.11.
+
+CoolProp==8.0.0          # propiedades termodinámicas (Bell et al., 2014)
+numpy==2.4.6
+scipy==1.17.1            # fsolve, least_squares, hipercubo latino
+pandas==3.0.5
+pyarrow==25.0.1          # escritura de Parquet
+scikit-learn==1.9.0      # RandomForest, GridSearchCV, métricas
+matplotlib==3.11.1
+seaborn==0.13.2
+python-docx==1.2.0       # exportación del informe a Word
+joblib==1.6.0
+pytest==9.1.1            # batería de verificación física

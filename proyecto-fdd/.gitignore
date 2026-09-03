@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+resultados/log_*.txt
+data/*_rapido.parquet
+data/*_humo.parquet
