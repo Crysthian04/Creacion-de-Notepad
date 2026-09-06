@@ -9,7 +9,7 @@ Este módulo está separado del solver a propósito: la calibración se va a rep
 cuando lleguen las tres corridas por circuito de la Fase 1 (hoja `Registro
 Campo`). Cuando eso ocurra, lo único que cambia es el argumento `mediciones`.
 
-Uso previsto con datos reales
+
 -----------------------------
     mediciones = [
         Medicion(cond=CondicionContorno(T_amb=33.1, HR_amb=78, T_space=24.5,
@@ -92,17 +92,17 @@ class ResultadoCalibracion:
 # una presión en psig domine sobre una temperatura en K por puro tamaño.
 _ESCALA = {
     "T_evap": 1.0, "T_cond": 1.0, "T_liq": 1.0, "T_des": 1.0,
-    "T_air_out_ev": 1.0, "T_air_out_cd": 1.0,
+    "T_agua_out_ev": 1.0, "T_agua_in_ev": 1.0,
+    "T_agua_out_cd": 1.0, "T_air_out_cd": 1.0, "T_air_out_ev": 1.0,
     "P_suc": 10.0, "P_des": 25.0,
-    "Q_L": 1000.0, "W_elec": 200.0, "I_avg": 1.0,
+    "Q_L": 10000.0, "W_elec": 5000.0, "I_avg": 5.0,
 }
 
 
 def calibrar_UA(mediciones: list[Medicion],
                 params,
                 pesos: dict[str, float] | None = None,
-                cotas: tuple[tuple[float, float], tuple[float, float]] = ((300.0, 8000.0),
-                                                                          (500.0, 12000.0)),
+                cotas: tuple[tuple[float, float], tuple[float, float]] | None = None,
                 x0: tuple[float, float] | None = None,
                 origen_datos: str = "no declarado",
                 provisional: bool = True,
@@ -115,7 +115,11 @@ def calibrar_UA(mediciones: list[Medicion],
     params     : `ParametrosEquipo`. Solo se modifican UA_ev y UA_cd.
     pesos      : peso por variable objetivo, p. ej. {"P_des": 2.0}. Sirve para
                  dar más importancia a los instrumentos más exactos.
-    cotas      : ((UA_ev_min, UA_ev_max), (UA_cd_min, UA_cd_max)) en W/K.
+    cotas      : ((UA_ev_min, UA_ev_max), (UA_cd_min, UA_cd_max)) en W/K. Por
+                 defecto, un factor 6 alrededor del valor inicial: los UA de una
+                 enfriadora de 100 TR y los de un equipo de expansión directa de
+                 5 TR difieren en dos órdenes de magnitud, así que unas cotas
+                 absolutas fijas solo servirían para una de las dos topologías.
     x0         : valores iniciales. Por defecto, los de `params`.
     """
     if not mediciones:
@@ -123,6 +127,7 @@ def calibrar_UA(mediciones: list[Medicion],
 
     pesos = pesos or {}
     x0 = x0 or (params.UA_ev, params.UA_cd)
+    cotas = cotas or ((x0[0] / 6.0, x0[0] * 6.0), (x0[1] / 6.0, x0[1] * 6.0))
     contador = {"n": 0}
     # Se ajusta en el logaritmo: los UA son positivos y varían en orden de magnitud.
     log_x0 = np.log(np.array(x0, dtype=float))

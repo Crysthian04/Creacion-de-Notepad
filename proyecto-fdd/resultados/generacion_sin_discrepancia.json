@@ -2,7 +2,7 @@
   "topologia": "chiller_cond_aire",
   "semilla_maestra": 20260902,
   "factor_ruido": 1.0,
-  "nivel_discrepancia": 0.05,
+  "nivel_discrepancia": 0.0,
   "modo_discrepancia": "por_condicion",
   "n_cond_entrenamiento": 400,
   "n_muestras_prevalencia": 10000,
@@ -216,7 +216,7 @@
     "retorno_liquido": 461
   },
   "rutas": {
-    "balanceado": "/home/user/Creacion-de-Notepad/proyecto-fdd/data/dataset_balanceado.parquet",
-    "prevalencia": "/home/user/Creacion-de-Notepad/proyecto-fdd/data/dataset_prevalencia.parquet"
+    "balanceado": "/home/user/Creacion-de-Notepad/proyecto-fdd/data/dataset_balanceado_sin_discrepancia.parquet",
+    "prevalencia": "/home/user/Creacion-de-Notepad/proyecto-fdd/data/dataset_prevalencia_sin_discrepancia.parquet"
   }
 }
