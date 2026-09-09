@@ -250,11 +250,17 @@ el promedio escondería el error grande—.
 - Por debajo de carga ≈ 0,25 (a 24 °C) o ≈ 0,19 (a 36 °C) el modelo **no tiene estado
   estacionario**. Esos puntos se marcan con `convergio = 0` y no se extrapolan.
 
-**Cómo debe usar el visualizador la zona de carga baja.** En ciclado, el estado almacenado es el del
-**período de marcha a capacidad mínima**, no un promedio del ciclo. El campo `fraccion_marcha` da la
-proporción de tiempo encendido, `Q_demandada / Q_L_entregada`. El arranque matutino se reconstruye
-ciclando ese estado, que es lo que hace el equipo real, en lugar de interpolar un estado que no
-existe.
+**Zona de carga baja: DEFECTO ABIERTO, no usar todavía.** La bandera `ciclado` de la malla no es
+fiable en su estado actual. A carga 0,28 y 30 °C el solver marca `ciclado = 1` pero devuelve una
+fracción de capacidad de **0,214, por debajo del mínimo del compresor (0,25)**, sosteniendo el
+setpoint exactamente: un estado que la máquina no puede tener. Existe solución válida a capacidad
+mínima —entrega unos 116 kW frente a 98,5 kW de demanda, es decir sobre-entrega, que es justamente
+lo que hace ciclar— pero el solver la rechaza y conserva la solución no acotada.
+
+Consecuencia: `fraccion_marcha` vale 1,000 en toda la zona de ciclado en lugar de la proporción real
+de tiempo encendido, así que **el arranque matutino todavía no se puede reconstruir con la malla**.
+El resto de la malla (carga ≥ 0,34) no está afectado. La causa está localizada en la selección de
+régimen de `src/ciclo.py`, entre la guarda de validez de capacidad y el reintento a `y_min`.
 
 ## 8. Estructura
 

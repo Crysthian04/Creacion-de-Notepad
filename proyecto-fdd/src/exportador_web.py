@@ -552,6 +552,8 @@ def exportar_malla(malla: dict, p, ruta: Path | None = None) -> Path:
               f'controlado->saturado SI se interpola: es un codo, no un salto. En los '
               f'demas casos, vecino mas proximo. Los campos discretos son SIEMPRE vecino.",\n'
               f'  "campos_discretos": {json.dumps(list(CAMPOS_DISCRETOS))},\n'
+              f'  "celda_bilineal": {_arr(celdas)},\n'
+              f'  "indice_celda": "idxCelda = ((i_T * (nCargas-1) + i_carga) * nClases + i_clase) * nSeveridades + i_sev",\n'
               f'  "discretos": {{{disc_js}}},\n'
               f'  "datos": {{{campos_js}}}\n'
               "}")
