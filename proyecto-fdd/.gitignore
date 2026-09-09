@@ -4,3 +4,4 @@ __pycache__/
 resultados/log_*.txt
 data/*_rapido.parquet
 data/*_humo.parquet
+resultados/*.joblib

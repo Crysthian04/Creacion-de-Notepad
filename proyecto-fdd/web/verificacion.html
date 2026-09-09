@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>FDD — verificación de carga local</title>
+<style>
+ body{font:14px/1.5 system-ui,sans-serif;margin:2rem auto;max-width:60rem;padding:0 1rem;color:#1a1a1a}
+ h1{font-size:1.3rem} h2{font-size:1rem;margin-top:1.6rem}
+ table{border-collapse:collapse;margin:.5rem 0} td,th{border:1px solid #ccc;padding:.25rem .6rem;text-align:left}
+ .ok{color:#0a7d32;font-weight:600} .mal{color:#b3261e;font-weight:600}
+ code{background:#f2f2f2;padding:0 .25rem;border-radius:3px}
+ p.nota{color:#555;font-size:.9rem}
+</style>
+</head>
+<body>
+<h1>Verificación de carga local — módulo FDD</h1>
+<p class="nota">Esta página <strong>no es el visualizador</strong>. Es una autoprueba: confirma que
+los cuatro archivos de datos cargan con doble clic bajo <code>file://</code>, sin servidor y sin
+<code>fetch()</code>, y que la inferencia responde. Si algo falla aquí, fallará en el visualizador.</p>
+
+<div id="salida">Cargando…</div>
+
+<script src="datos/fdd_modelo.js"></script>
+<script src="datos/fdd_fisica.js"></script>
+<script src="datos/fdd_malla.js"></script>
+<script src="datos/fdd_metricas.js"></script>
+<script src="js/fdd_inferencia.js"></script>
+<script>
+(function () {
+  var f = [], filas = [];
+  function comp(nombre, cond, detalle) {
+    filas.push('<tr><td>' + nombre + '</td><td class="' + (cond ? 'ok">correcto' : 'mal">FALLA')
+               + '</td><td>' + (detalle || '') + '</td></tr>');
+    if (!cond) f.push(nombre);
+  }
+  comp('FDD_MODELO cargado', typeof FDD_MODELO === 'object',
+       FDD_MODELO.n_arboles + ' árboles, ' + FDD_MODELO.clases.length + ' clases');
+  comp('FDD_FISICA cargado', typeof FDD_FISICA === 'object',
+       FDD_FISICA.refrigerante + ', ' + FDD_FISICA.Q_nom_TR + ' TR (' + FDD_FISICA.Q_nom_W + ' W)');
+  comp('FDD_MALLA cargada', typeof FDD_MALLA === 'object',
+       FDD_MALLA.temperaturas_C.length + ' × ' + FDD_MALLA.cargas.length + ' × '
+       + FDD_MALLA.nClases + ' × ' + FDD_MALLA.nSeveridades);
+  comp('FDD_METRICAS cargadas', typeof FDD_METRICAS === 'object',
+       'F1 macro prevalencia = ' + FDD_METRICAS.prevalencia_realista.f1_macro.toFixed(4));
+
+  var e = FDD.consultar(32, 0.8, 'condensador_sucio', 0.75);
+  comp('Consulta de la malla', isFinite(e.m_r) && isFinite(e.W_elec_W),
+       'ṁ=' + e.m_r.toFixed(4) + ' kg/s, W=' + (e.W_elec_W / 1000).toFixed(1) + ' kW, régimen '
+       + e._regimen + ', interpolación ' + e._interpolacion);
+
+  var d = FDD.diagnosticar(32, 0.8, 'condensador_sucio', 0.75);
+  comp('Inferencia del bosque', d.diagnostico.clase.length > 0,
+       'diagnóstico: ' + d.diagnostico.clase + ' (confianza '
+       + d.diagnostico.confianza.toFixed(3) + ')');
+
+  var s = FDD.consultar(30, 0.30, 'sano', 0);
+  comp('Zona de ciclado documentada', typeof s.fraccion_marcha === 'number',
+       'carga 0,30: ciclado=' + s.ciclado + ', fracción de marcha='
+       + (s.fraccion_marcha === null ? '—' : s.fraccion_marcha.toFixed(3)));
+
+  var q = FDD.cargaDesdeVatios(0.6 * FDD_FISICA.Q_nom_W);
+  comp('Demanda en vatios → fracción de carga', Math.abs(q - 0.6) < 1e-9, 'q = ' + q.toFixed(4));
+
+  document.getElementById('salida').innerHTML =
+    '<h2>' + (f.length === 0
+      ? '<span class="ok">Los cinco archivos cargan bajo file:// y la inferencia responde.</span>'
+      : '<span class="mal">' + f.length + ' comprobaciones fallan: ' + f.join(', ') + '</span>')
+    + '</h2><table><tr><th>Comprobación</th><th>Resultado</th><th>Detalle</th></tr>'
+    + filas.join('') + '</table>'
+    + '<p class="nota">La equivalencia exacta con scikit-learn se verifica aparte, con '
+    + '<code>pytest tests/test_exportador.py</code>: 1997 muestras, clase idéntica sin '
+    + 'tolerancia y probabilidades iguales bit a bit.</p>';
+})();
+</script>
+</body>
+</html>

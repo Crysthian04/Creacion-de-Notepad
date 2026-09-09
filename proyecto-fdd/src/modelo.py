@@ -174,7 +174,7 @@ def particionar(df: pd.DataFrame, topo, semilla: int, prop_tr: float = 0.70,
 # ===========================================================================
 # Selección de modelo — SIN acceso al conjunto de prueba
 # ===========================================================================
-REJILLA_RF = {"n_estimators": [300], "max_depth": [None, 16],
+REJILLA_RF = {"n_estimators": [100], "max_depth": [None, 16],
               "min_samples_leaf": [1, 2, 4], "max_features": ["sqrt", 0.5]}
 REJILLA_DT = {"max_depth": [8, 16, None], "min_samples_leaf": [1, 2, 4],
               "min_samples_split": [2, 10]}
@@ -811,6 +811,19 @@ def ejecutar(semilla: int = SEMILLA_MAESTRA, sufijo: str = "", con_estudios: boo
         "prevalencia_objetivo": prevalencia_campo(topo),
         "figuras": figuras,
     }
+    import joblib
+    ruta_modelo = DIR_RESULTADOS / f"modelo_rf{sufijo}.joblib"
+    # Comprimido: sin comprimir, el paquete con los tres modelos pesa 244 MB y
+    # no cabe en el control de versiones. De todos modos es un artefacto
+    # derivable —semilla fija más dataset— y está en .gitignore: se regenera con
+    # `python -m src.modelo`.
+    joblib.dump({"modelo": modelo, "modelo_balanceado": modelo_bal,
+                 "regresor_severidad": reg_sev, "clases": list(nombres_clases),
+                 "columnas": list(columnas_residuos(topo)), "semilla": semilla,
+                 "topologia": topo.nombre, "hiperparametros": mejores},
+                ruta_modelo, compress=3)
+    print(f"     modelo persistido -> {ruta_modelo}")
+
     ruta = DIR_RESULTADOS / f"metricas{sufijo}.json"
     ruta.write_text(json.dumps(metricas, indent=2, ensure_ascii=False, default=str),
                     encoding="utf-8")

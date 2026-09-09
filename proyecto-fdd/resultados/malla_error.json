@@ -1,0 +1,639 @@
+{
+  "metodo": "muestreo dirigido: se recorren todas las celdas y se muestrean 9 puntos interiores en cada una",
+  "leyenda": {
+    "bilineal": "celdas interpolables: sin ciclado y sin cambio de régimen de válvula (el paso controlado->saturado es un codo, no un salto)",
+    "vecino": "celdas con ciclado, con cambio de régimen de válvula o con algún vértice sin estado estacionario: vecino más próximo",
+    "ruido_instrumento": {
+      "T4_C": 0.1,
+      "T_sec_out_ev": 0.1,
+      "m_r": null,
+      "W_elec_W": null,
+      "res_SC": 0.35,
+      "res_approach_ev": 0.4,
+      "res_COP": 0.22,
+      "res_dT_agua_ev": 0.14
+    }
+  },
+  "casos": {
+    "sano_f0.0": {
+      "bilineal": {
+        "n_celdas": 66,
+        "campos": {
+          "T4_C": {
+            "n": 594,
+            "rmse": 0.00867305459985665,
+            "max": 0.06387752375548139,
+            "celda_peor": "T[24,26] q[0.50,0.60]",
+            "supera_ruido": false
+          },
+          "T_sec_out_ev": {
+            "n": 594,
+            "rmse": 2.095204769626348e-09,
+            "max": 3.1232699093663996e-08,
+            "celda_peor": "T[34,36] q[0.37,0.40]",
+            "supera_ruido": false
+          },
+          "m_r": {
+            "n": 594,
+            "rmse": 0.0003997808157807281,
+            "max": 0.0010371618954487793,
+            "celda_peor": "T[34,36] q[0.80,0.90]",
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 594,
+            "rmse": 31.431013322692422,
+            "max": 153.48595077229402,
+            "celda_peor": "T[24,26] q[0.50,0.60]",
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 594,
+            "rmse": 0.0,
+            "max": 0.0,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_approach_ev": {
+            "n": 594,
+            "rmse": 0.0,
+            "max": 0.0,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_COP": {
+            "n": 594,
+            "rmse": 0.0,
+            "max": 0.0,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_dT_agua_ev": {
+            "n": 594,
+            "rmse": 0.0,
+            "max": 0.0,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          }
+        }
+      },
+      "vecino": {
+        "n_celdas": 0,
+        "campos": {
+          "T4_C": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "T_sec_out_ev": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "m_r": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "res_approach_ev": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "res_COP": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "res_dT_agua_ev": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          }
+        }
+      }
+    },
+    "condensador_sucio_f0.75": {
+      "bilineal": {
+        "n_celdas": 66,
+        "campos": {
+          "T4_C": {
+            "n": 594,
+            "rmse": 0.011054031413408437,
+            "max": 0.08005106598715805,
+            "celda_peor": "T[32,34] q[0.95,1.00]",
+            "supera_ruido": false
+          },
+          "T_sec_out_ev": {
+            "n": 594,
+            "rmse": 0.004833775922217763,
+            "max": 0.050183859350579674,
+            "celda_peor": "T[32,34] q[0.95,1.00]",
+            "supera_ruido": false
+          },
+          "m_r": {
+            "n": 594,
+            "rmse": 0.0030879751603144975,
+            "max": 0.0313797115085106,
+            "celda_peor": "T[32,34] q[0.95,1.00]",
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 594,
+            "rmse": 164.6060594933057,
+            "max": 1625.5191463531082,
+            "celda_peor": "T[32,34] q[0.95,1.00]",
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 594,
+            "rmse": 0.00362021014597739,
+            "max": 0.037508761819166736,
+            "celda_peor": "T[32,34] q[0.95,1.00]",
+            "supera_ruido": false
+          },
+          "res_approach_ev": {
+            "n": 594,
+            "rmse": 0.008873876113376538,
+            "max": 0.05823289622667405,
+            "celda_peor": "T[28,30] q[0.40,0.50]",
+            "supera_ruido": false
+          },
+          "res_COP": {
+            "n": 594,
+            "rmse": 0.001234150810693644,
+            "max": 0.00918057465659905,
+            "celda_peor": "T[24,26] q[0.50,0.60]",
+            "supera_ruido": false
+          },
+          "res_dT_agua_ev": {
+            "n": 594,
+            "rmse": 0.004833775922128929,
+            "max": 0.050183859349635096,
+            "celda_peor": "T[32,34] q[0.95,1.00]",
+            "supera_ruido": false
+          }
+        }
+      },
+      "vecino": {
+        "n_celdas": 0,
+        "campos": {
+          "T4_C": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "T_sec_out_ev": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "m_r": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "res_approach_ev": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "res_COP": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          },
+          "res_dT_agua_ev": {
+            "n": 0,
+            "rmse": null,
+            "max": null,
+            "celda_peor": null,
+            "supera_ruido": null
+          }
+        }
+      }
+    },
+    "caudal_agua_bajo_f0.75": {
+      "bilineal": {
+        "n_celdas": 54,
+        "campos": {
+          "T4_C": {
+            "n": 486,
+            "rmse": 0.022081987879664384,
+            "max": 0.425664457217362,
+            "celda_peor": "T[28,30] q[0.28,0.31]",
+            "supera_ruido": true
+          },
+          "T_sec_out_ev": {
+            "n": 486,
+            "rmse": 0.01567225426245529,
+            "max": 0.3027302145673616,
+            "celda_peor": "T[28,30] q[0.28,0.31]",
+            "supera_ruido": true
+          },
+          "m_r": {
+            "n": 486,
+            "rmse": 0.004903168710589507,
+            "max": 0.09418441559148727,
+            "celda_peor": "T[28,30] q[0.28,0.31]",
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 486,
+            "rmse": 200.93918881162452,
+            "max": 3822.0646622234053,
+            "celda_peor": "T[28,30] q[0.28,0.31]",
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 486,
+            "rmse": 0.004774033732131049,
+            "max": 0.09212897156199969,
+            "celda_peor": "T[28,30] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_approach_ev": {
+            "n": 486,
+            "rmse": 0.011172913833321634,
+            "max": 0.12362896599845785,
+            "celda_peor": "T[28,30] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_COP": {
+            "n": 486,
+            "rmse": 0.0027208073003748496,
+            "max": 0.050023834798858705,
+            "celda_peor": "T[28,30] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_dT_agua_ev": {
+            "n": 486,
+            "rmse": 0.01567225426249284,
+            "max": 0.30273021456838745,
+            "celda_peor": "T[28,30] q[0.28,0.31]",
+            "supera_ruido": true
+          }
+        }
+      },
+      "vecino": {
+        "n_celdas": 12,
+        "campos": {
+          "T4_C": {
+            "n": 108,
+            "rmse": 0.114470197408514,
+            "max": 0.5534336236483117,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": true
+          },
+          "T_sec_out_ev": {
+            "n": 108,
+            "rmse": 0.08174889983539085,
+            "max": 0.381541275456696,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": true
+          },
+          "m_r": {
+            "n": 108,
+            "rmse": 0.030661706867657065,
+            "max": 0.12018089162800194,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 108,
+            "rmse": 1381.0982288940354,
+            "max": 4248.745493061499,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 108,
+            "rmse": 0.024764460737489488,
+            "max": 0.11320650727827086,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_approach_ev": {
+            "n": 108,
+            "rmse": 0.04282310858347502,
+            "max": 0.15221837974738772,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_COP": {
+            "n": 108,
+            "rmse": 0.015103673610018816,
+            "max": 0.07879834790332518,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_dT_agua_ev": {
+            "n": 108,
+            "rmse": 0.08117804917993846,
+            "max": 0.39118580545217263,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": true
+          }
+        }
+      }
+    },
+    "txv_restringida_f0.75": {
+      "bilineal": {
+        "n_celdas": 58,
+        "campos": {
+          "T4_C": {
+            "n": 522,
+            "rmse": 0.008731345284498336,
+            "max": 0.06530307472737817,
+            "celda_peor": "T[24,26] q[0.70,0.80]",
+            "supera_ruido": false
+          },
+          "T_sec_out_ev": {
+            "n": 522,
+            "rmse": 4.314950238748654e-09,
+            "max": 6.813153774487546e-08,
+            "celda_peor": "T[28,30] q[0.80,0.90]",
+            "supera_ruido": false
+          },
+          "m_r": {
+            "n": 522,
+            "rmse": 0.0004118479754965904,
+            "max": 0.0011062270425796772,
+            "celda_peor": "T[24,26] q[0.70,0.80]",
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 522,
+            "rmse": 32.661552239567996,
+            "max": 171.5247706579612,
+            "celda_peor": "T[24,26] q[0.70,0.80]",
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 522,
+            "rmse": 9.521441488885618e-05,
+            "max": 0.000533129507564567,
+            "celda_peor": "T[24,26] q[0.70,0.80]",
+            "supera_ruido": false
+          },
+          "res_approach_ev": {
+            "n": 522,
+            "rmse": 0.012717359682084631,
+            "max": 0.06538123354306591,
+            "celda_peor": "T[24,26] q[0.50,0.60]",
+            "supera_ruido": false
+          },
+          "res_COP": {
+            "n": 522,
+            "rmse": 0.0014321518583945356,
+            "max": 0.008950805393407757,
+            "celda_peor": "T[24,26] q[0.50,0.60]",
+            "supera_ruido": false
+          },
+          "res_dT_agua_ev": {
+            "n": 522,
+            "rmse": 4.758095808839505e-09,
+            "max": 6.813242550141041e-08,
+            "celda_peor": "T[28,30] q[0.80,0.90]",
+            "supera_ruido": false
+          }
+        }
+      },
+      "vecino": {
+        "n_celdas": 4,
+        "campos": {
+          "T4_C": {
+            "n": 36,
+            "rmse": 0.02255980921937174,
+            "max": 0.04945174741639846,
+            "celda_peor": "T[24,26] q[0.34,0.37]",
+            "supera_ruido": false
+          },
+          "T_sec_out_ev": {
+            "n": 36,
+            "rmse": 1.901338319526163e-09,
+            "max": 6.306872357697557e-09,
+            "celda_peor": "T[24,26] q[0.34,0.37]",
+            "supera_ruido": false
+          },
+          "m_r": {
+            "n": 36,
+            "rmse": 0.021893400747567873,
+            "max": 0.03892065512810394,
+            "celda_peor": "T[30,32] q[0.28,0.31]",
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 36,
+            "rmse": 1115.9816097271075,
+            "max": 2274.2935606667234,
+            "celda_peor": "T[30,32] q[0.28,0.31]",
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 36,
+            "rmse": 7.428350005837529e-05,
+            "max": 0.00013807508183560913,
+            "celda_peor": "T[24,26] q[0.34,0.37]",
+            "supera_ruido": false
+          },
+          "res_approach_ev": {
+            "n": 36,
+            "rmse": 0.008027126217870651,
+            "max": 0.015299012590204164,
+            "celda_peor": "T[24,26] q[0.34,0.37]",
+            "supera_ruido": false
+          },
+          "res_COP": {
+            "n": 36,
+            "rmse": 0.0017974906028837842,
+            "max": 0.004116530134237184,
+            "celda_peor": "T[24,26] q[0.34,0.37]",
+            "supera_ruido": false
+          },
+          "res_dT_agua_ev": {
+            "n": 36,
+            "rmse": 1.90081205298323e-09,
+            "max": 6.306621891383202e-09,
+            "celda_peor": "T[24,26] q[0.34,0.37]",
+            "supera_ruido": false
+          }
+        }
+      }
+    },
+    "incrustacion_evaporador_f0.75": {
+      "bilineal": {
+        "n_celdas": 49,
+        "campos": {
+          "T4_C": {
+            "n": 441,
+            "rmse": 0.01022695133277431,
+            "max": 0.10334915525898669,
+            "celda_peor": "T[34,36] q[0.95,1.00]",
+            "supera_ruido": true
+          },
+          "T_sec_out_ev": {
+            "n": 441,
+            "rmse": 0.005028747913571836,
+            "max": 0.05108698809101675,
+            "celda_peor": "T[34,36] q[0.95,1.00]",
+            "supera_ruido": false
+          },
+          "m_r": {
+            "n": 441,
+            "rmse": 0.0028213007801574006,
+            "max": 0.028394611663874247,
+            "celda_peor": "T[34,36] q[0.95,1.00]",
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 441,
+            "rmse": 136.54450422501276,
+            "max": 1349.850264767636,
+            "celda_peor": "T[34,36] q[0.95,1.00]",
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 441,
+            "rmse": 0.002393504131261656,
+            "max": 0.024280896223051053,
+            "celda_peor": "T[34,36] q[0.95,1.00]",
+            "supera_ruido": false
+          },
+          "res_approach_ev": {
+            "n": 441,
+            "rmse": 0.010855881849121691,
+            "max": 0.06143075570080048,
+            "celda_peor": "T[24,26] q[0.50,0.60]",
+            "supera_ruido": false
+          },
+          "res_COP": {
+            "n": 441,
+            "rmse": 0.0012609011675761253,
+            "max": 0.009381770111430487,
+            "celda_peor": "T[24,26] q[0.50,0.60]",
+            "supera_ruido": false
+          },
+          "res_dT_agua_ev": {
+            "n": 441,
+            "rmse": 0.00502874791375924,
+            "max": 0.05108698809136544,
+            "celda_peor": "T[34,36] q[0.95,1.00]",
+            "supera_ruido": false
+          }
+        }
+      },
+      "vecino": {
+        "n_celdas": 17,
+        "campos": {
+          "T4_C": {
+            "n": 153,
+            "rmse": 0.05413976381634529,
+            "max": 0.38874701087476726,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": true
+          },
+          "T_sec_out_ev": {
+            "n": 153,
+            "rmse": 0.03445834613812734,
+            "max": 0.25273472745003556,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": true
+          },
+          "m_r": {
+            "n": 153,
+            "rmse": 0.021273588741112633,
+            "max": 0.11378595643218536,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": null
+          },
+          "W_elec_W": {
+            "n": 153,
+            "rmse": 1090.7591563119815,
+            "max": 3391.4452946161728,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": null
+          },
+          "res_SC": {
+            "n": 153,
+            "rmse": 0.014778175158842834,
+            "max": 0.10671842990952385,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_approach_ev": {
+            "n": 153,
+            "rmse": 0.03658051088938886,
+            "max": 0.09991331506813506,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_COP": {
+            "n": 153,
+            "rmse": 0.012168693991973914,
+            "max": 0.09033615094935321,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": false
+          },
+          "res_dT_agua_ev": {
+            "n": 153,
+            "rmse": 0.03445834613718561,
+            "max": 0.2527347274524354,
+            "celda_peor": "T[24,26] q[0.28,0.31]",
+            "supera_ruido": true
+          }
+        }
+      }
+    }
+  }
+}

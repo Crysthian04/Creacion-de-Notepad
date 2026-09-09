@@ -188,6 +188,74 @@ de modo que un problema mal condicionado se detecta antes y no después.
 
 ---
 
+## 7 bis. Exportación al visualizador web
+
+El módulo `src/exportador_web.py` genera cuatro archivos `.js` que un visualizador local puede
+cargar con `<script src=...>` **sin servidor**: bajo `file://`, Chrome y Firefox tratan el origen
+como `null` y bloquean `fetch()`, así que un `.json` haría que el visualizador no abra en la máquina
+del evaluador.
+
+```bash
+python -m src.exportador_web          # genera web/datos/*.js y resultados/malla_error.json
+pytest tests/test_exportador.py       # equivalencia exacta JS <-> scikit-learn
+# y abrir web/verificacion.html con doble clic
+```
+
+| Archivo | Constante | Tamaño |
+|---|---|---|
+| `web/datos/fdd_modelo.js` | `FDD_MODELO` | 3,61 MB — el bosque de 100 árboles, recorrible |
+| `web/datos/fdd_malla.js` | `FDD_MALLA` | 1,58 MB — mapa de operación, 4 620 puntos |
+| `web/datos/fdd_fisica.js` | `FDD_FISICA` | 0,01 MB — equipo, fallas, campana de saturación |
+| `web/datos/fdd_metricas.js` | `FDD_METRICAS` | 0,03 MB — confusión y Wilson |
+
+### Equivalencia exacta con scikit-learn
+
+Tres detalles del código fuente de scikit-learn gobiernan la implementación en JavaScript, y se
+verificaron leyendo el fuente antes de escribir la prueba:
+
+1. `ForestClassifier._validate_X_predict` convierte X a **float32**; en JavaScript hay que aplicar
+   `Math.fround` a cada característica antes de comparar contra el umbral.
+2. `DecisionTreeClassifier.predict_proba` devuelve `tree_.value` **sin normalizar**, así que las
+   hojas se exportan verbatim y no se renormalizan.
+3. `ForestClassifier.predict_proba` acumula `out += prediccion` árbol por árbol: suma **lineal**, no
+   por pares. Con `n_jobs=1` el orden es determinista y la igualdad es exacta.
+
+Resultado sobre las 1 997 muestras del conjunto de prueba: **100 % de las probabilidades idénticas
+bit a bit, diferencia máxima 0,000e+00**, y cero pares (muestra, umbral) a menos de 1e-9.
+
+### Contrato de la malla
+
+- **Entrada canónica: la fracción de carga.** `indicePorRetorno()` existe como conveniencia y lleva
+  escrita su advertencia: la relación `T_ret = 7,0 + 5,0·Q_load_frac` es la SANA y no vale bajo
+  `caudal_agua_bajo`, porque con caudal degradado la misma carga produce un retorno más alto. La
+  temperatura de retorno real es el campo `T_sec_in_ev`.
+- `FDD_FISICA.Q_nom_W` permite convertir una demanda en vatios a fracción de carga.
+- **Interpolación:** la decide el exportador y viaja en `celda_bilineal`, para que Python y
+  JavaScript no puedan divergir. Los campos discretos (`regimen_cod`, `ciclado`,
+  `capacidad_saturada`, `retorno_liquido`) son **siempre** vecino más próximo: interpolar un código
+  de régimen produce valores que no existen en ningún estado de la máquina.
+
+### Límites medidos de la malla
+
+`resultados/malla_error.json` guarda el error contra el solver con **muestreo dirigido celda por
+celda** —no aleatorio, porque un muestreo uniforme casi nunca cae cerca de una frontera de régimen y
+el promedio escondería el error grande—.
+
+- Fuera de la banda de carga baja, el error máximo queda **por debajo del ruido de los
+  instrumentos**: 0,08 K en la temperatura de evaporación frente a 0,10 K del RTD.
+- En la banda `carga 0,28–0,31`, donde la máquina entra en ciclado, el error máximo llega a
+  **0,43–0,55 K** en la temperatura de evaporación, cuatro o cinco veces el ruido. **No baja al
+  refinar**: se midió 0,55, 0,46 y 0,57 K con pasos de 0,06, 0,03 y 0,015. Es una discontinuidad del
+  modelo en el umbral de ciclado, no una malla gruesa.
+- Por debajo de carga ≈ 0,25 (a 24 °C) o ≈ 0,19 (a 36 °C) el modelo **no tiene estado
+  estacionario**. Esos puntos se marcan con `convergio = 0` y no se extrapolan.
+
+**Cómo debe usar el visualizador la zona de carga baja.** En ciclado, el estado almacenado es el del
+**período de marcha a capacidad mínima**, no un promedio del ciclo. El campo `fraccion_marcha` da la
+proporción de tiempo encendido, `Q_demandada / Q_L_entregada`. El arranque matutino se reconstruye
+ciclando ese estado, que es lo que hace el equipo real, en lugar de interpolar un estado que no
+existe.
+
 ## 8. Estructura
 
 ```
@@ -201,6 +269,10 @@ proyecto-fdd/
 ├── src/features.py             # residuos y lista blanca
 ├── src/modelo.py               # entrenamiento, evaluación, análisis
 ├── src/reporte.py              # exportación a Word
+├── src/exportador_web.py       # exportación a JavaScript plano
+├── web/datos/*.js              # los cuatro archivos del visualizador
+├── web/js/fdd_inferencia.js    # inferencia de referencia en JavaScript
+├── web/verificacion.html       # autoprueba de carga local (no es el visualizador)
 ├── tests/                      # 154 pruebas sobre las tres topologías
 ├── data/  figuras/  resultados/
 ├── ESPEC_Simulacion_FDD.md     # especificación v2, con registro de cambios

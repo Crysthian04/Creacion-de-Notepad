@@ -1,0 +1,15 @@
+{
+  "n_validacion": 1929,
+  "desacuerdo": 55,
+  "fraccion_desacuerdo": 0.02851218247796786,
+  "tabla_2x2": {
+    "100_acierta_300_acierta": 0,
+    "100_acierta_300_falla": 16,
+    "100_falla_300_acierta": 16,
+    "100_falla_300_falla": 23
+  },
+  "exactitud_100": 0.7506480041472265,
+  "exactitud_300": 0.7506480041472265,
+  "f1_macro_100": 0.7607835018322455,
+  "f1_macro_300": 0.7611116259481652
+}
