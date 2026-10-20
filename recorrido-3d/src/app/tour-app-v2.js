@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildModel, H } from 'app/hvac-model.js';
 import { buildTour } from 'app/tour-layers.js';
-import { STAMP, ICON, STOPS, CARDS, inspectorHTML, THERMO } from 'app/tour-content.js';
+import { STAMP, ICON, STOPS, CARDS, inspectorHTML, THERMO, GLB_LABEL } from 'app/tour-content.js';
 import { enrichSite } from 'app/site-v2.js';
 import { createSky } from 'app/sky-v2.js';
 import { coilProcess } from 'app/psychro.js';
@@ -11,6 +11,7 @@ await stage.ready;
 const m = buildModel();
 stage.setObject(m.root);
 const scene = stage._scene, cam = stage._camera, ctl = stage._controls;
+if (stage._glbBtn) { stage._glbBtn.textContent = GLB_LABEL; Object.assign(stage._toolbar.style, { flexDirection: 'column', alignItems: 'flex-end' }); }
 cam.near = 0.1; cam.far = 600; cam.updateProjectionMatrix();
 ctl.maxDistance = 120; ctl.minDistance = 6; ctl.maxPolarAngle = Math.PI * 0.495;
 m.root.traverse(o => {

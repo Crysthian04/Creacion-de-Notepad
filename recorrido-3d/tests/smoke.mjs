@@ -1,7 +1,7 @@
 // Prueba de humo: abre el HTML offline (file://), recorre las paradas 0–6, toma capturas
 // y verifica cifras fijas del compendio. Uso: npm run check   (o: node tests/smoke.mjs [archivo.html])
 import { chromium } from 'playwright';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -67,6 +67,15 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   if (await pg.evaluate(() => !document.getElementById('thermoSeg').hidden)) fails.push(`${W}x${H} el botón de termografía aparece en la Parada 1`);
   await pg.keyboard.press('5'); await pg.waitForTimeout(300);
   if (!(await pg.evaluate(() => document.querySelector('[data-stop="5"]').classList.contains('on')))) fails.push(`${W}x${H} el atajo 5 dejó de funcionar tras el inspector`);
+  // Exportación GLB: los equipos llevan clase IFC y fuente en extras
+  if (W >= 1920) {
+    await pg.keyboard.press('0'); await pg.waitForTimeout(1500);
+    const [dl] = await Promise.all([pg.waitForEvent('download', { timeout: 30000 }), pg.evaluate(() => document.querySelector('three-d-stage')._glbBtn.click())]);
+    const buf = await readFile(await dl.path()), json = JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString('utf8'));
+    const cls = n => json.nodes.find(x => x.name === n)?.extras;
+    const want = { chiller_155TR: ['IfcChiller', 'real'], UMA_03: ['IfcUnitaryEquipment', 'real'], bomba_operacion_motor: ['IfcPump', 'ilustrativo'], suministro_principal_tramo1: ['IfcPipeSegment', 'ilustrativo'] };
+    for (const [n, [c, f]] of Object.entries(want)) { const e = cls(n); if (e?.ifcClass !== c || e?.fuente !== f) fails.push(`GLB: ${n} extras = ${JSON.stringify(e)}`); }
+  }
   fails.push(...errs.map(e => `${W}x${H} ${e}`));
   await pg.close();
 }

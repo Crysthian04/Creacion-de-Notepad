@@ -168,3 +168,6 @@ export const THERMO = {
   note: 'Representación cualitativa. El estudio reporta el deterioro detectado en una inspección termográfica, sin temperaturas en este modelo.',
   classes: 'Colores por clase de componente: suministro de agua helada, retorno, equipos, fachada según la radiación solar del panel Clima y hora, y la anomalía en las uniones.',
 };
+
+// Rótulo del botón de exportación GLB: lleva clases IFC como metadatos, no es un modelo BIM ni un archivo IFC
+export const GLB_LABEL = 'Descargar GLB (con clases IFC como metadatos)';

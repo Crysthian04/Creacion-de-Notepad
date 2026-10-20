@@ -16,10 +16,13 @@ function box(name, w, h, d, mat, x, y, z) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   m.name = name; m.position.set(x, y, z); return m;
 }
+// Metadatos para la exportación GLB (extras): clase IFC como referencia y si el elemento es dato real o ilustrativo.
+// No convierte el modelo en BIM ni en un archivo IFC (ISO 16739-1).
+const ifc = (o, ifcClass, fuente) => Object.assign(o.userData, { ifcClass, fuente });
 function seg(name, a, b, r, mat) {
   const dir = b.clone().sub(a), len = dir.length();
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 16, 1, true), mat);
-  m.name = name;
+  m.name = name; ifc(m, 'IfcPipeSegment', 'ilustrativo'); // el trazado de tuberías es ilustrativo
   m.position.copy(a).add(b).multiplyScalar(0.5);
   m.quaternion.setFromUnitVectors(UP, dir.normalize());
   return m;
@@ -180,7 +183,7 @@ export function buildModel() {
   // ---------- Chiller (exterior, posterior izquierda) ----------
   const CX = -17, CZ = -11;
   const ch = new THREE.Group(); ch.name = 'chiller_155TR'; ch.position.set(CX, 0, CZ); root.add(ch);
-  ch.userData.equip = { type: 'chiller' };
+  ch.userData.equip = { type: 'chiller' }; ifc(ch, 'IfcChiller', 'real');
   ch.add(box('chiller_base', 5.2, 0.2, 3.2, M.concrete, 0, 0.1, 0));
   ch.add(box('chiller_cuerpo', 4.5, 1.6, 2.6, M.chiller, 0, 1.0, 0));
   [-1, 1].forEach(s => ch.add(box(`chiller_serpentin_${s > 0 ? 'a' : 'b'}`, 4.3, 1.2, 0.05, M.coil, 0, 1.05, s * 1.31)));
@@ -222,7 +225,7 @@ export function buildModel() {
   pumpG.add(box('bombeo_base', 2.5, 0.15, 2.1, M.concrete, PX, 0.075, (PZ + BZ) / 2));
   pipe(pumpG, 'bombeo_ramal_respaldo', [V(PX - 1, PY, PZ), V(PX - 1, PY, BZ), V(PX + 1, PY, BZ), V(PX + 1, PY, PZ)], 0.11, M.supply);
   [['operacion', PZ], ['respaldo', BZ]].forEach(([k, z]) => {
-    const id = 'bomba_' + k;
+    const id = 'bomba_' + k, k0 = pumpG.children.length;
     pumpG.add(box(id + '_soporte', 0.32, PY - 0.37, 0.32, M.dark, PX, 0.15 + (PY - 0.37) / 2, z));
     vcyl(id + '_voluta', 0.26, 0.36, pumpM, PX, PY, z);
     vcyl(id + '_acople', 0.09, 0.2, M.dark, PX, PY + 0.28, z);
@@ -235,6 +238,7 @@ export function buildModel() {
       const w = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.022, 6, 16), wheelM); w.name = vn + '_volante';
       w.rotation.x = Math.PI / 2; w.position.set(PX + dx, PY + 0.43, z); pumpG.add(w);
     });
+    pumpG.children.slice(k0).forEach(o => ifc(o, 'IfcPump', 'ilustrativo'));
   });
   vcyl('bombeo_manometro_toma', 0.02, 0.3, M.dark, PX + 0.88, PY + 0.25, PZ);
   const gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 16), M.chiller); gauge.name = 'bombeo_manometro';
@@ -254,7 +258,7 @@ export function buildModel() {
       n++;
       const id = `UMA_${String(n).padStart(2, '0')}`;
       const g = new THREE.Group(); g.name = id; umaG.add(g);
-      g.userData.equip = { type: 'uma', n, f };
+      g.userData.equip = { type: 'uma', n, f }; ifc(g, 'IfcUnitaryEquipment', 'real'); // existen 16 UMA; su ubicación es ilustrativa
       g.add(box(id + '_carcasa', 1.5, 1.2, 1.0, M.uma, x, my, ZU));
       g.add(box(id + '_filtro', 0.08, 1.05, 0.9, M.dark, x - 0.78, my, ZU));
       const back = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.02, 32), M.dark);
@@ -295,7 +299,7 @@ export function buildModel() {
     const spin = new THREE.Group(); spin.name = id + '_rotor'; spin.position.set(XW - 0.91, yo, z); spin.add(fb); ms.add(spin);
     fans.push({ obj: spin, axis: 'x', speed: 7 });
     pipe(ms, id + '_linea', [V(XW + 0.16, yi, z + 0.4), V(XW - 0.5, yi, z + 0.4), V(XW - 0.5, yo + 0.4, z + 0.4)], 0.03, M.refrig);
-    ms.children.slice(k0).forEach(o => { o.userData.equip = { type: 'split', n: i + 1, f }; });
+    ms.children.slice(k0).forEach(o => { o.userData.equip = { type: 'split', n: i + 1, f }; if (!o.userData.ifcClass) ifc(o, 'IfcUnitaryEquipment', 'real'); });
   });
   anchors.split = V(XW - 0.65, 2 * H + 1.4, 1);
 

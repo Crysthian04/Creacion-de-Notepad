@@ -10,7 +10,8 @@ Fuente editable del modelo que se hizo en Claude Design. Versión v3: corrige la
 npm install
 npm run dev     # ver en http://localhost:5173
 npm run build   # genera dist/Recorrido_integrado_Edificio2_offline.html
-npm run check   # build + prueba de humo con capturas
+npm test        # prueba numérica de la calculadora psicrométrica
+npm run check   # npm test + build + prueba de humo con capturas
 ```
 
 three.js r184 (MIT) va en `vendor/`, sin cambios.

@@ -20,7 +20,8 @@ El plan de trabajo está en `docs/PLAN_MEJORAS.md`. Léelo antes de cambiar nada
 npm install          # esbuild + playwright
 npm run dev          # http://localhost:5173 (el import map necesita http://, no file://)
 npm run build        # dist/Recorrido_integrado_Edificio2_offline.html (UN archivo, sin internet)
-npm run check        # build + prueba de humo (paradas 0–6, cifras del VFD, sin errores, sin red)
+npm test             # prueba numérica de la psicrometría (node --test)
+npm run check        # npm test + build + prueba de humo (paradas 0–6, VFD, inspector, termografía, psicrometría, GLB, sin red)
 ```
 
 Si Playwright no encuentra navegador: `npx playwright install chromium`, o exporta `CHROMIUM_PATH` con la ruta a un Chromium ya instalado.
@@ -33,12 +34,14 @@ Si Playwright no encuentra navegador: `npx playwright install chromium`, o expor
 - `src/app/tour-app-v2.js`: escena, cámara, etiquetas, tarjetas, atenuación por parada, VFD, bucle de animación y atajos 0–6.
 - `src/app/tour-layers.js`: objetos propios de cada parada (técnicos, LOTO, cilindros, recuperadora, fuga, VFD, BMS) y su animación (`tick`).
 - `src/app/tour-content.js`: TODO el texto (viñetas, tarjetas, sellos). Los cambios de contenido van aquí.
+- `src/app/psychro.js`: psicrometría a 101.325 kPa (Hyland-Wexler, W, h, punto de rocío, proceso de serpentín). Funciones puras, probadas en `tests/psychro.test.mjs`.
 - `src/app/sky-v2.js`: sol astronómico (9.0247° N, 79.5299° O, UTC−5), clima y respuesta cualitativa.
 - `src/app/site-v2.js`: entorno ilustrativo (loma, Edificio 1, kiosco, autos, postes).
 - `src/stage/three-d-stage.js`: componente `<three-d-stage>` (renderizador, OrbitControls, barra de exportación OBJ/GLB). Evita modificarlo.
 - `vendor/`: three.js r184 y addons, copiados tal cual. No los actualices.
 - `scripts/build-offline.mjs`: empaqueta todo en un solo HTML (fuentes en base64, una sola copia de three.js).
 - `tests/smoke.mjs`: prueba de humo y capturas en `tests/shots/`.
+- Equipos con metadatos en `userData`: `equip` (inspector por clic) e `ifcClass`/`fuente` (se exportan como `extras` en el GLB).
 
 ## Reglas de contenido (no negociables)
 
