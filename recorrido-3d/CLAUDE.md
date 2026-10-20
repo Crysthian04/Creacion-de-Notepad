@@ -4,13 +4,13 @@ Modelo 3D en el navegador (three.js r184, sin framework) del sistema de climatiz
 
 | Tecla | Parada | Investigación |
 |---|---|---|
-| 0 | Vista general | — |
+| 0 | Vista general (introducción) | — |
 | 1 | Seguridad | INV4 |
 | 2 | Planificación | INV2 |
 | 3 | Refrigerantes | INV1 |
 | 4 | Energía | INV5 |
 | 5 | Innovación (subventanas 5.1 Monitoreo IoT · 5.2 Termografía · 5.3 Realidad aumentada · 5.4 Dron en ductos) | INV3 |
-| 6 | Vista integrada | todas |
+| 6 | Vista integrada (sub-vistas i.1 Una falla · i.2 Antes / después · i.3 Plan de 2 años) | todas |
 
 El plan de trabajo está en `docs/PLAN_MEJORAS.md`. Léelo antes de cambiar nada.
 
@@ -34,7 +34,8 @@ Si Playwright no encuentra navegador: `npx playwright install chromium`, o expor
 - `src/app/tour-app-v2.js`: escena, cámara, etiquetas, tarjetas, atenuación por parada, VFD, bucle de animación y atajos 0–6.
 - `src/app/tour-layers.js`: objetos propios de cada parada (técnicos, LOTO, cilindros, recuperadora, fuga, VFD, BMS) y su animación (`tick`).
 - `src/app/tour-content.js`: TODO el texto (viñetas, tarjetas, sellos). Los cambios de contenido van aquí.
-- `src/app/tools-v25.js`: escenas de las subventanas 5.2–5.4 (cámara termográfica portátil, salón con realidad aumentada, dron en ducto), adaptadas del modelo «Herramientas HVAC 3D» del grupo y colocadas dentro del edificio. Internamente son las paradas `'5.2'`, `'5.3'` y `'5.4'`; la `'5'` es la 5.1.
+- `src/app/tools-v25.js`: escenas de las subventanas 5.2–5.4 (cámara termográfica portátil, salón con realidad aumentada, dron en ducto), adaptadas del modelo «Herramientas HVAC 3D» del grupo y colocadas dentro del edificio. Internamente son las paradas `'5.2'`, `'5.3'` y `'5.4'`; la `'5'` es la 5.1. Igual en la vista integrada: `'i'` es la i.1, y `'i.2'`, `'i.3'`.
+- `src/app/features.js`: interruptores (`FEATURES.psychro = false`: calculadora en pausa).
 - `src/app/psychro.js`: psicrometría a 101.325 kPa (Hyland-Wexler, W, h, punto de rocío, proceso de serpentín). Funciones puras, probadas en `tests/psychro.test.mjs`.
 - `src/app/sky-v2.js`: sol astronómico (9.0247° N, 79.5299° O, UTC−5), clima y respuesta cualitativa.
 - `src/app/site-v2.js`: entorno ilustrativo (loma, Edificio 1, kiosco, autos, postes).

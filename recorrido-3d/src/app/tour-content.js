@@ -2,6 +2,8 @@ export const STAMP = {
   real: '<span class="st real">Dato real – Edificio 2</span>',
   ilus: '<span class="st ilus">Ilustrativo</span>',
   inv2: '<span class="st ilus">Ilustrativo – plan de la INV2</span>',
+  prop: '<span class="st ilus">Propuesta del grupo (ilustrativa)</span>',
+  split: '<span class="st ilus">Ilustrativo – plan de la INV2 (split de referencia de 12,000 BTU/h)</span>',
 };
 const tri = '<path d="M10 1.8 L19 17.2 H1 Z" fill="rgba(242,193,78,.12)" stroke="#F2C14E" stroke-width="1.6" stroke-linejoin="round"/>';
 const svg = p => `<svg width="20" height="18" viewBox="0 0 20 18" aria-hidden="true">${tri}${p}</svg>`;
@@ -103,15 +105,39 @@ export const STOPS = {
       ['Detecta fugas en las uniones sin desmontar el ducto', 'ilus'],
     ],
   },
+  // Vista integrada: 3 sub-vistas. Internamente 'i' es la i.1.
   i: {
-    name: 'Vista integrada', inv: '', loc: 'Las 5 investigaciones sobre un mismo sistema',
-    pose: { pos: [6, 24, 46], tgt: [-12, 12, -3] },
+    name: 'Vista integrada', sub: 'Una falla de punta a punta', short: 'Una falla', inv: '', loc: 'Uniones de la tubería de agua fría',
+    pose: { pos: [-6.5, 4.6, -13.5], tgt: [-10.8, 0.9, -6.2] },
     bullets: [
-      ['1 Seguridad (INV4): para intervenir', 'flow'],
-      ['2 Planificación (INV2): para programar', 'flow'],
-      ['3 Refrigerantes (INV1): bien manejados', 'flow'],
-      ['4 Energía (INV5): optimizada', 'flow'],
-      ['5 Innovación (INV3): tecnología que lo monitorea', 'flow'],
+      ['1 · INV3 · Detectar', 'flow'],
+      ['2 · INV2 · Registrar, planificar y programar', 'flow'],
+      ['3 · INV4 · Ejecutar con seguridad', 'flow'],
+      ['4 · INV1 · Refrigerante', 'flow'],
+      ['5 · INV5 · Energía', 'flow'],
+      ['6 · INV2 · Probar y cerrar', 'flow'],
+    ],
+  },
+  'i.2': {
+    name: 'Vista integrada', sub: 'Antes / después', short: 'Antes / después', inv: '', loc: 'Del estado de 2021 al caso hipotético de la INV3',
+    pose: { pos: [-36, 22, 38], tgt: [-2, 9, -3] },
+    bullets: [
+      ['Antes: mediciones puntuales y una sola inspección termográfica', 'real'],
+      ['Etapa 1: sensores IoT en el chiller y las 16 UMA, integrados al BMS', 'ilus'],
+      ['Etapa 2: detección de anomalías', 'ilus'],
+      ['Etapa 3: datos vinculados a un modelo BIM', 'ilus'],
+      ['Sin ahorros esperados: no hay mediciones en HVAC que los respalden', 'ilus'],
+    ],
+  },
+  'i.3': {
+    name: 'Vista integrada', sub: 'Plan de 2 años', short: 'Plan de 2 años', inv: '', loc: 'Calendario de 104 semanas',
+    pose: { pos: [-36, 22, 38], tgt: [-2, 9, -3] },
+    bullets: [
+      ['Mini-split: plan del split de referencia de la INV2', 'ilus'],
+      ['Chiller, 16 UMA y bombas: frecuencia según el manual del fabricante', 'ilus'],
+      ['Evaluación trimestral del plan', 'ilus'],
+      ['Hoja de ruta en el orden del compendio', 'ilus'],
+      ['Correctivo: con indicios de falla, orden correctiva', 'ilus'],
     ],
   },
 };
@@ -177,11 +203,17 @@ export const CARDS = {
     [head('Estado del recorrido', 'ilus') + `<div class="arst" id="droneSt">—</div><p class="fn">La fuga es un caso hipotético para mostrar la detección; no es un hallazgo del Edificio 2.</p>`, 'droneLeak'],
     [head('Dron en ductos · caso hipotético', 'ilus') + `Un cuadricóptero dentro de una jaula esférica recorre un ducto rectangular: rueda por el piso, vuela para pasar el codo y barre las paredes con una cámara térmica.<p class="fn">(Khalil et al., 2024)</p>`, 'drone'],
   ],
-  i: [[`<div class="ch"><h4>Recorrido</h4></div><div class="vt">
-      <div><span><b>1</b>Seguridad para intervenir</span></div><div><span><b>2</b>Plan para programar</span></div>
-      <div><span><b>3</b>Refrigerante bien manejado</span></div><div><span><b>4</b>Energía optimizada</span></div>
-      <div><span><b>5</b>Tecnología que lo monitorea</span></div></div>
-      <div class="big" style="font:600 19px/1.3 'IBM Plex Sans',sans-serif;margin-top:8px;text-wrap:balance">Las 5 investigaciones describen un mismo sistema</div>`, null]],
+  // i.1: la tarjeta se llena con FALLA[paso] desde tour-app (sin anclaje, para que siga visible en el modo «al pasar»)
+  i: [[`<div class="ch"><h4>Una falla de punta a punta</h4></div><div id="falla"></div>
+      <div class="fctl"><button class="btn" id="fPrev" aria-label="Paso anterior">◀</button><button class="btn pl" id="fPlay">Reproducir</button><button class="btn" id="fNext" aria-label="Paso siguiente">▶</button><span class="fdots" id="fDots"></span></div>`, null]],
+  'i.2': [
+    [`<div class="ch"><h4>Antes / después</h4></div><input type="range" id="abR" min="0" max="3" step="1" value="0" aria-label="Antes / después">
+      <div class="abl"><span>Antes</span><span>Etapa 1</span><span>Etapa 2</span><span>Etapa 3</span></div><div id="abS"></div>
+      <p class="fn">«Después» es el caso hipotético de la INV3 (p. 37).</p>`, null],
+    [head('Barrera y forma de empezar', 'ilus') + `La mezcla de equipos de distintas épocas y fabricantes dificulta integrarlos en una sola plataforma (Shaban et al., 2025). Conviene iniciar con un piloto en las UMA y capacitar al personal antes de ampliar (Appau, 2026; Henríquez Espinosa et al., 2021).<p class="fn">INV3, p. 37</p>`, null],
+    [head('Límite documentado · otro edificio', 'ilus') + `En otro edificio educativo con 4 UMA, las predicciones a 1 mes acertaron entre 80 y 100&nbsp;%; a 4.5 meses, dos tipos de falla tuvieron 0&nbsp;% de acierto (Hosamo et al., 2022).<p class="fn">INV3, p. 35. El modelo no muestra ahorros esperados: el compendio aclara que las cifras generales de reducción de costos y averías no provienen de mediciones en sistemas HVAC (p. 36).</p>`, null],
+  ],
+  'i.3': [],
 };
 
 // Inspector por clic (vista general y Parada 5). Sin lecturas numéricas: no hay datos medidos por equipo.
@@ -224,3 +256,68 @@ export const THERMO = {
 
 // Rótulo del botón de exportación GLB: lleva clases IFC como metadatos, no es un modelo BIM ni un archivo IFC
 export const GLB_LABEL = 'Descargar GLB (con clases IFC como metadatos)';
+
+// ---------------------------------------------------------------- Vista integrada (Fase 2.6)
+// i.1 · Una falla de punta a punta: 6 pasos, cada uno con su investigación y su fuente (docs/FUENTES_COMPENDIO.md)
+const ol = items => `<ol class="fol">${items.map(t => `<li>${t}</li>`).join('')}</ol>`;
+export const FALLA = [
+  { inv: 'INV3', t: 'Detectar', st: 'real', pose: { pos: [-6.5, 4.6, -13.5], tgt: [-10.8, 0.9, -6.2] },
+    html: 'La termografía infrarroja de la auditoría energética detectó deterioro en las uniones de la tubería de agua fría, en una sola inspección y sin monitoreo permanente.',
+    src: '(Henríquez Espinosa et al., 2021) · INV3, pp. 35–36' },
+  { inv: 'INV2', t: 'Registrar, planificar y programar', st: 'ilus', pose: { pos: [-15.5, 5.2, -13.5], tgt: [-10.6, 0.9, -6.4] },
+    html: 'Flujo de la orden de trabajo, pasos 1 a 4:' + ol(['<b>Detectar</b>: inspección, alarma, solicitud o tendencia anormal.', '<b>Registrar</b>: código, síntoma, ubicación y prioridad (crítica / alta / media / baja, según el criterio del planificador).', '<b>Planificar</b>: alcance, riesgos, instrumentos, repuestos y tiempo; revisar manuales.', '<b>Programar</b>: ventana de parada coordinada con los usuarios.']),
+    src: 'INV2, p. 20' },
+  { inv: 'INV4', t: 'Ejecutar con seguridad', st: 'ilus', pose: { pos: [-12.8, 2.8, -10.5], tgt: [-12.6, 0.9, -6.6] },
+    html: 'LOTO de 6 pasos: preparar (reconocer los tipos de energía) → apagar → aislar → candado y tarjeta por técnico → disipar la energía residual → verificar.<br>Para esta falla, la lista de verificación pide identificar la energía <b>hidráulica</b> y <b>térmica</b> además de la eléctrica, <b>cerrar válvulas</b> y <b>purgar presiones</b>. EPP según la tarea.',
+    src: 'OSHA 1910.147 · INV4, pp. 46–48' },
+  { inv: 'INV1', t: 'Refrigerante', st: 'ilus', pose: { pos: [-20.5, 5.4, -16.5], tgt: [-13.5, 1.0, -8.5] },
+    html: 'Esta reparación es en el circuito de agua fría y no abre el circuito de refrigerante. Si la falla estuviera en el chiller: recuperar con máquina certificada, cilindro sin superar el 80&nbsp;%, sin ventear (INV4, p. 49) → reciclar → regenerar (INV1, p. 8). En Panamá no hay instalaciones de reciclaje (MINSA/UNO y PNUD, 2020).',
+    src: 'INV4, p. 49 · INV1, p. 8 · p. 9' },
+  { inv: 'INV5', t: 'Energía', st: 'ilus', pose: { pos: [-5.5, 7.2, -16], tgt: [-12.4, 0.9, -7.2] },
+    html: '«El deterioro del aislamiento térmico genera pérdidas energéticas y aumenta la carga de enfriamiento» (ASHRAE, 2018). Después de la reparación, verificar con mediciones posteriores (ASHRAE, 2023).',
+    src: 'INV5, pp. 59–61' },
+  { inv: 'INV2', t: 'Probar y cerrar', st: 'ilus', pose: { pos: [-8.6, 3.2, -10.4], tgt: [-10.5, 0.9, -5.6] },
+    html: 'Paso 6: probar y registrar mediciones. Paso 7: cerrar la orden (causa probable, materiales, tiempo real y recomendaciones) y actualizar el historial en el CMMS.<div class="qs" style="margin-top:6px"><button class="btn" data-go="i.3">Ver el plan de 2 años (i.3) →</button></div>',
+    src: 'INV2, p. 20' },
+];
+
+// i.2 · Antes / después: el deslizador recorre el estado de 2021 y las 3 etapas del caso hipotético de la INV3 (p. 37)
+export const ANTES_DESPUES = [
+  { st: 'real', t: 'Antes', html: 'Inventario publicado en 2021: mediciones puntuales y una sola inspección termográfica, sin monitoreo permanente (Henríquez Espinosa et al., 2021).' },
+  { st: 'ilus', t: 'Etapa 1 · Sensores IoT', html: 'Sensores IoT en el chiller y las 16 UMA: temperaturas de suministro y retorno, presión diferencial en filtros y corriente de ventiladores, integrados al BMS (Sivasankari y Rathika, 2025).' },
+  { st: 'ilus', t: 'Etapa 2 · Detección de anomalías', html: 'Algoritmos de detección de anomalías, que no requieren un historial completo de fallas (Es-sakali et al., 2022).' },
+  { st: 'ilus', t: 'Etapa 3 · Modelo BIM', html: 'Vincular los datos a un modelo BIM del edificio (Hosamo et al., 2022).' },
+];
+
+// i.3 · Plan de 2 años (104 semanas)
+// Mini-split: exactamente la tabla de la INV2 (pp. 27–29). every = cada cuántas semanas (null = sin fecha fija)
+export const PLAN_SPLIT = [
+  { f: 'Semanal (usuario)', a: 'Revisar filtro; observar ruidos, olores, vibración o goteos', r: 'Usuario; lista de observación', every: 1 },
+  { f: 'Mensual', a: 'Limpiar filtro reutilizable; entrada y salida de aire libres', r: 'Usuario o técnico; registro de limpieza', perYear: 12 },
+  { f: 'Cada 3 meses', a: 'Inspeccionar serpentín evaporador, turbina, bandeja y drenaje; fijaciones, aislamiento visible y unidad exterior', r: 'Técnico; orden de trabajo', every: 13 },
+  { f: 'Cada 6 meses', a: 'Limpiar serpentines si hace falta; conexiones eléctricas, terminales, soportes y ventiladores, con el equipo aislado de la energía', r: 'Técnico calificado; checklist', every: 26 },
+  { f: 'Cada 6 meses o según condición', a: 'Medir temperaturas de retorno e impulsión, ambiente, corriente del compresor y ventiladores', r: 'Técnico; hoja de mediciones', every: 26, off: 13 },
+  { f: 'Anual', a: 'Evaluación integral: rendimiento, serpentines, drenaje, aislamiento, controles, consumo', r: 'Supervisor/técnico; informe anual', every: 52 },
+];
+export const PLAN_TEXT = {
+  splitNote: 'Ajustar al manual de cada equipo; el edificio tiene de 12,000 a 60,000&nbsp;BTU/h. El plan «es una propuesta de planificación inicial, no un sustituto del manual del fabricante» (INV2, p. 27).',
+  counter: 'Por mini-split y por año: <b>52</b> semanales (usuario) · <b>12</b> mensuales · <b>4</b> trimestrales · <b>2</b> semestrales · <b>2</b> mediciones · <b>1</b> anual',
+  big: 'Chiller, 16 UMA y bombas',
+  bigTasks: 'Filtros, serpentines, drenajes, condensadoras, correas, ventiladores, motores y rodamientos, conexiones eléctricas, calibración de sensores y controles, aislamiento, carga de refrigerante y fugas (INV2, p. 17; INV5, pp. 59–60).',
+  bigBand: 'Frecuencia según el manual del fabricante; el compendio no la define (INV2, p. 17)',
+  chiller: 'Chiller: preventivo riguroso, monitoreo de condición, alarmas y repuestos críticos (ASHRAE &amp; U.S. Department of Energy, s.&nbsp;f.; INV2, p. 18).',
+  evalT: 'Evaluación trimestral del plan',
+  evalNote: 'Cumplimiento = tareas completadas / tareas programadas × 100. Sin dato: se mide al ejecutar (INV2, p. 30).',
+  roadT: 'Hoja de ruta',
+  roadNote: 'El orden sale del compendio; repartirlo en «Año 1 / Año 2» es decisión del grupo.',
+  corrT: 'Correctivo',
+  corr: 'Con indicios de falla → diagnóstico y orden correctiva; no añadir refrigerante sin diagnóstico (INV2, pp. 27–29).',
+};
+// Hoja de ruta: [desde, hasta) en semanas; el reparto por años es propuesta del grupo
+export const ROADMAP = [
+  [0, 26, 'Depurar los activos y cargar los planes en el CMMS con un grupo piloto', 'INV2, p. 22'],
+  [26, 52, 'Piloto IoT en las UMA y capacitación', 'INV3, p. 37'],
+  [52, 70, 'Detección de anomalías', 'INV3, p. 37'],
+  [70, 91, 'Ampliar al chiller y las 16 UMA, y BIM', 'INV3, p. 37'],
+  [91, 104, 'Auditoría energética con mediciones posteriores', 'INV5, p. 61'],
+];

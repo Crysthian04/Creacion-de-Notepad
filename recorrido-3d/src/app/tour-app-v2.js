@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildModel, H } from 'app/hvac-model.js';
 import { buildTour } from 'app/tour-layers.js';
-import { STAMP, ICON, STOPS, CARDS, inspectorHTML, THERMO, GLB_LABEL } from 'app/tour-content.js';
+import { STAMP, ICON, STOPS, CARDS, inspectorHTML, THERMO, GLB_LABEL, FALLA, ANTES_DESPUES, PLAN_SPLIT, PLAN_TEXT, ROADMAP } from 'app/tour-content.js';
 import { enrichSite } from 'app/site-v2.js';
 import { createSky } from 'app/sky-v2.js';
 import { coilProcess } from 'app/psychro.js';
@@ -88,15 +88,22 @@ label(A.uma, '16 UMA en total', 'Distribución por piso ilustrativa', '', 'actua
 label(A.split, 'Mini-split inverter · 12,000–60,000 BTU/h', 'Añadidos tras el diseño original', 'tag', 'all', { stem: 40, dx: -40, prio: 3, stamp: 'real' });
 label(A.pump, 'Bombeo de agua helada', 'Configuración ilustrativa: el estudio no la detalla', 'wrap', 'all', { stem: 30, dx: 140, prio: 3, stamp: 'ilus' });
 ['Planta baja', 'Primer alto', 'Segundo alto'].forEach((t, i) => label(A.floors[i], t, '', 'floor', 'all', { stem: 0, prio: 6 }));
-label(A.bms, 'Plataforma de integración / BMS', '(existente o a instalar)', 'cyan', 'prop', { stem: 10, prio: 1, stamp: 'ilus' });
-label(A.ia, 'IA: detección de anomalías', '', 'cyan', 'prop', { down: true, stem: 10, prio: 1, stamp: 'ilus' });
-label(A.bim, 'Modelo BIM del edificio', '', 'cyan', 'prop', { down: true, stem: 10, prio: 1, stamp: 'ilus' });
-label(A.pilotLabel, 'Piloto: etapa 1 · UMA', 'resaltadas en los 3 pisos', 'cyan', 'prop', { stem: 24, prio: 2, inside: true, stamp: 'ilus' });
-label(A.sensorsUma, 'Sensores IoT (chiller y UMA)', 'T sum./ret. · ΔP filtros · corriente vent.', 'cyan', 'prop', { stem: 20, prio: 3, inside: true, stamp: 'ilus' });
+// i.2 · Antes / después: cada etiqueta aparece desde su etapa (INV3, p. 37)
+let abStage = 0;
+const atStage = (k, ...args) => { label(...args); labels[labels.length - 1].cond = () => abStage >= k; };
+atStage(1, A.bms, 'BMS', 'Etapa 1 · integra los sensores', 'cyan', 'all', { stops: ['i.2'], stem: 10, prio: 1, stamp: 'ilus' });
+atStage(2, A.ia, 'Detección de anomalías', 'Etapa 2', 'cyan', 'all', { stops: ['i.2'], down: true, stem: 10, prio: 1, stamp: 'ilus' });
+atStage(3, A.bim, 'Modelo BIM del edificio', 'Etapa 3', 'cyan', 'all', { stops: ['i.2'], down: true, stem: 10, prio: 1, stamp: 'ilus' });
+atStage(1, A.pilotLabel, 'Piloto en las UMA', 'Conviene empezar aquí', 'cyan', 'all', { stops: ['i.2'], stem: 24, prio: 2, stamp: 'ilus' });
+atStage(1, A.sensorsUma, 'Sensores IoT (chiller y 16 UMA)', 'T suministro/retorno · ΔP filtros · corriente ventiladores', 'cyan wrap', 'all', { stops: ['i.2'], stem: 20, prio: 3, stamp: 'ilus' });
+label(A.thermal, 'Deterioro en uniones de la tubería de agua fría', 'Una sola inspección termográfica', 'heat wrap', 'all', { stops: ['i.2'], stamp: 'real', down: true, stem: 30, dx: 70, prio: 1 });
+labels[labels.length - 1].cond = () => abStage === 0;
+// i.1 · la falla
+label(A.thermal, 'Uniones con deterioro', 'Detectadas en la auditoría energética', 'heat', 'all', { stops: ['i'], stamp: 'real', down: true, stem: 30, dx: 80, prio: 1 });
 // Clima (vista general e integrada)
-label(sky.radAnchor, 'Radiación solar sobre la fachada', 'Intensidad relativa', 'sun', 'all', { stops: ['g', 'i'], stamp: 'ilus', stem: 28, dx: 50, prio: 2 });
+label(sky.radAnchor, 'Radiación solar sobre la fachada', 'Intensidad relativa', 'sun', 'all', { stops: ['g'], stamp: 'ilus', stem: 28, dx: 50, prio: 2 });
 labels[labels.length - 1].cond = () => sky.S.active && !sky.S.night && sky.S.irr > 0.15 && sky.bestFace();
-label(sky.heatAnchor, 'Noche: la envolvente libera calor', 'Carga baja · el sistema reduce su marcha', 'night', 'all', { stops: ['g', 'i'], stamp: 'ilus', stem: 28, dx: 60, prio: 2 });
+label(sky.heatAnchor, 'Noche: la envolvente libera calor', 'Carga baja · el sistema reduce su marcha', 'night', 'all', { stops: ['g'], stamp: 'ilus', stem: 28, dx: 60, prio: 2 });
 labels[labels.length - 1].cond = () => sky.S.active && sky.S.night;
 // Parada 1
 const S = (s, x = {}) => Object.assign({ stops: [s], stamp: 'ilus' }, x);
@@ -139,15 +146,13 @@ label(TOOLS['5.4'].A.lens, 'Cámara térmica', '', 'cyan', 'all', S('5.4', { ste
 label(TOOLS['5.4'].A.leak, 'Fuga detectada', 'Caso hipotético', 'heat', 'all', S('5.4', { stem: 34, dx: 70, prio: 1 }));
 labels[labels.length - 1].cond = () => TOOLS['5.4'].S.detected;
 // Vista integrada
-[['Seguridad para intervenir', 'INV4'], ['Plan para programar', 'INV2'], ['Refrigerante bien manejado', 'INV1'], ['Energía optimizada', 'INV5'], ['Tecnología que lo monitorea', 'INV3']]
-  .forEach(([t, inv], i) => label(B.icons[i], `<span class="num">${i + 1}</span><span>${t}<small>${inv}</small></span>`, '', 'icon', 'all', { stops: ['i'], stem: 22, prio: 1, down: i === 3 }));
 
 const v = new THREE.Vector3(), vp = document.querySelector('.vp');
 let sorted = null;
 function placeLabels() {
   if (host.classList.contains('off')) return;
   const w = host.clientWidth, h = host.clientHeight, placed = [], hr = host.getBoundingClientRect();
-  [...vp.querySelectorAll('.seg, .note, .hint, .k, .stlegend, #dock, .tnav'), stage._toolbar].forEach(e => {
+  [...vp.querySelectorAll('.seg, .note, .hint, .k, .stlegend, #dock, .tnav, #plan:not([hidden])'), stage._toolbar].forEach(e => {
     const b = e.getBoundingClientRect();
     if (b.width && b.right > hr.left && b.left < hr.right && b.bottom > hr.top && b.top < hr.bottom)
       placed.push({ l: b.left - hr.left - 6, r: b.right - hr.left + 6, t: b.top - hr.top - 6, b: b.bottom - hr.top + 6 });
@@ -362,7 +367,9 @@ const FOCUS = {
   '5.2': o => under(o, chG) || under(o, pipeG) || under(o, pumpG),
   '5.3': () => false,
   '5.4': () => false,
-  i: () => false,
+  i: o => under(o, chG) || under(o, pipeG) || under(o, pumpG),
+  'i.2': o => under(o, chG) || under(o, umaG) || under(o, pipeG) || under(o, pumpG) || under(o, m.prop),
+  'i.3': () => false,
 };
 function dimFor(s) {
   base.forEach(b => {
@@ -547,29 +554,96 @@ stage.addEventListener('pointerup', ev => {
 });
 addEventListener('keydown', ev => { if (ev.key === 'Escape' && inspKey) closeInspector(); });
 
+// ---------------------------------------------------------------- Vista integrada
+// i.1 · Una falla de punta a punta: 6 pasos sobre las uniones con deterioro; ◀ ▶ por paso y Reproducir
+const falla = { k: 0, playing: false, t0: 0 }, STEP_MS = 9000;
+function showStep(k, move = true) {
+  falla.k = Math.max(0, Math.min(FALLA.length - 1, k)); falla.t0 = performance.now();
+  const f = FALLA[falla.k], box = document.getElementById('falla');
+  if (box) box.innerHTML = `<div class="fhd"><span class="fk" id="fStep">Paso ${falla.k + 1} de ${FALLA.length} · ${f.inv}</span>${STAMP[f.st]}</div><b class="ft">${f.t}</b><div class="fb">${f.html}</div><p class="fn">${f.src}</p>`;
+  const dots = document.getElementById('fDots');
+  if (dots) dots.innerHTML = FALLA.map((x, i) => `<button class="fdot${i === falla.k ? ' on' : ''}" data-step="${i}" aria-label="Paso ${i + 1}">${i + 1}</button>`).join('');
+  syncPlay();
+  [...document.getElementById('spB').children].forEach((li, i) => li.classList.toggle('cur', i === falla.k));
+  TOOLS['5.2'].group.visible = stop === 'i' && falla.k === 0; // paso 1: la cámara termográfica sobre las uniones
+  if (move && stop === 'i') goPose(f.pose, 1100, true);
+}
+function syncPlay() { const b = document.getElementById('fPlay'); if (b) { b.textContent = falla.playing ? 'Pausar' : 'Reproducir'; b.classList.toggle('on', falla.playing); } }
+function playTick() {
+  if (!falla.playing || stop !== 'i' || performance.now() - falla.t0 < STEP_MS) return;
+  if (falla.k < FALLA.length - 1) showStep(falla.k + 1); else { falla.playing = false; syncPlay(); }
+}
+// i.2 · Antes / después: 0 = antes (2021); 1–3 = etapas de la INV3 sobre la geometría de la propuesta
+function setStage(k) {
+  abStage = k;
+  m.prop.visible = k > 0;
+  m.prop.children.forEach(c => { c.visible = c.name === 'IA_deteccion_anomalias' ? k >= 2 : c.name === 'modelo_BIM' ? k >= 3 : k >= 1; });
+  dataFlow.im.visible = k >= 1;
+  const a = ANTES_DESPUES[k], box = document.getElementById('abS'), r = document.getElementById('abR');
+  if (box) box.innerHTML = `${STAMP[a.st]}<b>${a.t}</b><p>${a.html}</p>`;
+  if (r && +r.value !== k) r.value = k;
+}
+// i.3 · Plan de 2 años: calendario de 104 semanas, construido una vez desde tour-content.js
+const planEl = document.getElementById('plan');
+function buildPlan() {
+  const W = 104, pct = w => (w / W * 100).toFixed(3) + '%';
+  const marks = (weeks, cls = 'pm') => weeks.map(w => `<i class="${cls}" style="left:${pct(w + 0.5)}"></i>`).join('');
+  const weeksOf = r => r.every ? Array.from({ length: W / r.every }, (_, i) => (i + 1) * r.every - 1) : Array.from({ length: r.perYear * 2 }, (_, i) => Math.round((i + 1) * 52 / r.perYear) - 1);
+  const head = `<div class="pl-l"></div><div class="pl-t pl-h">${[1, 2].map(y => `<span class="py" style="left:${pct((y - 1) * 52)};width:${pct(52)}">Año ${y}</span>`).join('')}${Array.from({ length: 8 }, (_, q) => `<span class="pq" style="left:${pct(q * 13)};width:${pct(13)}">T${q % 4 + 1}</span>`).join('')}</div>`;
+  const row = (l, t, cls = '') => `<div class="pl-l ${cls}">${l}</div><div class="pl-t ${cls}">${t}</div>`;
+  const sec = (title, stamp, note = '') => `<div class="pl-s">${stamp || ''}<b>${title}</b>${note ? `<span>${note}</span>` : ''}</div>`;
+  const split = PLAN_SPLIT.map(r => row(`<b>${r.f}</b><small>${r.a}</small><small class="pr">${r.r}</small>`, marks(weeksOf(r), r.every === 1 ? 'pm thin' : 'pm'))).join('');
+  const road = ROADMAP.map(([a, b, t, src]) => `<span class="pbar" style="left:${pct(a)};width:${pct(b - a)}" title="${src}">${t}<small>${src}</small></span>`).join('');
+  planEl.innerHTML = `<div class="pl-top"><b>Plan de mantenimiento de 2 años</b><span class="pl-c">${PLAN_TEXT.counter}</span></div>
+    <div class="pl-grid">${head}
+      ${sec('Mini-split (por equipo)', STAMP.split, PLAN_TEXT.splitNote)}${split}
+      ${sec(PLAN_TEXT.big, STAMP.ilus, PLAN_TEXT.bigTasks + ' ' + PLAN_TEXT.chiller)}${row('<b>Chiller, UMA y bombas</b>', `<span class="pband">${PLAN_TEXT.bigBand}</span>`)}
+      ${sec(PLAN_TEXT.evalT, STAMP.ilus)}${row(`<small>${PLAN_TEXT.evalNote}</small>`, marks(Array.from({ length: 8 }, (_, q) => (q + 1) * 13 - 1), 'pe'))}
+      ${sec(PLAN_TEXT.roadT, STAMP.prop, PLAN_TEXT.roadNote)}${row('<b>Etapas en orden</b>', road, 'tall')}
+      ${sec(PLAN_TEXT.corrT, STAMP.ilus)}${row(`<small>${PLAN_TEXT.corr}</small>`, `<span class="pcorr">Sin fecha fija: ocurre cuando hay indicios de falla <button class="btn" data-go="i">Ver una falla de punta a punta (i.1)</button></span>`)}
+    </div>`;
+}
+buildPlan();
+function layoutPlan() {
+  const hr = vp.getBoundingClientRect(), tb = vp.querySelector('.top').getBoundingClientRect(), bb = vp.querySelector('.bottom').getBoundingClientRect();
+  planEl.style.top = (tb.bottom - hr.top + 12) + 'px';
+  planEl.style.height = Math.max(200, bb.top - tb.bottom - 24) + 'px';
+}
+[dock, pop, planEl].forEach(el => {
+  el.addEventListener('click', e => {
+    const go = e.target.closest('[data-go]'); if (go) { applyStop(go.dataset.go); return; }
+    if (e.target.closest('#fPrev')) { falla.playing = false; showStep(falla.k - 1); }
+    if (e.target.closest('#fNext')) { falla.playing = false; showStep(falla.k + 1); }
+    const d = e.target.closest('[data-step]'); if (d) { falla.playing = false; showStep(+d.dataset.step); }
+    if (e.target.closest('#fPlay')) { falla.playing = !falla.playing; if (falla.playing && falla.k === FALLA.length - 1) showStep(0); else { falla.t0 = performance.now(); syncPlay(); } }
+  });
+  el.addEventListener('input', e => { if (e.target.id === 'abR') setStage(+e.target.value); });
+});
+
 // Recorrido
-const ORDER = ['g', '1', '2', '3', '4', '5', '5.2', '5.3', '5.4', 'i'], KEYS = ['g', '1', '2', '3', '4', '5', 'i'], app = document.querySelector('.app');
-const isFive = s => s === '5' || s.startsWith('5.'), subN = s => s === '5' ? '5.1' : s;
+const ORDER = ['g', '1', '2', '3', '4', '5', '5.2', '5.3', '5.4', 'i', 'i.2', 'i.3'], KEYS = ['g', '1', '2', '3', '4', '5', 'i'], app = document.querySelector('.app');
+const isFive = s => s === '5' || s.startsWith('5.'), isI = s => s === 'i' || s.startsWith('i.');
+const subN = s => s === '5' ? '5.1' : s === 'i' ? 'i.1' : s;
 const spPanel = document.getElementById('stopPanel'), donut = document.getElementById('donutSec'), genAside = document.getElementById('genAside');
 function panel(s) {
   spPanel.hidden = s === 'g'; genAside.hidden = s !== 'g'; donut.hidden = !['g', '4', '5'].includes(s);
   if (s === 'g') return;
   const d = STOPS[s], n = KEYS.indexOf(isFive(s) ? '5' : s);
-  document.getElementById('spK').textContent = s === 'i' ? 'Cierre del recorrido' : isFive(s) ? `Parada 5 de 5 · ${d.inv} · ${d.name}` : `Parada ${n} de 5 · ${d.inv}`;
-  document.getElementById('spT').textContent = s === 'i' ? d.name : isFive(s) ? `${subN(s)} · ${d.sub}` : `${n} · ${d.name}`;
+  document.getElementById('spK').textContent = isI(s) ? 'Cierre del recorrido · Vista integrada' : isFive(s) ? `Parada 5 de 5 · ${d.inv} · ${d.name}` : `Parada ${n} de 5 · ${d.inv}`;
+  document.getElementById('spT').textContent = isI(s) || isFive(s) ? `${subN(s)} · ${d.sub}` : `${n} · ${d.name}`;
   document.getElementById('spL').textContent = d.loc;
   document.getElementById('spB').innerHTML = d.bullets.map(([t, st]) => `<li class="${st}">${t}</li>`).join('');
 }
 function navLabels(s) {
-  const n = ORDER.indexOf(s), nm = k => k === 'g' ? 'Vista general' : k === 'i' ? 'Vista integrada' : isFive(k) ? `${subN(k)} ${STOPS[k].short}` : STOPS[k].name;
+  const n = ORDER.indexOf(s), nm = k => k === 'g' ? 'Vista general' : isI(k) || isFive(k) ? `${subN(k)} ${STOPS[k].short}` : STOPS[k].name;
   const pv = document.getElementById('spPrev'), nx = document.getElementById('spNext');
   pv.hidden = n === 0; pv.textContent = '← ' + (n > 0 ? nm(ORDER[n - 1]) : '');
-  nx.textContent = (s === 'i' ? 'Vista general' : (n === 0 ? 'Iniciar recorrido: ' : '') + nm(ORDER[n + 1])) + ' →';
-  document.getElementById('navPos').textContent = s === 'g' ? 'General' : s === 'i' ? 'Integrada' : isFive(s) ? `Parada ${subN(s)} / 5` : `Parada ${n} / 5`;
+  nx.textContent = (s === 'i.3' ? 'Vista general' : (n === 0 ? 'Iniciar recorrido: ' : '') + nm(ORDER[n + 1])) + ' →';
+  document.getElementById('navPos').textContent = s === 'g' ? 'General' : isI(s) ? `Integrada ${subN(s)}` : isFive(s) ? `Parada ${subN(s)} / 5` : `Parada ${n} / 5`;
   fitBottom();
 }
 document.getElementById('spPrev').onclick = () => step(-1);
-document.getElementById('spNext').onclick = () => { if (stop === 'i') applyStop('g'); else step(1); };
+document.getElementById('spNext').onclick = () => { if (stop === 'i.3') applyStop('g'); else step(1); };
 // La nota y los controles de abajo a la izquierda no deben quedar debajo de la navegación de abajo a la derecha
 function fitBottom() { const nav = vp.querySelector('.tnav'); vp.querySelector('.bottom').style.maxWidth = Math.max(260, vp.clientWidth - nav.offsetWidth - 54) + 'px'; }
 addEventListener('resize', fitBottom);
@@ -583,23 +657,30 @@ function applyStop(s) {
   if (thermo && !keepThermo) { setThermo(false); autoThermo = false; }
   stop = s; const g = s === 'g';
   app.classList.toggle('touring', !g);
-  Object.entries(T.groups).forEach(([k, grp]) => grp.visible = k === s);
+  Object.entries(T.groups).forEach(([k, grp]) => grp.visible = k === s && k !== 'i'); // los íconos de la vista integrada anterior ya no se usan
   if (g) { restoreMats(); setShell(shell); }
   else { dimFor(s); m.prop.visible = s === '5'; dataFlow.im.visible = s === '5'; }
-  flows.forEach(f => f.im.visible = g || s === '5' || s === '5.2' || s === 'i');
-  halos.forEach(h => h.visible = g || s === '5' || s === '5.2');
-  Object.entries(TOOLS).forEach(([k, t]) => { t.group.visible = k === s; });
+  flows.forEach(f => f.im.visible = g || s === '5' || s === '5.2' || s === 'i' || s === 'i.2');
+  halos.forEach(h => h.visible = g || s === '5' || s === '5.2' || s === 'i' || s === 'i.2');
+  Object.entries(TOOLS).forEach(([k, t]) => { t.group.visible = k === s || (k === '5.2' && s === 'i' && falla.k === 0); });
+  if (s !== 'i') falla.playing = false;
+  m.prop.children.forEach(c => { c.visible = true; });
+  if (s === 'i.2') setStage(abStage);
+  if (s === 'i.3') layoutPlan();
+  document.getElementById('subbarI').hidden = !isI(s);
+  document.getElementById('plan').hidden = s !== 'i.3';
   ctl.minDistance = s === '5.3' || s === '5.4' ? 1.2 : 6;
   document.getElementById('subbar').hidden = !isFive(s);
-  arcFlow.im.visible = s === 'i';
+  arcFlow.im.visible = false;
   vp.querySelectorAll('[data-gen]').forEach(e => e.hidden = !g);
-  document.querySelectorAll('[data-stop]').forEach(b => b.classList.toggle('on', b.dataset.stop === s || (!!b.closest('.tourbar') && b.dataset.stop === '5' && isFive(s))));
+  document.querySelectorAll('[data-stop]').forEach(b => b.classList.toggle('on', b.dataset.stop === s || (!!b.closest('.tourbar') && ((b.dataset.stop === '5' && isFive(s)) || (b.dataset.stop === 'i' && isI(s))))));
   panel(s); navLabels(s);
-  sky.setActive(g || s === 'i'); document.getElementById('skyPanel').hidden = !(g || s === 'i');
+  sky.setActive(g); document.getElementById('skyPanel').hidden = !g;
   buildDock(s);
   offT = dockOffset();
   if (g) setMode(mode); else refreshLabels();
-  if (g) goView(currentView); else goPose(STOPS[s].pose, 1300, true);
+  if (s === 'i') showStep(falla.k, false);
+  if (g) goView(currentView); else goPose(s === 'i' ? FALLA[falla.k].pose : STOPS[s].pose, 1300, true);
   stage._toolbar.style.display = g ? '' : 'none'; Object.assign(stage._toolbar.style, { top: 'auto', bottom: '70px' });
   if (s === '4') applyVfd(); else vfdFan.speed = vfdBase;
   document.getElementById('thermoSeg').hidden = !THERMO_OK.includes(s);
@@ -612,7 +693,7 @@ addEventListener('keydown', e => {
   const inField = e.target.closest && e.target.closest('input, textarea, select');
   if (/^[0-6]$/.test(e.key) && !(inField && e.target.type !== 'range')) { applyStop(KEYS[+e.key]); e.preventDefault(); }
 });
-new ResizeObserver(() => { layoutDock(); fitDock(Math.max(0, [...dock.querySelectorAll('.card:not(.mini)')].findIndex(c => c.querySelector('.ch[aria-expanded=true]')))); offT = dockOffset(); }).observe(vp);
+new ResizeObserver(() => { layoutDock(); layoutPlan(); fitDock(Math.max(0, [...dock.querySelectorAll('.card:not(.mini)')].findIndex(c => c.querySelector('.ch[aria-expanded=true]')))); offT = dockOffset(); }).observe(vp);
 
 // Etiquetas / pausa
 const tL = document.getElementById('tLabels'), tP = document.getElementById('tPause');
@@ -715,12 +796,13 @@ stage.onFrame = () => {
     if (dataFlow.im.visible) { stepFlow(dataFlow, simT); m.ia.rotation.y += 0.4 * dt; m.M.sensor.emissiveIntensity = 0.9 + 0.6 * Math.sin(simT * 4); }
     if (arcFlow.im.visible) stepFlow(arcFlow, simT);
     T.tick(simT);
-    const tool = TOOLS[stop];
+    const tool = TOOLS[stop] || (stop === 'i' && falla.k === 0 ? TOOLS['5.2'] : null);
     if (tool) tool.tick(simT, dt);
     const pulse = 0.82 + 0.18 * Math.sin(simT * 3.2);
     halos.forEach(s => s.scale.setScalar(s.userData.base * pulse));
   }
   syncTools();
+  playTick();
   placeLabels();
   placeDock();
   placeHots();

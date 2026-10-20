@@ -498,6 +498,43 @@
   .card .ib b { display: block; font-size: 12.5px; color: #F1F4F6; margin-bottom: 2px; }
   .card .route { display: flex; flex-wrap: wrap; gap: 3px 8px; font: 500 11.5px "IBM Plex Mono", monospace; color: #C4CCD3; }
   .card .route span b { display: inline; color: #F2C14E; font-size: 11.5px; margin-right: 3px; }
+  /* Vista integrada */
+  .sp li.cur { color: #F2C14E; } .sp li.cur::before { background: #F2C14E; }
+  .card .fhd { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+  .card .fk { font: 500 11px "IBM Plex Mono", monospace; color: #F2C14E; text-transform: uppercase; letter-spacing: .05em; }
+  .card .ft { display: block; font-size: 14px; color: #F1F4F6; margin-bottom: 4px; }
+  .card .fb { font-size: 12.5px; line-height: 1.45; } .card .fb b { color: #F1F4F6; font-weight: 600; }
+  .card .fol { margin: 4px 0 0; padding-left: 18px; gap: 3px; }
+  .card .fctl { display: flex; align-items: center; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+  .card .fctl .btn { padding: 6px 9px; font-size: 12px; border: 1px solid rgba(214,224,232,.2); }
+  .card .fctl .btn.pl { border-color: rgba(242,193,78,.6); color: #F2C14E; } .card .fctl .btn.pl.on { background: #F2C14E; color: #16191C; }
+  .card .fdots { display: flex; gap: 3px; margin-left: auto; }
+  .card .fdot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(214,224,232,.3); background: transparent; color: #A9B4BE; font: 500 10px "IBM Plex Mono", monospace; cursor: pointer; padding: 0; }
+  .card .fdot.on { background: #F2C14E; color: #16191C; border-color: #F2C14E; }
+  .card .abl { display: flex; justify-content: space-between; font: 500 10px "IBM Plex Mono", monospace; color: #8E9AA5; margin: -2px 0 6px; }
+  .card #abS .st { display: inline-block; margin-bottom: 4px; } .card #abS b { display: block; color: #F1F4F6; } .card #abS p { margin: 2px 0 0; }
+  .plan { position: absolute; left: 18px; right: 18px; z-index: 1; overflow: auto; scrollbar-width: thin; background: rgba(22,25,28,.95); border: 1px solid rgba(214,224,232,.24); padding: 12px 14px; font-size: 12px; color: #E6EBEF; }
+  .pl-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .pl-top > b { font-size: 15px; } .pl-c { font: 500 11px "IBM Plex Mono", monospace; color: #A9B4BE; } .pl-c b { color: #F2C14E; }
+  .pl-grid { display: grid; grid-template-columns: minmax(170px, 24%) 1fr; column-gap: 10px; }
+  .pl-l { padding: 4px 0; border-top: 1px solid rgba(214,224,232,.07); line-height: 1.3; }
+  .pl-l b { display: block; font-size: 11.5px; color: #F1F4F6; } .pl-l small { display: block; font-size: 10px; color: #8E9AA5; } .pl-l small.pr { color: #7FC9EA; }
+  .pl-t { position: relative; min-height: 26px; border-top: 1px solid rgba(214,224,232,.07);
+    background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / 8 - 1px), rgba(214,224,232,.1) calc(100% / 8 - 1px), rgba(214,224,232,.1) calc(100% / 8)); }
+  .pl-t.tall { min-height: 58px; }
+  .pl-h { min-height: 30px; background: none; } .py, .pq { position: absolute; text-align: center; font: 500 10px "IBM Plex Mono", monospace; color: #8E9AA5; }
+  .py { top: 0; color: #F1F4F6; } .pq { top: 15px; }
+  .pl-s { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 10px; padding-top: 6px; border-top: 1px solid rgba(214,224,232,.25); }
+  .pl-s b { font-size: 12.5px; color: #F1F4F6; } .pl-s span:not(.st) { flex-basis: 100%; font-size: 10.5px; color: #A9B4BE; line-height: 1.4; }
+  .pm { position: absolute; top: 50%; width: 6px; height: 12px; margin: -6px 0 0 -3px; background: #F2C14E; border-radius: 1px; }
+  .pm.thin { width: 2px; margin-left: -1px; background: rgba(242,193,78,.55); }
+  .pe { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; transform: rotate(45deg); background: #7FC9EA; }
+  .pband { position: absolute; inset: 4px 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 8px; font-size: 11px; color: #E6EBEF;
+    background: repeating-linear-gradient(135deg, rgba(214,224,232,.12) 0 8px, rgba(214,224,232,.03) 8px 16px); border: 1px dashed rgba(214,224,232,.35); }
+  .pbar { position: absolute; top: 6px; bottom: 6px; padding: 3px 5px; overflow: hidden; font-size: 10.5px; line-height: 1.25; color: #16191C; background: #BFE7F8; border-right: 2px solid rgba(22,25,28,.95); }
+  .pbar small { display: block; font-size: 9.5px; color: #2A4A5A; }
+  .pcorr { position: absolute; inset: 3px 0; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 1px dashed rgba(255,106,43,.6); color: #F0B07A; font-size: 11px; }
+  .pcorr .btn { padding: 4px 8px; font-size: 11px; border: 1px solid rgba(214,224,232,.25); margin-left: auto; }
   .psy { border: 1px solid rgba(214,224,232,.18); padding: 8px 10px; margin-top: 4px; }
   .psy summary { cursor: pointer; font: 500 11px "IBM Plex Mono", monospace; color: #C4CCD3; text-transform: uppercase; letter-spacing: .06em; }
   .psy summary .st { margin-left: 6px; vertical-align: 1px; }
@@ -563,6 +600,7 @@
     <div id="labels"></div>
     <div id="dock"></div>
     <div id="pop" class="pop" hidden=""></div>
+    <div id="plan" class="plan" hidden=""></div>
     <div class="top">
       <div class="row1">
         <div class="tr">
@@ -571,6 +609,11 @@
             <button class="btn" data-stop="5.2">5.2 Termografía</button>
             <button class="btn" data-stop="5.3">5.3 Realidad aumentada</button>
             <button class="btn" data-stop="5.4">5.4 Dron en ductos</button>
+          </nav>
+          <nav class="seg subbar" id="subbarI" aria-label="Vista integrada" hidden="">
+            <button class="btn" data-stop="i">i.1 Una falla</button>
+            <button class="btn" data-stop="i.2">i.2 Antes / después</button>
+            <button class="btn" data-stop="i.3">i.3 Plan de 2 años</button>
           </nav>
           <div class="stlegend"><span>Sellos:</span><span class="st real">Dato real – Edificio 2</span><span class="st ilus">Ilustrativo</span></div>
         </div>

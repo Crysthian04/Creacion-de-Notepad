@@ -54,7 +54,37 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     await pg.screenshot({ path: join(shots, `${W}_parada_${sub}.png`) });
   }
   await pg.click('#spNext'); await pg.waitForTimeout(500);
-  if (!(await pg.evaluate(() => document.querySelector('[data-stop="i"]').classList.contains('on')))) fails.push(`${W}x${H} después de 5.4 «Siguiente» no lleva a la vista integrada`);
+  if (!(await pg.evaluate(() => document.querySelector('.tourbar [data-stop="i"]').classList.contains('on')))) fails.push(`${W}x${H} después de 5.4 «Siguiente» no lleva a la vista integrada`);
+  // Vista integrada i.1–i.3 (Fase 2.6)
+  const shown = () => pg.evaluate(() => ['labels', 'dock', 'pop', 'plan'].map(id => document.getElementById(id)?.innerText || '').join('\n'));
+  await pg.keyboard.press('6'); await pg.waitForTimeout(2500);
+  if (!(await pg.evaluate(() => document.getElementById('spT').textContent.startsWith('i.1')))) fails.push(`${W}x${H} la tecla 6 no abre i.1`);
+  await pg.click('#fNext'); await pg.waitForTimeout(300);
+  if (!(await pg.evaluate(() => /Paso 2 de 6/.test(document.getElementById('fStep').textContent)))) fails.push(`${W}x${H} i.1: ▶ no avanza al paso 2`);
+  await pg.click('#fPlay');
+  if ((await pg.evaluate(() => document.getElementById('fPlay').textContent)) !== 'Pausar') fails.push(`${W}x${H} i.1: «Reproducir» no cambia a «Pausar»`);
+  const advanced = await pg.waitForFunction(() => /Paso 3 de 6/.test(document.getElementById('fStep').textContent), null, { timeout: 40000 }).then(() => true, () => false);
+  if (!advanced) fails.push(`${W}x${H} i.1: la reproducción no avanza sola`);
+  await pg.click('#fPlay');
+  if (/°C/.test(await shown())) fails.push(`${W}x${H} i.1 muestra °C`);
+  await pg.screenshot({ path: join(shots, `${W}_integrada_i.1.png`) });
+  await pg.click('#spNext'); await pg.waitForTimeout(3000);
+  if (!(await pg.evaluate(() => document.getElementById('spT').textContent.startsWith('i.2')))) fails.push(`${W}x${H} «Siguiente» desde i.1 no lleva a i.2`);
+  await pg.evaluate(() => { const r = document.getElementById('abR'); r.value = 3; r.dispatchEvent(new Event('input', { bubbles: true })); });
+  await pg.waitForTimeout(500);
+  if (!/Modelo BIM/.test(await pg.evaluate(() => document.getElementById('abS').innerText))) fails.push(`${W}x${H} i.2: el deslizador no llega a la etapa 3`);
+  const t2 = await shown();
+  if (/°C/.test(t2)) fails.push(`${W}x${H} i.2 muestra °C`);
+  if (/(25|35|70|75)\s*(–|-)?\s*(\d+\s*)?%/.test(t2)) fails.push(`${W}x${H} i.2 muestra porcentajes de ahorro`);
+  await pg.screenshot({ path: join(shots, `${W}_integrada_i.2.png`) });
+  await pg.click('#spNext'); await pg.waitForTimeout(2500);
+  const t3 = await shown();
+  if (!/52\s*semanales/.test(t3) || !/Frecuencia según el manual del fabricante/.test(t3)) fails.push(`${W}x${H} i.3: falta el contador o la banda del manual del fabricante`);
+  if (/°C/.test(t3)) fails.push(`${W}x${H} i.3 muestra °C`);
+  if (await pg.evaluate(() => document.getElementById('dock').scrollHeight - document.getElementById('dock').clientHeight > 8)) fails.push(`${W}x${H} i.3: tarjetas desbordan`);
+  await pg.screenshot({ path: join(shots, `${W}_integrada_i.3.png`) });
+  await pg.click('#spNext'); await pg.waitForTimeout(500);
+  if (!(await pg.evaluate(() => document.querySelector('[data-stop="g"]').classList.contains('on')))) fails.push(`${W}x${H} después de i.3 «Siguiente» no vuelve a la vista general`);
   if (!(await pg.evaluate(() => /no a escala/i.test(document.body.innerText)))) fails.push('Falta la nota "Modelo conceptual, no a escala"');
   // Inspector: clic sobre la proyección de UMA_03 en la vista general, luego Esc
   await pg.keyboard.press('0'); await pg.waitForTimeout(2500);
