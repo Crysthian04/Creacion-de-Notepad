@@ -74,6 +74,7 @@ label(A.chiller, 'Chiller enfriado por aire · 155 TR', 'Exterior · parte poste
 label(A.thermal, 'Deterioro detectado por termografía', '(una sola inspección)', 'heat', 'all', { down: true, stem: 26, dx: 60, prio: 1, stamp: 'real' });
 label(A.uma, '16 UMA en total', 'Distribución por piso ilustrativa', '', 'actual', { stem: 40, prio: 4, inside: true, stamp: 'real' });
 label(A.split, 'Mini-split inverter · 12,000–60,000 BTU/h', 'Añadidos tras el diseño original', 'tag', 'all', { stem: 40, dx: -40, prio: 3, stamp: 'real' });
+label(A.pump, 'Bombeo de agua helada', 'Configuración ilustrativa: el estudio no la detalla', 'wrap', 'all', { stem: 30, dx: 140, prio: 3, stamp: 'ilus' });
 ['Planta baja', 'Primer alto', 'Segundo alto'].forEach((t, i) => label(A.floors[i], t, '', 'floor', 'all', { stem: 0, prio: 6 }));
 label(A.bms, 'Plataforma de integración / BMS', '(existente o a instalar)', 'cyan', 'prop', { stem: 10, prio: 1, stamp: 'ilus' });
 label(A.ia, 'IA: detección de anomalías', '', 'cyan', 'prop', { down: true, stem: 10, prio: 1, stamp: 'ilus' });
@@ -110,6 +111,7 @@ label(A.sensorsUma, 'Sensores IoT en chiller y UMA', 'T suministro/retorno · Δ
 label(A.bms, 'Pantalla BMS', '', 'cyan', 'all', S('5', { stem: 12, prio: 1 }));
 label(A.ia, 'Detección de anomalías', '(aprendizaje automático)', 'cyan', 'all', S('5', { down: true, stem: 12, prio: 1 }));
 label(A.bim, 'Gemelo digital / BIM', '', 'cyan', 'all', S('5', { down: true, stem: 12, prio: 1 }));
+label(A.pump, 'Bombeo de agua helada', 'Configuración ilustrativa: el estudio no la detalla', 'wrap', 'all', S('5', { stem: 30, dx: -40, prio: 3 }));
 // Vista integrada
 [['Seguridad para intervenir', 'INV4'], ['Plan para programar', 'INV2'], ['Refrigerante bien manejado', 'INV1'], ['Energía optimizada', 'INV5'], ['Tecnología que lo monitorea', 'INV3']]
   .forEach(([t, inv], i) => label(B.icons[i], `<span class="num">${i + 1}</span><span>${t}<small>${inv}</small></span>`, '', 'icon', 'all', { stops: ['i'], stem: 22, prio: 1, down: i === 3 }));
@@ -236,14 +238,14 @@ function dimMat(mat, site) {
   dimCache.set(key, d); return d;
 }
 const byName = n => m.root.getObjectByName(n);
-const chG = byName('chiller_155TR'), umaG = byName('unidades_manejadoras'), pipeG = byName('circuito_agua_helada'), uma3 = byName('UMA_03');
+const chG = byName('chiller_155TR'), umaG = byName('unidades_manejadoras'), pipeG = byName('circuito_agua_helada'), uma3 = byName('UMA_03'), pumpG = byName('bombeo_agua_helada');
 const under = (o, g) => { for (let p = o; p; p = p.parent) if (p === g) return true; return false; };
 const FOCUS = {
   1: o => under(o, chG) || /^bloque_alto/.test(o.name),
   2: o => /^minisplit_2_/.test(o.name),
   3: o => /^minisplit_1_/.test(o.name),
   4: o => under(o, uma3) || under(o, chG),
-  5: o => under(o, chG) || under(o, umaG) || under(o, pipeG) || under(o, m.prop),
+  5: o => under(o, chG) || under(o, umaG) || under(o, pipeG) || under(o, pumpG) || under(o, m.prop),
   i: () => false,
 };
 function dimFor(s) {

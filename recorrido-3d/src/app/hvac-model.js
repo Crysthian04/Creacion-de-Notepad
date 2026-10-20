@@ -208,6 +208,37 @@ export function buildModel() {
   thermalPts.forEach((p, i) => { const s = new THREE.Mesh(new THREE.SphereGeometry(i ? 0.14 : 0.2, 20, 14), M.thermal); s.name = `punto_termico_${i}`; s.position.copy(p); pipes.add(s); });
   anchors.thermal = thermalPts[0].clone();
 
+  // ---------- Bombeo de agua helada (ilustrativo: el estudio no detalla la configuración) ----------
+  // Dos bombas centrífugas en línea en paralelo: la de operación sobre el suministro principal, la de respaldo en un ramal
+  const pumpG = new THREE.Group(); pumpG.name = 'bombeo_agua_helada'; root.add(pumpG);
+  const PX = -15.5, PZ = -7.5, BZ = -6.3, PY = 0.9;
+  const pumpM = std('bomba_carcasa', 0x3F6F8F, 0.5, 0.3), motorM = std('bomba_motor', 0x8E99A3, 0.5, 0.35), wheelM = std('valvula_volante', 0xB8402F, 0.6, 0.1);
+  const vcyl = (name, r, h, mat, x, y, z, axis) => {
+    const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), mat); o.name = name; o.position.set(x, y, z);
+    if (axis === 'x') o.rotation.z = Math.PI / 2; pumpG.add(o); return o;
+  };
+  pumpG.add(box('bombeo_base', 2.5, 0.15, 2.1, M.concrete, PX, 0.075, (PZ + BZ) / 2));
+  pipe(pumpG, 'bombeo_ramal_respaldo', [V(PX - 1, PY, PZ), V(PX - 1, PY, BZ), V(PX + 1, PY, BZ), V(PX + 1, PY, PZ)], 0.11, M.supply);
+  [['operacion', PZ], ['respaldo', BZ]].forEach(([k, z]) => {
+    const id = 'bomba_' + k;
+    pumpG.add(box(id + '_soporte', 0.32, PY - 0.37, 0.32, M.dark, PX, 0.15 + (PY - 0.37) / 2, z));
+    vcyl(id + '_voluta', 0.26, 0.36, pumpM, PX, PY, z);
+    vcyl(id + '_acople', 0.09, 0.2, M.dark, PX, PY + 0.28, z);
+    vcyl(id + '_motor', 0.2, 0.55, motorM, PX, PY + 0.65, z);
+    vcyl(id + '_motor_tapa', 0.14, 0.06, M.dark, PX, PY + 0.95, z);
+    [-0.6, 0.6].forEach((dx, j) => {
+      const vn = `${id}_valvula_corte_${j ? 'descarga' : 'succion'}`;
+      vcyl(vn, 0.15, 0.16, M.dark, PX + dx, PY, z, 'x');
+      vcyl(vn + '_vastago', 0.025, 0.3, M.dark, PX + dx, PY + 0.28, z);
+      const w = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.022, 6, 16), wheelM); w.name = vn + '_volante';
+      w.rotation.x = Math.PI / 2; w.position.set(PX + dx, PY + 0.43, z); pumpG.add(w);
+    });
+  });
+  vcyl('bombeo_manometro_toma', 0.02, 0.3, M.dark, PX + 0.88, PY + 0.25, PZ);
+  const gauge = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 16), M.chiller); gauge.name = 'bombeo_manometro';
+  gauge.rotation.x = Math.PI / 2; gauge.position.set(PX + 0.88, PY + 0.45, PZ + 0.02); pumpG.add(gauge);
+  anchors.pump = V(PX, PY + 1.05, (PZ + BZ) / 2);
+
   // ---------- UMA ----------
   const umaG = new THREE.Group(); umaG.name = 'unidades_manejadoras'; root.add(umaG);
   const supplyPaths = [], returnPaths = [], umas = [];
