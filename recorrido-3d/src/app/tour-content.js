@@ -18,8 +18,9 @@ export const STOPS = {
     name: 'Seguridad', inv: 'INV4', loc: 'Tablero eléctrico del chiller y azotea',
     pose: { pos: [-33, 15, -36], tgt: [-9, 6, -11] },
     bullets: [
-      ['EPP: gafas herméticas, guantes y casco con barboquejo', 'ilus'],
-      ['En azotea: arnés con línea de vida', 'ilus'],
+      ['Tablero: guantes dieléctricos clase 00, gafas de seguridad, calzado dieléctrico y ropa ignífuga contra arco', 'ilus'],
+      ['Azotea: arnés con línea de vida de doble amortiguador y casco con barboquejo de 4 puntos', 'ilus'],
+      ['Cilindros: gafas herméticas y guantes criogénicos o de nitrilo grueso', 'ilus'],
       ['LOTO (OSHA 29 CFR 1910.147): 6 pasos antes de intervenir', 'ilus'],
       ['NFPA 70E: riesgo de arco eléctrico en el tablero', 'ilus'],
       ['Refrigerantes por clase ASHRAE 34: A1, A2L y A3', 'ilus'],
@@ -75,8 +76,9 @@ export const STOPS = {
     name: 'Innovación', sub: 'Termografía infrarroja', short: 'Termografía', inv: 'INV3', loc: 'Tubería de agua helada entre el chiller y el edificio',
     pose: { pos: [-5.6, 5.4, -18.5], tgt: [-13.4, 0.9, -7.6] },
     bullets: [
-      ['Deterioro en uniones de la tubería de agua fría', 'real'],
-      ['Detectado en una sola inspección termográfica', 'real'],
+      ['Usada en la auditoría energética del Edificio 2', 'real'],
+      ['Detectó deterioro en uniones de la tubería de agua fría', 'real'],
+      ['Una sola inspección, sin monitoreo permanente', 'real'],
       ['Vista termográfica cualitativa: sin temperaturas medidas', 'ilus'],
       ['Sin monitoreo permanente: los sensores IoT (5.1) le darían seguimiento', 'ilus'],
     ],
@@ -127,13 +129,13 @@ export const CARDS = {
       <b>Cada 3 meses</b><span>Serpentín evaporador, turbina, bandeja y drenaje</span>
       <b>Cada 6 meses</b><span>Conexiones eléctricas y ventiladores (equipo aislado de la energía); temperaturas y corriente</span>
       <b>Anual</b><span>Evaluación integral</span></div>`, 'split2'],
-    [head('CMMS · orden de trabajo', 'ilus') + `<div class="flow"><span>Planificar</span><i>→</i><span>Programar</span><i>→</i><span>Ejecutar</span><i>→</i><span>Cerrar</span></div>`, 'cmms'],
+    [head('CMMS · orden de trabajo', 'ilus') + `<div class="flow"><span>Planificar</span><i>→</i><span>Programar</span><i>→</i><span>Ejecutar</span><i>→</i><span>Cerrar</span></div><p class="fn">Detalle de 7 pasos en la vista integrada.</p>`, 'cmms'],
     [head('KPI · ejemplo de la INV2', 'ilus') + `<div class="kpi"><div>MTBF<b>360 h</b></div><div>MTTR<b>5 h</b></div></div>
       <div class="kv"><span>MTBF / (MTBF + MTTR)</span><b>98.63 %</b></div>`, 'cmms'],
     [head('Tipos de mantenimiento', 'ilus') + `<div class="cmp"><div><b>Correctivo</b>después de la falla</div><div><b>Preventivo</b>por calendario</div><div><b>Predictivo</b>por condición</div></div>`, 'cond2'],
   ],
   3: [
-    [head('Comportamiento de una fuga', 'ilus') + `Vapor de R-410A ≈ 3 veces más denso que el aire: desplaza el oxígeno y se acumula en zonas bajas <span style="color:#A9B4BE">(Honeywell, 2014)</span>.`, 'leak'],
+    [head('Comportamiento de una fuga', 'ilus') + `Los refrigerantes son más densos que el aire: desplazan el oxígeno y se acumulan en zonas bajas <span style="color:#A9B4BE">(National Refrigerants, s.&nbsp;f.)</span>.`, 'leak'],
     [head('GWP a 100 años', 'ilus') + `<div class="bars">
       ${[['R-22', 1810, '1,810'], ['R-410A', 2088, '2,088'], ['R-32', 675, '675'], ['R-290', 3, '3']].map(([n, v, t]) => `<span>${n}</span><div class="bar" style="width:${(v / 2088 * 100).toFixed(1)}%"></div><span class="v">${t}</span>`).join('')}
       </div><p class="fn">ODP: R-22 = 0.055; los demás = 0.</p>`, 'atmos'],
@@ -158,12 +160,12 @@ export const CARDS = {
     [head('Propuesta (caso hipotético)', 'ilus') + `<div class="flow"><span>Sensores IoT</span><i>→</i><span>Pantalla BMS</span><i>→</i><span>Detección de anomalías</span><i>→</i><span>Gemelo digital / BIM</span></div>`, 'bms'],
   ],
   '5.2': [
-    [head('Termografía infrarroja', 'real') + `Deterioro en uniones de la tubería de agua fría, detectado en una sola inspección termográfica.<p class="fn">Henríquez Espinosa et al. (2021)</p>`, 'thermal'],
+    [head('Termografía infrarroja', 'real') + `Se usó en la auditoría energética del Edificio 2 y permitió detectar deterioro en las uniones de la tubería de agua fría que alimenta el edificio, en una sola inspección, sin monitoreo permanente.<p class="fn">(Henríquez Espinosa et al., 2021)</p>`, 'thermal'],
     [head('Cómo se inspecciona', 'ilus') + `Una cámara termográfica portátil recorre la tubería de agua helada, del chiller al edificio, y apunta a cada unión. La vista termográfica de este modelo es cualitativa.<p class="fn">Escena tomada del modelo «Herramientas HVAC 3D» del grupo.</p>`, 'irCam'],
     [head('Limitación', 'ilus') + `Una sola inspección: no hay monitoreo permanente. Los sensores IoT de la 5.1 darían seguimiento continuo a estas uniones.`, null],
   ],
   '5.3': [
-    [head('Control desde la tableta', 'ilus') + `<div class="arst" id="arSt">—</div><div class="qs"><button class="btn" id="arCtl">Aplicar ajuste</button></div><p class="fn">Campo simulado y cualitativo (más cálido / más fresco): no son lecturas del Edificio 2, por eso no se muestran °C ni % de humedad.</p>`, 'arAc'],
+    [head('Control desde la tableta', 'ilus') + `<div class="arst" id="arSt">—</div><div class="qs"><button class="btn" id="arCtl">Aplicar ajuste</button></div><p class="fn">Campo simulado y cualitativo (más cálido / más fresco): no son lecturas del Edificio 2, por eso no se muestran valores de temperatura ni de humedad.</p>`, 'arAc'],
     [head('Realidad aumentada · caso hipotético', 'ilus') + `En un salón, el técnico ve sobre el espacio real los datos de los sensores IoT por zona y ajusta el sistema desde la tableta.<p class="fn">(Mohammadi et al., 2024)</p>`, 'arTablet'],
   ],
   '5.4': [
@@ -182,17 +184,19 @@ const FLOORS = ['Planta baja', 'Primer alto', 'Segundo alto'];
 const isec = (t, st, body) => `<div class="is"><div class="ish">${t}${STAMP[st]}</div>${body}</div>`;
 const vars = list => list.map(v => `<div class="iv"><span>${v}</span><b>Sin dato medido</b></div>`).join('');
 const MONITOR = 'Variables a monitorear (propuesta INV3)';
+// Predictivo de la INV2 (p. 17): va aparte de las 3 variables de la etapa 1 de la INV3 (p. 37)
+const PREDICTIVO = isec('Predictivo (INV2, p. 17)', 'ilus', vars(['Vibración y temperatura de rodamientos', 'Corriente', 'Temperaturas y presiones']));
 export function inspectorHTML(e) {
   const nn = String(e.n).padStart(2, '0');
   if (e.type === 'uma') return {
     title: `UMA ${nn} · ${FLOORS[e.f]}`, st: 'ilus', sub: 'Piso según la distribución ilustrativa del modelo',
     body: isec('Dato real del conjunto', 'real', '<p>16 UMA · 38&nbsp;% del consumo de climatización</p>')
-      + isec(MONITOR, 'ilus', vars(['Temperatura de suministro', 'Temperatura de retorno', 'ΔP del filtro', 'Corriente del ventilador', 'Vibración'])),
+      + isec(MONITOR, 'ilus', vars(['Temperaturas de suministro y retorno', 'Presión diferencial en filtros', 'Corriente de ventiladores'])) + PREDICTIVO,
   };
   if (e.type === 'chiller') return {
     title: 'Chiller', st: 'real', sub: 'Exterior · parte posterior izquierda',
     body: isec('Dato real', 'real', '<p>155&nbsp;TR · enfriado por aire · 38&nbsp;% del consumo de climatización</p>')
-      + isec(MONITOR, 'ilus', vars(['Temperatura de suministro de agua helada', 'Temperatura de retorno de agua helada', 'Corriente'])),
+      + isec(MONITOR, 'ilus', vars(['Temperaturas de suministro y retorno', 'Corriente de ventiladores'])) + PREDICTIVO,
   };
   if (e.type === 'split') return {
     title: `Mini-split ${e.n} · ${FLOORS[e.f]}`, st: 'ilus', sub: 'Ubicación ilustrativa: no se conoce el número de mini-splits',

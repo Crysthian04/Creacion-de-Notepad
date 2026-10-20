@@ -27,6 +27,10 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
       const want = ['7.68 kW', '2,764.8 kWh/mes', '48.8 %', 'B/. 474.34 /mes'];
       if (JSON.stringify(v) !== JSON.stringify(want)) fails.push(`VFD 80 %: ${v} ≠ ${want}`);
     }
+    // Contenido solo del compendio: sin Honeywell, y el 24 % no se atribuye a los mini-splits
+    const body = await pg.evaluate(() => document.body.innerText);
+    if (/Honeywell/.test(body)) fails.push(`${W}x${H} parada ${k}: aparece «Honeywell»`);
+    if (/Mini-splits\s*·?\s*24\s*%|Mini-splits\s*\n?\s*24/.test(body)) fails.push(`${W}x${H} parada ${k}: aparece «Mini-splits · 24 %»`);
     const ov = await pg.evaluate(() => { const d = document.getElementById('dock'); return d && d.scrollHeight - d.clientHeight; });
     if (ov > 8) fails.push(`${W}x${H} parada ${k}: tarjetas desbordan ${ov}px`);
     await pg.screenshot({ path: join(shots, `${W}_parada_${k}.png`) });
@@ -40,11 +44,12 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     if (ov > 8) fails.push(`${W}x${H} ${sub}: tarjetas desbordan ${ov}px`);
     if (sub === '5.3') {
       const txt = await pg.evaluate(() => document.getElementById('labels').innerText + document.getElementById('dock').innerText);
-      if (/\d\s*°C|HR \d/.test(txt)) fails.push(`${W}x${H} 5.3 muestra lecturas simuladas con números`);
+      if (/°C|HR \d/.test(txt)) fails.push(`${W}x${H} 5.3 muestra lecturas simuladas con números`);
       await pg.click('#arCtl');
       const ok = await pg.waitForFunction(() => /Ajuste aplicado|Aplicando/.test(document.getElementById('arSt').textContent), null, { timeout: 30000 }).then(() => true, () => false);
       if (!ok) fails.push(`${W}x${H} 5.3: el botón de ajuste no cambia el estado («${await pg.evaluate(() => document.getElementById('arSt').textContent)}»)`);
     }
+    if (sub === '5.2' && /°C/.test(await pg.evaluate(() => document.getElementById('labels').innerText + document.getElementById('dock').innerText + document.getElementById('thermoLegend').innerText))) fails.push(`${W}x${H} 5.2 muestra °C sin dato medido`);
     if (sub === '5.4' && !/Rodando|Volando|Fuga/.test(await pg.evaluate(() => document.getElementById('droneSt').textContent))) fails.push(`${W}x${H} 5.4: sin estado del dron`);
     await pg.screenshot({ path: join(shots, `${W}_parada_${sub}.png`) });
   }
@@ -62,6 +67,7 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   });
   await pg.mouse.click(pt[0], pt[1]); await pg.waitForTimeout(300);
   const ins = await pg.evaluate(() => { const e = document.getElementById('inspector'); return e.hidden ? '' : e.innerText; });
+  if (/°C/.test(ins)) fails.push(`${W}x${H} el inspector muestra °C sin dato medido`);
   if (!/UMA 03/.test(ins) || !/Sin dato medido/.test(ins)) fails.push(`${W}x${H} inspector tras clic en UMA_03: «${ins.slice(0, 80)}»`);
   await pg.screenshot({ path: join(shots, `${W}_inspector.png`) });
   await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
@@ -85,15 +91,8 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     if (!(await pg.evaluate(() => document.getElementById('pop').hidden))) fails.push(`${W}x${H} modo al pasar: Esc no cierra la tarjeta`);
   }
   await pg.click('#tHover'); await pg.keyboard.press('0'); await pg.waitForTimeout(2500);
-  // Calculadora psicrométrica (valores por defecto 30 °C/75 % → 13 °C/100 %)
-  await pg.evaluate(() => { const d = document.getElementById('psy'); d.open = true; d.scrollIntoView(); });
-  await pg.waitForTimeout(300);
-  const psq = await pg.evaluate(() => [...document.querySelectorAll('#psQ b')].map(b => b.textContent.replace(/\s+/g, ' ').trim()));
-  const psWant = ['45.14 kJ/kg', '17.74 kJ/kg', '27.40 kJ/kg', '0.393'];
-  if (JSON.stringify(psq) !== JSON.stringify(psWant)) fails.push(`${W}x${H} psicrometría: ${psq} ≠ ${psWant}`);
-  if (!(await pg.evaluate(() => /no medidos en el Edificio 2/.test(document.getElementById('psy').innerText)))) fails.push('Falta el aviso de valores de ejemplo en la calculadora');
-  await pg.screenshot({ path: join(shots, `${W}_psicrometria.png`) });
-  await pg.evaluate(() => { document.getElementById('psy').open = false; });
+  // Calculadora psicrométrica (2.2): en pausa, no se muestra
+  if (await pg.evaluate(() => !document.getElementById('psy').hidden)) fails.push(`${W}x${H} la calculadora psicrométrica (en pausa) sigue visible`);
   // Vista termográfica cualitativa: vista general y Parada 5, leyenda sin °C
   for (const k of ['0', '5']) {
     await pg.keyboard.press(k); await pg.waitForTimeout(2500);

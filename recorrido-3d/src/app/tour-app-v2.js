@@ -5,6 +5,7 @@ import { STAMP, ICON, STOPS, CARDS, inspectorHTML, THERMO, GLB_LABEL } from 'app
 import { enrichSite } from 'app/site-v2.js';
 import { createSky } from 'app/sky-v2.js';
 import { coilProcess } from 'app/psychro.js';
+import { FEATURES } from 'app/features.js';
 import { buildDrone, buildAR, buildIRCamera } from 'app/tools-v25.js';
 
 const stage = document.querySelector('three-d-stage');
@@ -99,10 +100,10 @@ label(sky.heatAnchor, 'Noche: la envolvente libera calor', 'Carga baja · el sis
 labels[labels.length - 1].cond = () => sky.S.active && sky.S.night;
 // Parada 1
 const S = (s, x = {}) => Object.assign({ stops: [s], stamp: 'ilus' }, x);
-label(B.tech, 'Técnico con EPP', 'Gafas herméticas · guantes · casco con barboquejo', 'wrap', 'all', S('1', { stem: 40, dx: 30, prio: 1 }));
-label(B.roofTech, 'Azotea: arnés con línea de vida', '', '', 'all', S('1', { stem: 26, dx: 60, prio: 1 }));
+label(B.tech, 'Técnico en el tablero del chiller', 'Guantes dieléctricos clase 00 · gafas de seguridad · calzado dieléctrico · ropa ignífuga contra arco (NFPA 70E)', 'wrap', 'all', S('1', { stem: 40, dx: 30, prio: 1 }));
+label(B.roofTech, 'Técnico en la azotea', 'Arnés con línea de vida de doble amortiguador · casco con barboquejo de 4 puntos', 'wrap', 'all', S('1', { stem: 26, dx: 60, prio: 1 }));
 label(B.tablero, 'NFPA 70E – arco eléctrico', 'Tablero del chiller', '', 'all', S('1', { down: true, stem: 44, dx: 70, prio: 2 }));
-label(B.cyl, 'Cilindros · clase ASHRAE 34', '<span class="sw3" style="background:#D98FA6"></span>R-410A (A1)<span class="sw3" style="background:#9CC7E3"></span>R-32 (A2L)<span class="sw3" style="background:#C7392F"></span>R-290 (A3)', '', 'all', S('1', { stem: 30, prio: 2 }));
+label(B.cyl, 'Cilindros · clase ASHRAE 34', '<span class="sw3" style="background:#D98FA6"></span>R-410A (A1)<span class="sw3" style="background:#9CC7E3"></span>R-32 (A2L)<span class="sw3" style="background:#C7392F"></span>R-290 (A3)<br>EPP: gafas herméticas · guantes criogénicos o de nitrilo grueso', '', 'all', S('1', { stem: 30, prio: 2 }));
 // Parada 2
 label(B.split2, 'Mini-split inverter', 'El edificio tiene mini-splits inverter de 12,000 a 60,000 BTU/h', 'wrap', 'all', S('2', { stamp: 'real', stem: 34, dx: 40, prio: 1 }));
 // Parada 3
@@ -672,6 +673,7 @@ function syncPsy() {
     : !r.condenses ? 'La salida no tiene menos humedad que la entrada: no hay condensación, solo calor sensible (o el estado no es físico).'
     : `Fracción latente con estos valores: ${f(r.ql / r.qt * 100, 0)} %.`;
 }
+q('psy').hidden = !FEATURES.psychro;
 ['psT1', 'psR1', 'psT2', 'psR2'].forEach(id => { q(id).oninput = syncPsy; });
 syncPsy();
 

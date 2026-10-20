@@ -349,6 +349,7 @@
   .donut { display: block; width: 100%; max-width: 230px; margin: 0 auto; }
   .rows { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
   .row { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+  .row .st { margin-left: 4px; vertical-align: 1px; font-size: 8px; }
   .row b { font: 500 13px "IBM Plex Mono", monospace; color: #F1F4F6; }
   .sw { width: 12px; height: 12px; border-radius: 1px; }
   .sw.ln { height: 4px; border-radius: 2px; }
@@ -659,25 +660,26 @@
       </details>
     </section>
     <section id="donutSec">
-      <h2>Consumo eléctrico del edificio <span class="st real" style="margin-left:6px;vertical-align:1px">Dato real – Edificio 2</span></h2>
+      <h2>Consumo eléctrico del edificio</h2>
       <svg class="donut" viewBox="0 0 200 200" aria-label="Gráfico de dona del consumo">
         <circle cx="100" cy="100" r="86" fill="none" stroke="#2C3238" stroke-width="8"></circle>
         <circle cx="100" cy="100" r="86" fill="none" stroke="#DDE3E8" stroke-width="8" pathLength="100" stroke-dasharray="69 31" transform="rotate(-90 100 100)"></circle>
         <circle cx="100" cy="100" r="64" fill="none" stroke="#7FD1B9" stroke-width="20" pathLength="100" stroke-dasharray="37.4 62.6" stroke-dashoffset="0" transform="rotate(-90 100 100)"></circle>
         <circle cx="100" cy="100" r="64" fill="none" stroke="#C4CCD3" stroke-width="20" pathLength="100" stroke-dasharray="37.4 62.6" stroke-dashoffset="-38" transform="rotate(-90 100 100)"></circle>
-        <circle cx="100" cy="100" r="64" fill="none" stroke="#E3A857" stroke-width="20" pathLength="100" stroke-dasharray="23.4 76.6" stroke-dashoffset="-76" transform="rotate(-90 100 100)"></circle>
+        <circle cx="100" cy="100" r="64" fill="none" stroke="#59636D" stroke-width="20" pathLength="100" stroke-dasharray="23.4 76.6" stroke-dashoffset="-76" transform="rotate(-90 100 100)"></circle>
         <text x="100" y="102" text-anchor="middle" fill="#F1F4F6" font-family="IBM Plex Mono, monospace" font-size="30" font-weight="500">69 %</text>
         <text x="100" y="122" text-anchor="middle" fill="#8E9AA5" font-family="IBM Plex Mono, monospace" font-size="10">climatización</text>
       </svg>
       <div class="rows">
-        <div class="row"><span class="sw" style="background:#DDE3E8"></span><span>Climatización (anillo exterior)</span><b>69 %</b></div>
+        <div class="row"><span class="sw" style="background:#DDE3E8"></span><span>Climatización (anillo exterior) <span class="st real">Dato real – Edificio 2</span></span><b>69 %</b></div>
       </div>
       <p class="sub">Reparto dentro de la climatización (anillo interior):</p>
       <div class="rows">
-        <div class="row"><span class="sw" style="background:#7FD1B9"></span><span>Chiller</span><b>38 %</b></div>
-        <div class="row"><span class="sw" style="background:#C4CCD3"></span><span>UMA (16)</span><b>38 %</b></div>
-        <div class="row"><span class="sw" style="background:#E3A857"></span><span>Mini-splits</span><b>24 %</b></div>
+        <div class="row"><span class="sw" style="background:#7FD1B9"></span><span>Chiller <span class="st real">Dato real – Edificio 2</span></span><b>38 %</b></div>
+        <div class="row"><span class="sw" style="background:#C4CCD3"></span><span>UMA (16) <span class="st real">Dato real – Edificio 2</span></span><b>38 %</b></div>
+        <div class="row"><span class="sw" style="background:#59636D"></span><span>Resto de la climatización (no desglosado en la fuente)</span><b>24 %</b></div>
       </div>
+      <p class="src">Henríquez Espinosa et al. (2021), p. 36 del compendio. La fuente no dice a qué corresponde el 24 % restante.</p>
     </section>
     <div id="genAside" style="display:contents">
     <section class="legend">

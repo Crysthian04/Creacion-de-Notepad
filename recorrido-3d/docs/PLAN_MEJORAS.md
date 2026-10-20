@@ -57,6 +57,8 @@ Origen: un dictamen externo propuso 6 mejoras y 4 críticas. Aquí cada una qued
 **Coherencia.** El modelo "Herramientas HVAC" ya tiene una pestaña de termografía del Edificio 2. Usa la misma paleta y el mismo lenguaje.
 
 ### 2.2 Calculadora psicrométrica (Mejora 5, con cambios)
+> **En pausa: usan fuentes fuera del compendio.** El código (`src/app/psychro.js`) y su prueba siguen en el proyecto, pero la calculadora no se muestra en la interfaz (Fase 2.6).
+
 **Qué dice el dictamen.** En Panamá, del 45 al 60 % de la carga de una UMA es latente.
 **Matiz.** Esa proporción se alcanza al enfriar **aire 100 % exterior** (ver la prueba de abajo: unos 61 %). En una UMA que recircula aire, la fracción latente es menor. La fuente no da la fracción de aire exterior del Edificio 2, así que no se puede afirmar para este edificio.
 **Qué se integra.** En el panel "Clima y hora", una sección plegable "Calor sensible y latente" (sello `ilus`):
@@ -89,6 +91,8 @@ Origen: un dictamen externo propuso 6 mejoras y 4 críticas. Aquí cada una qued
 ---
 
 ## Fase 3: demostración de detección de fallas con datos públicos (después de la defensa, opcional)
+> **En pausa: usan fuentes fuera del compendio** (LBNL / ASHRAE RP-1043).
+
 
 > No empieces esta fase hasta que Cristian lo pida expresamente. Va en la carpeta `analisis-fdd/`, separada del modelo 3D.
 

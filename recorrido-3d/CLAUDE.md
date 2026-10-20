@@ -54,18 +54,17 @@ Si Playwright no encuentra navegador: `npx playwright install chromium`, o expor
 3. **Citas** entre paréntesis, estilo APA 7: (Autor, año). Nada de "Fulano dijo…".
 4. **Texto en español de Panamá**, con tildes y concordancia correctas. Unidades con espacio: `38 %`, `155 TR`, `B/. 474.34`. Usa `&nbsp;` para que el número no quede separado de su unidad.
 5. **Nunca asignes un refrigerante concreto al chiller ni a los mini-splits**: la fuente no lo dice. Los cilindros R-410A/R-32/R-290 de la Parada 1 solo ilustran las clases ASHRAE 34.
-6. **Física correcta.** El vapor de refrigerante es más denso que el aire: cae y se extiende a ras de piso (Honeywell, 2014). Ya está corregido en la Parada 3; no lo reviertas.
+6. **Física correcta.** Los refrigerantes son más densos que el aire: caen, desplazan el oxígeno y se acumulan en zonas bajas (National Refrigerants, s. f.; INV4, p. 43). Ya está corregido en la Parada 3; no lo reviertas.
 7. Mantén la nota "Modelo conceptual, no a escala…".
 8. La realidad aumentada (5.3) muestra el campo simulado solo de forma cualitativa (más cálida / intermedia / más fresca): sin °C ni % de humedad.
 
-## Datos verificados (compendio final del grupo)
+## Datos verificados: `docs/FUENTES_COMPENDIO.md`
 
-- **Edificio 2** (Henríquez Espinosa et al., 2021): chiller enfriado por aire de 155 TR; 16 UMA; mini-splits inverter de 12,000–60,000 BTU/h. Climatización = 69 % del consumo; dentro de la climatización: chiller 38 %, UMA 38 %. El anillo del modelo pone el 24 % restante como "Mini-splits"; Cristian debe confirmarlo en la fuente. Hasta entonces no repitas ese 24 % en ningún otro lugar. Deterioro en uniones de la tubería de agua fría detectado en una sola inspección termográfica. La distribución de UMA por piso del modelo es ilustrativa.
-- **INV1**: GWP a 100 años: R-22 = 1,810 (ODP 0.055), R-410A = 2,088, R-32 = 675, R-290 = 3. Kigali ratificado por Ley 87 de 2017. Meta −80 % de HFC al 2045. En Panamá no existen instalaciones de recuperación y reciclaje (Plan de Enfriamiento de Panamá, 2020).
-- **INV2** (ejemplo ilustrativo): MTBF = 360 h, MTTR = 5 h, disponibilidad = 98.63 %. Frecuencias: semanal, mensual, 3 meses, 6 meses, anual. Split de referencia de 12,000 BTU/h.
-- **INV4**: OSHA 29 CFR 1910.147 (LOTO, 6 pasos), NFPA 70E, ASHRAE 34 (A1/A2L/A3).
-- **INV5** (caso ilustrativo, NO es del Edificio 2): ventilador de 15 kW, 360 h/mes; al 80 %: 7.68 kW, 2,764.8 kWh/mes, 48.8 % de ahorro, B/. 474.34/mes con tarifa hipotética de B/. 0.18/kWh. Ley 69 de 2012.
-- **Refrigerante**: vapor de R-410A con densidad ≈ 3 (aire = 1); desplaza el oxígeno y se acumula en zonas bajas (Honeywell, 2014).
+La ÚNICA fuente de contenido es `docs/FUENTES_COMPENDIO.md`, un extracto del Compendio de Investigaciones del Grupo A (PDF de 64 páginas) con el número de página de cada dato. Léelo completo antes de escribir texto.
+- Ningún texto ni cifra nueva sin una línea de ese archivo que lo respalde. Cita como aparece ahí.
+- Lo que no esté ahí se omite o se marca "Propuesta del grupo (ilustrativa)", sin cifras.
+- El único "Dato real – Edificio 2" es el de Henríquez Espinosa et al. (2021) en la INV3 (pp. 35–37). El 24 % restante de la climatización se rotula "Resto de la climatización (no desglosado en la fuente)", nunca "Mini-splits".
+- Los casos de ejemplo (VFD de la INV5, KPI de un compresor de la INV2) son ilustrativos y no son del Edificio 2.
 
 ## Restricciones técnicas
 
