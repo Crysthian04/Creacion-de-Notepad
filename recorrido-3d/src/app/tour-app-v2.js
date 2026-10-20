@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildModel, H } from 'app/hvac-model.js';
 import { buildTour } from 'app/tour-layers.js';
-import { STAMP, ICON, STOPS, CARDS } from 'app/tour-content.js';
+import { STAMP, ICON, STOPS, CARDS, inspectorHTML } from 'app/tour-content.js';
 import { enrichSite } from 'app/site-v2.js';
 import { createSky } from 'app/sky-v2.js';
 
@@ -326,6 +326,48 @@ function applyVfd() {
 dock.addEventListener('input', e => { if (e.target.id === 'vfdR') { vfdPct = +e.target.value; applyVfd(); } });
 dock.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { vfdPct = +b.dataset.v; applyVfd(); } });
 
+// Inspector por clic (vista general y Parada 5)
+const equipOf = o => { for (let p = o; p; p = p.parent) if (p.userData.equip) return p.userData.equip; return null; };
+const equipKey = e => e.type + (e.n ?? '');
+const pickables = [], equipMeshes = new Map();
+m.root.traverse(o => {
+  const e = o.isMesh && equipOf(o); if (!e) return;
+  pickables.push(o); const k = equipKey(e); if (!equipMeshes.has(k)) equipMeshes.set(k, []); equipMeshes.get(k).push(o);
+});
+const inspEl = document.getElementById('inspector'), inBody = document.getElementById('inBody'), ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+const hiMat = new THREE.LineBasicMaterial({ color: 0xF2C14E, depthTest: false, transparent: true });
+let hi = null, inspKey = null, downAt = null;
+function closeInspector() {
+  if (hi) { scene.remove(hi); hi.geometry.dispose(); hi = null; }
+  inspKey = null; inspEl.hidden = true;
+}
+function openInspector(e) {
+  closeInspector();
+  const k = equipKey(e), bb = new THREE.Box3();
+  equipMeshes.get(k).forEach(o => bb.expandByObject(o));
+  const size = bb.getSize(new THREE.Vector3()).addScalar(0.15);
+  hi = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z)), hiMat);
+  hi.name = 'inspector_resaltado'; hi.renderOrder = 10; bb.getCenter(hi.position); scene.add(hi);
+  const c = inspectorHTML(e);
+  inBody.innerHTML = `${STAMP[c.st]}<h3>${c.title}</h3><p class="isub">${c.sub}</p>${c.body}`;
+  inspKey = k; inspEl.hidden = false; inspEl.parentElement.scrollTop = 0;
+}
+const fromCanvas = ev => ev.button === 0 && ev.composedPath()[0]?.tagName === 'CANVAS';
+stage.addEventListener('pointerdown', ev => { downAt = fromCanvas(ev) ? [ev.clientX, ev.clientY] : null; });
+stage.addEventListener('pointerup', ev => {
+  if (!downAt || !fromCanvas(ev) || Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 5) return;
+  downAt = null;
+  if (stop !== 'g' && stop !== '5') return;
+  const r = ev.composedPath()[0].getBoundingClientRect();
+  ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ndc, cam);
+  const occ = stop === 'g' && shell === 'facade' ? m.shell.meshes : [];
+  const hit = ray.intersectObjects([...pickables, ...occ], false).find(h => h.object.visible);
+  const e = hit && equipOf(hit.object);
+  if (e) openInspector(e); else closeInspector();
+});
+addEventListener('keydown', ev => { if (ev.key === 'Escape' && inspKey) closeInspector(); });
+
 // Recorrido
 const ORDER = ['g', '1', '2', '3', '4', '5', 'i'], app = document.querySelector('.app');
 const spPanel = document.getElementById('stopPanel'), donut = document.getElementById('donutSec'), genAside = document.getElementById('genAside');
@@ -349,6 +391,7 @@ document.getElementById('spPrev').onclick = () => step(-1);
 document.getElementById('spNext').onclick = () => { if (stop === 'i') applyStop('g'); else step(1); };
 function step(d) { const i = ORDER.indexOf(stop) + d; if (i >= 0 && i < ORDER.length) applyStop(ORDER[i]); }
 function applyStop(s) {
+  if (s !== stop) closeInspector();
   stop = s; const g = s === 'g';
   app.classList.toggle('touring', !g);
   Object.entries(T.groups).forEach(([k, grp]) => grp.visible = k === s);

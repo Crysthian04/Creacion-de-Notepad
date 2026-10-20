@@ -32,6 +32,21 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     await pg.screenshot({ path: join(shots, `${W}_parada_${k}.png`) });
   }
   if (!(await pg.evaluate(() => /no a escala/i.test(document.body.innerText)))) fails.push('Falta la nota "Modelo conceptual, no a escala"');
+  // Inspector: clic sobre la proyección de UMA_03 en la vista general, luego Esc
+  await pg.keyboard.press('0'); await pg.waitForTimeout(2500);
+  const pt = await pg.evaluate(() => {
+    const s = document.querySelector('three-d-stage'), o = s._scene.getObjectByName('UMA_03_carcasa');
+    const p = o.getWorldPosition(o.position.clone()).project(s._camera), r = s.shadowRoot.querySelector('canvas').getBoundingClientRect();
+    return [r.left + (p.x + 1) / 2 * r.width, r.top + (1 - p.y) / 2 * r.height];
+  });
+  await pg.mouse.click(pt[0], pt[1]); await pg.waitForTimeout(300);
+  const ins = await pg.evaluate(() => { const e = document.getElementById('inspector'); return e.hidden ? '' : e.innerText; });
+  if (!/UMA 03/.test(ins) || !/Sin dato medido/.test(ins)) fails.push(`${W}x${H} inspector tras clic en UMA_03: «${ins.slice(0, 80)}»`);
+  await pg.screenshot({ path: join(shots, `${W}_inspector.png`) });
+  await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
+  if (!(await pg.evaluate(() => document.getElementById('inspector').hidden))) fails.push(`${W}x${H} Esc no cierra el inspector`);
+  await pg.keyboard.press('5'); await pg.waitForTimeout(300);
+  if (!(await pg.evaluate(() => document.querySelector('[data-stop="5"]').classList.contains('on')))) fails.push(`${W}x${H} el atajo 5 dejó de funcionar tras el inspector`);
   fails.push(...errs.map(e => `${W}x${H} ${e}`));
   await pg.close();
 }

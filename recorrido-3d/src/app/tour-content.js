@@ -132,3 +132,30 @@ export const CARDS = {
       <div><span><b>5</b>Tecnología que lo monitorea</span></div></div>
       <div class="big" style="font:600 19px/1.3 'IBM Plex Sans',sans-serif;margin-top:8px;text-wrap:balance">Las 5 investigaciones describen un mismo sistema</div>`, null]],
 };
+
+// Inspector por clic (vista general y Parada 5). Sin lecturas numéricas: no hay datos medidos por equipo.
+const FLOORS = ['Planta baja', 'Primer alto', 'Segundo alto'];
+const isec = (t, st, body) => `<div class="is"><div class="ish">${t}${STAMP[st]}</div>${body}</div>`;
+const vars = list => list.map(v => `<div class="iv"><span>${v}</span><b>Sin dato medido</b></div>`).join('');
+const MONITOR = 'Variables a monitorear (propuesta INV3)';
+export function inspectorHTML(e) {
+  const nn = String(e.n).padStart(2, '0');
+  if (e.type === 'uma') return {
+    title: `UMA ${nn} · ${FLOORS[e.f]}`, st: 'ilus', sub: 'Piso según la distribución ilustrativa del modelo',
+    body: isec('Dato real del conjunto', 'real', '<p>16 UMA · 38&nbsp;% del consumo de climatización</p>')
+      + isec(MONITOR, 'ilus', vars(['Temperatura de suministro', 'Temperatura de retorno', 'ΔP del filtro', 'Corriente del ventilador', 'Vibración'])),
+  };
+  if (e.type === 'chiller') return {
+    title: 'Chiller', st: 'real', sub: 'Exterior · parte posterior izquierda',
+    body: isec('Dato real', 'real', '<p>155&nbsp;TR · enfriado por aire · 38&nbsp;% del consumo de climatización</p>')
+      + isec(MONITOR, 'ilus', vars(['Temperatura de suministro de agua helada', 'Temperatura de retorno de agua helada', 'Corriente'])),
+  };
+  if (e.type === 'split') return {
+    title: `Mini-split ${e.n} · ${FLOORS[e.f]}`, st: 'ilus', sub: 'Ubicación ilustrativa: no se conoce el número de mini-splits',
+    body: isec('Dato real del conjunto', 'real', '<p>Inverter · 12,000–60,000&nbsp;BTU/h</p>'),
+  };
+  return {
+    title: 'Bombeo de agua helada', st: 'ilus', sub: 'Configuración ilustrativa: el estudio no la detalla',
+    body: isec('Equipo ilustrativo', 'ilus', '<p>Bomba en operación y bomba de respaldo, en paralelo</p>' + vars(['Datos de las bombas del Edificio 2'])),
+  };
+}

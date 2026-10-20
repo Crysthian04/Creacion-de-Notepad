@@ -469,6 +469,15 @@
   .card .ch[role=button] h4::after { content: " ▾"; font-size: 11px; color: #8E9AA5; }
   .card.fold .ch { margin-bottom: 0; } .card.fold .ch h4::after { content: " ▸"; } .card.fold .cb { display: none; }
   .card.fold:hover { border-color: rgba(214,224,232,.45); }
+  .insp { border: 1px solid #F2C14E; background: rgba(242,193,78,.06); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .insp h2 { margin: 0; color: #F2C14E; }
+  .insp h3 { margin: 4px 0 0; font-size: 20px; font-weight: 600; color: #F1F4F6; line-height: 1.2; }
+  .insp .isub { margin: 3px 0 0; font-size: 12px; color: #A9B4BE; }
+  .insp .is { border-top: 1px solid rgba(214,224,232,.12); padding-top: 8px; }
+  .insp .ish { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 4px; font: 500 11px "IBM Plex Mono", monospace; color: #8E9AA5; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .insp .is p { margin: 0; font-size: 13px; line-height: 1.4; color: #E6EBEF; }
+  .insp .iv { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid rgba(214,224,232,.08); }
+  .insp .iv span { color: #C4CCD3; } .insp .iv b { font: 500 11px "IBM Plex Mono", monospace; color: #8E9AA5; white-space: nowrap; }
   @media (max-height: 800px) {
     #dock { gap: 7px; }
     .card { width: clamp(220px, 19vw, 280px); padding: 7px 10px 8px; font-size: 12px; line-height: 1.35; }
@@ -549,6 +558,11 @@
     </div>
   </main>
   <aside>
+    <section id="inspector" class="insp" hidden="" aria-live="polite">
+      <h2>Inspector</h2>
+      <div id="inBody"></div>
+      <p class="skfn">Esc o clic en un área vacía para cerrar.</p>
+    </section>
     <section id="stopPanel" class="sp" hidden="">
       <div class="sp-k" id="spK"></div>
       <h3 id="spT"></h3>

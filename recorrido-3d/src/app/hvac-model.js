@@ -180,6 +180,7 @@ export function buildModel() {
   // ---------- Chiller (exterior, posterior izquierda) ----------
   const CX = -17, CZ = -11;
   const ch = new THREE.Group(); ch.name = 'chiller_155TR'; ch.position.set(CX, 0, CZ); root.add(ch);
+  ch.userData.equip = { type: 'chiller' };
   ch.add(box('chiller_base', 5.2, 0.2, 3.2, M.concrete, 0, 0.1, 0));
   ch.add(box('chiller_cuerpo', 4.5, 1.6, 2.6, M.chiller, 0, 1.0, 0));
   [-1, 1].forEach(s => ch.add(box(`chiller_serpentin_${s > 0 ? 'a' : 'b'}`, 4.3, 1.2, 0.05, M.coil, 0, 1.05, s * 1.31)));
@@ -211,6 +212,7 @@ export function buildModel() {
   // ---------- Bombeo de agua helada (ilustrativo: el estudio no detalla la configuración) ----------
   // Dos bombas centrífugas en línea en paralelo: la de operación sobre el suministro principal, la de respaldo en un ramal
   const pumpG = new THREE.Group(); pumpG.name = 'bombeo_agua_helada'; root.add(pumpG);
+  pumpG.userData.equip = { type: 'pump' };
   const PX = -15.5, PZ = -7.5, BZ = -6.3, PY = 0.9;
   const pumpM = std('bomba_carcasa', 0x3F6F8F, 0.5, 0.3), motorM = std('bomba_motor', 0x8E99A3, 0.5, 0.35), wheelM = std('valvula_volante', 0xB8402F, 0.6, 0.1);
   const vcyl = (name, r, h, mat, x, y, z, axis) => {
@@ -252,6 +254,7 @@ export function buildModel() {
       n++;
       const id = `UMA_${String(n).padStart(2, '0')}`;
       const g = new THREE.Group(); g.name = id; umaG.add(g);
+      g.userData.equip = { type: 'uma', n, f };
       g.add(box(id + '_carcasa', 1.5, 1.2, 1.0, M.uma, x, my, ZU));
       g.add(box(id + '_filtro', 0.08, 1.05, 0.9, M.dark, x - 0.78, my, ZU));
       const back = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.02, 32), M.dark);
@@ -279,7 +282,7 @@ export function buildModel() {
   const ms = new THREE.Group(); ms.name = 'mini_splits_inverter'; root.add(ms);
   const XW = -23;
   [{ f: 0, z: 3 }, { f: 1, z: 3.5 }, { f: 1, z: -1.5 }, { f: 2, z: 1 }].forEach(({ f, z }, i) => {
-    const yi = f * H + 2.7, yo = f * H + 0.9, id = `minisplit_${i + 1}`;
+    const yi = f * H + 2.7, yo = f * H + 0.9, id = `minisplit_${i + 1}`, k0 = ms.children.length;
     ms.add(box(id + '_interior', 0.24, 0.32, 1.0, M.split, XW + 0.28, yi, z));
     ms.add(box(id + '_rejilla', 0.02, 0.05, 0.9, M.dark, XW + 0.41, yi - 0.1, z));
     ms.add(box(id + '_franja', 0.02, 0.03, 0.3, M.splitAccent, XW + 0.41, yi + 0.08, z + 0.3));
@@ -292,6 +295,7 @@ export function buildModel() {
     const spin = new THREE.Group(); spin.name = id + '_rotor'; spin.position.set(XW - 0.91, yo, z); spin.add(fb); ms.add(spin);
     fans.push({ obj: spin, axis: 'x', speed: 7 });
     pipe(ms, id + '_linea', [V(XW + 0.16, yi, z + 0.4), V(XW - 0.5, yi, z + 0.4), V(XW - 0.5, yo + 0.4, z + 0.4)], 0.03, M.refrig);
+    ms.children.slice(k0).forEach(o => { o.userData.equip = { type: 'split', n: i + 1, f }; });
   });
   anchors.split = V(XW - 0.65, 2 * H + 1.4, 1);
 
