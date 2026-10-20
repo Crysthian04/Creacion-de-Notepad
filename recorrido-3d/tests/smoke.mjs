@@ -98,6 +98,7 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   await pg.mouse.click(pt[0], pt[1]); await pg.waitForTimeout(300);
   const ins = await pg.evaluate(() => { const e = document.getElementById('inspector'); return e.hidden ? '' : e.innerText; });
   if (/°C/.test(ins)) fails.push(`${W}x${H} el inspector muestra °C sin dato medido`);
+  if (!/Investigaciones que lo tocan/i.test(ins) || !/INV2/.test(ins) || !/INV4/.test(ins)) fails.push(`${W}x${H} inspector: falta la matriz «Investigaciones que lo tocan»`);
   if (!/UMA 03/.test(ins) || !/Sin dato medido/.test(ins)) fails.push(`${W}x${H} inspector tras clic en UMA_03: «${ins.slice(0, 80)}»`);
   await pg.screenshot({ path: join(shots, `${W}_inspector.png`) });
   await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);

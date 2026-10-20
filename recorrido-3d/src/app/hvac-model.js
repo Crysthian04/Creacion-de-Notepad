@@ -201,6 +201,7 @@ export function buildModel() {
 
   // ---------- Agua helada ----------
   const pipes = new THREE.Group(); pipes.name = 'circuito_agua_helada'; root.add(pipes);
+  pipes.userData.equip = { type: 'pipe' };
   const mainS = [V(CX - 0.6, 0.9, -9.7), V(CX - 0.6, 0.9, -7.5), V(RXS, 0.9, -7.5), V(RXS, 0.9, ZS)];
   const mainR = [V(RXR, 0.5, ZR), V(RXR, 0.5, -8.2), V(CX + 0.6, 0.5, -8.2), V(CX + 0.6, 0.5, -9.7)];
   const topHy = 2 * H + 3.1;

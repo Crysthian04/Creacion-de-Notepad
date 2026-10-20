@@ -223,8 +223,47 @@ const vars = list => list.map(v => `<div class="iv"><span>${v}</span><b>Sin dato
 const MONITOR = 'Variables a monitorear (propuesta INV3)';
 // Predictivo de la INV2 (p. 17): va aparte de las 3 variables de la etapa 1 de la INV3 (p. 37)
 const PREDICTIVO = isec('Predictivo (INV2, p. 17)', 'ilus', vars(['Vibración y temperatura de rodamientos', 'Corriente', 'Temperaturas y presiones']));
+// Matriz equipo × investigación (Fase 2.6): una línea por investigación, con su fuente (docs/FUENTES_COMPENDIO.md)
+const MATRIZ = {
+  chiller: [
+    ['INV3', '155&nbsp;TR y 38&nbsp;% de la climatización; sensores IoT en la etapa 1 (Henríquez Espinosa et al., 2021; Sivasankari y Rathika, 2025)', 'pp. 36–37'],
+    ['INV2', 'Preventivo riguroso, monitoreo de condición, alarmas y repuestos críticos (ASHRAE &amp; U.S. Department of Energy, s.&nbsp;f.)', 'p. 18'],
+    ['INV4', 'NFPA 70E: protección contra arco eléctrico al intervenir sus tableros de control (NFPA, 2026)', 'p. 45'],
+    ['INV5', 'IPLV: importante en chillers, porque no operan siempre al 100&nbsp;% (AHRI, 2023)', 'pp. 57–58'],
+    ['INV1', 'Si se abre su circuito de refrigerante: recuperar con máquina certificada, sin ventear', 'INV4 p. 49 · INV1 p. 8'],
+  ],
+  uma: [
+    ['INV3', '16 UMA y 38&nbsp;% de la climatización; el piloto empieza aquí (Henríquez Espinosa et al., 2021; Appau, 2026)', 'pp. 36–37'],
+    ['INV2', 'Filtros, serpentines, drenajes y correas; el CMMS la registra y genera sus tareas', 'pp. 17, 21–22'],
+    ['INV4', 'NFPA 70E en los tableros de control de las manejadoras (AHU) (NFPA, 2026)', 'p. 45'],
+    ['INV5', 'Caso VFD ilustrativo (Parada 4); filtros y serpentines sucios suben el consumo (ASHRAE, 2018)', 'pp. 59, 62'],
+  ],
+  split: [
+    ['INV2', 'Plan del split de referencia de 12,000&nbsp;BTU/h (ASHRAE, s.&nbsp;f.; ASHRAE &amp; ACCA, 2018)', 'pp. 27–29'],
+    ['INV1', 'Si se interviene el circuito: recuperar → reciclar → regenerar', 'p. 8'],
+    ['INV3', 'Instalados por modificaciones posteriores al diseño original (Henríquez Espinosa et al., 2021)', 'p. 36'],
+    ['INV5', 'Indicadores EER y SEER: mayor valor = más eficiente (AHRI, 2023)', 'p. 58'],
+  ],
+  pump: [
+    ['INV5', 'Los VFD regulan la velocidad de los motores de bombas y ventiladores según la demanda', 'p. 60'],
+    ['INV2', 'El CMMS registra cada bomba y genera sus tareas periódicas (FEMP, 2010)', 'pp. 21–22'],
+    ['INV4', 'LOTO: identificar la energía hidráulica, cerrar válvulas y purgar presiones', 'p. 48'],
+  ],
+  pipe: [
+    ['INV3', 'La termografía de la auditoría energética detectó deterioro en las uniones, en una sola inspección (Henríquez Espinosa et al., 2021)', 'pp. 35–36'],
+    ['INV5', '«El deterioro del aislamiento térmico genera pérdidas energéticas y aumenta la carga de enfriamiento» (ASHRAE, 2018)', 'p. 59'],
+  ],
+};
+const matriz = t => `<div class="is"><div class="ish">Investigaciones que lo tocan</div>${MATRIZ[t].map(([inv, txt, pg]) => `<div class="im"><b>${inv}</b><span>${txt}<small>Compendio, ${pg}</small></span></div>`).join('')}</div>`;
 export function inspectorHTML(e) {
+  const r = inspectorBase(e); r.body += matriz(e.type); return r;
+}
+function inspectorBase(e) {
   const nn = String(e.n).padStart(2, '0');
+  if (e.type === 'pipe') return {
+    title: 'Tubería de agua fría', st: 'real', sub: 'Suministro y retorno entre el chiller y el edificio (trazado ilustrativo)',
+    body: isec('Dato real', 'real', '<p>Deterioro en las uniones, detectado en una sola inspección termográfica, sin monitoreo permanente</p>'),
+  };
   if (e.type === 'uma') return {
     title: `UMA ${nn} · ${FLOORS[e.f]}`, st: 'ilus', sub: 'Piso según la distribución ilustrativa del modelo',
     body: isec('Dato real del conjunto', 'real', '<p>16 UMA · 38&nbsp;% del consumo de climatización</p>')

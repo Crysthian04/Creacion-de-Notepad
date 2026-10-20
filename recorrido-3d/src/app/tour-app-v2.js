@@ -530,7 +530,8 @@ function closeInspector() {
 function openInspector(e) {
   closeInspector();
   const k = equipKey(e), bb = new THREE.Box3();
-  equipMeshes.get(k).forEach(o => bb.expandByObject(o));
+  // la tubería se resalta solo en el tramo principal del chiller al edificio, no en todo el circuito
+  equipMeshes.get(k).filter(o => k !== 'pipe' || /^(suministro|retorno)_principal|brida_|punto_termico/.test(o.name)).forEach(o => bb.expandByObject(o));
   const size = bb.getSize(new THREE.Vector3()).addScalar(0.15);
   hi = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z)), hiMat);
   hi.name = 'inspector_resaltado'; hi.renderOrder = 10; bb.getCenter(hi.position); scene.add(hi);
