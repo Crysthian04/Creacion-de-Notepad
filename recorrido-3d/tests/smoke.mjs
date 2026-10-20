@@ -45,6 +45,25 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   await pg.screenshot({ path: join(shots, `${W}_inspector.png`) });
   await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
   if (!(await pg.evaluate(() => document.getElementById('inspector').hidden))) fails.push(`${W}x${H} Esc no cierra el inspector`);
+  // Modo "al pasar": tarjetas ocultas, punto sobre el elemento; al pasar el puntero aparece la tarjeta (y el VFD sigue funcionando)
+  await pg.click('#tHover'); await pg.keyboard.press('4'); await pg.waitForTimeout(3000);
+  const vis = await pg.evaluate(() => getComputedStyle(document.querySelector('#dock .card.anch')).visibility);
+  if (vis !== 'hidden') fails.push(`${W}x${H} modo al pasar: las tarjetas siguen visibles`);
+  const hot = pg.locator('.hot[aria-label*="Variador"]');
+  if (!(await hot.count())) fails.push(`${W}x${H} modo al pasar: no hay punto para la tarjeta del VFD`);
+  else {
+    await hot.hover({ timeout: 90000 }); await pg.waitForTimeout(800); // hover() espera a que el punto esté estable
+    if (!(await pg.evaluate(() => /Variador/.test(document.getElementById('pop').innerText)))) fails.push(`${W}x${H} modo al pasar: no aparece la tarjeta al pasar el puntero`);
+    else {
+      await pg.click('#pop [data-v="80"]'); await pg.waitForTimeout(200);
+      const p = await pg.evaluate(() => document.getElementById('vfdP')?.textContent.trim());
+      if (p !== '7.68 kW') fails.push(`${W}x${H} modo al pasar: VFD dentro de la ventana = ${p}`);
+      await pg.screenshot({ path: join(shots, `${W}_al_pasar.png`) });
+    }
+    await pg.keyboard.press('Escape'); await pg.waitForTimeout(300);
+    if (!(await pg.evaluate(() => document.getElementById('pop').hidden))) fails.push(`${W}x${H} modo al pasar: Esc no cierra la tarjeta`);
+  }
+  await pg.click('#tHover'); await pg.keyboard.press('0'); await pg.waitForTimeout(2500);
   // Calculadora psicrométrica (valores por defecto 30 °C/75 % → 13 °C/100 %)
   await pg.evaluate(() => { const d = document.getElementById('psy'); d.open = true; d.scrollIntoView(); });
   await pg.waitForTimeout(300);

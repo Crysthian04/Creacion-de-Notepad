@@ -475,6 +475,20 @@
   .thbar { height: 12px; border-radius: 2px; background: linear-gradient(90deg, #07041A 0%, #1F1A8A 22%, #9B1F9A 48%, #F06A1F 74%, #FFD23F 92%, #FFF6CC 100%); }
   .thends { display: flex; justify-content: space-between; font: 500 11px "IBM Plex Mono", monospace; color: #C4CCD3; }
   .thnote { margin: 0; font-size: 12px; line-height: 1.45; color: #E6EBEF; text-wrap: pretty; }
+  /* Modo "al pasar": puntos sobre cada elemento; la tarjeta aparece al pasar el puntero o al hacer clic */
+  .vp.hover #leaders { display: none; } .vp.hover #dock > .card.anch, .vp.hover #dock > .card.mini { visibility: hidden; }
+  #hots { position: absolute; inset: 0; pointer-events: none; }
+  .hot { position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; padding: 0; border-radius: 50%; border: 2px solid #F1F4F6; background: rgba(22,25,28,.75); cursor: pointer; pointer-events: auto; will-change: transform; }
+  .hot::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 1px solid currentColor; color: rgba(241,244,246,.55); animation: hotp 2.2s ease-out infinite; }
+  .hot.real { border-color: #4FAE5B; } .hot.real::after { color: rgba(79,174,91,.7); }
+  .hot.cyan { border-color: #29A9E0; } .hot.cyan::after { color: rgba(41,169,224,.7); }
+  .hot.heat { border-color: #FF6A2B; } .hot.heat::after { color: rgba(255,106,43,.75); }
+  .hot:hover, .hot.on { background: #F1F4F6; transform-origin: center; }
+  .hot.real:hover, .hot.real.on { background: #4FAE5B; } .hot.cyan:hover, .hot.cyan.on { background: #29A9E0; } .hot.heat:hover, .hot.heat.on { background: #FF6A2B; }
+  @keyframes hotp { 0% { transform: scale(.7); opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+  .pop { position: absolute; left: 0; top: 0; z-index: 3; display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - 24px); overflow-y: auto; scrollbar-width: thin; pointer-events: auto; }
+  .pop .card { box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+  #tHover.on { border-color: #F2C14E; color: #F2C14E; }
   .psy { border: 1px solid rgba(214,224,232,.18); padding: 8px 10px; margin-top: 4px; }
   .psy summary { cursor: pointer; font: 500 11px "IBM Plex Mono", monospace; color: #C4CCD3; text-transform: uppercase; letter-spacing: .06em; }
   .psy summary .st { margin-left: 6px; vertical-align: 1px; }
@@ -539,6 +553,7 @@
     <svg id="leaders"></svg>
     <div id="labels"></div>
     <div id="dock"></div>
+    <div id="pop" class="pop" hidden=""></div>
     <div class="top">
       <div class="row1">
         <div class="tr">
@@ -573,6 +588,7 @@
         </div>
         <div class="seg">
           <button class="btn on" id="tLabels">Etiquetas: sí</button>
+          <button class="btn" id="tHover" title="Oculta tarjetas y etiquetas; aparecen al pasar el puntero por el punto de cada elemento">Tarjetas: siempre</button>
           <button class="btn" id="tPause">Pausar animación</button>
         </div>
       </div>

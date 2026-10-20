@@ -130,6 +130,7 @@ function placeLabels() {
   });
   sorted = sorted || [...labels].sort((p, q) => p.prio - q.prio);
   sorted.forEach(l => {
+    if (hoverMode && !l.floor) { l.el.style.display = 'none'; if (l.fb) { l.fb.el.style.display = 'none'; l.fb.on = false; } return; }
     if (l.hidden || (l.cond && !l.cond()) || (l.floor && currentView === 'superior') || (l.inside && shell === 'facade' && stop === 'g')) { l.el.style.display = 'none'; return; }
     v.copy(l.pos).project(cam);
     if (v.z > 1 || v.z < -1) { l.el.style.display = 'none'; return; }
@@ -164,6 +165,7 @@ const dock = document.getElementById('dock'), leaders = document.getElementById(
 let docks = [];
 const anchorOf = k => B[k] || A[k];
 function buildDock(s) {
+  closePop();
   dock.innerHTML = ''; leaders.innerHTML = ''; docks = []; labels.forEach(l => { l.fb = null; });
   (CARDS[s] || []).forEach(([html, k]) => {
     const el = document.createElement('div'); el.className = 'card'; el.innerHTML = html; dock.appendChild(el);
@@ -173,7 +175,7 @@ function buildDock(s) {
     ln.setAttribute('stroke', 'rgba(214,224,232,.5)'); ln.setAttribute('stroke-width', '1'); ln.setAttribute('stroke-dasharray', '3 3');
     c.setAttribute('r', '3.5'); c.setAttribute('fill', '#F1F4F6');
     if (!k) return;
-    leaders.append(ln, c); docks.push({ el, a: anchorOf(k), ln, c });
+    el.classList.add('anch'); leaders.append(ln, c); docks.push({ el, a: anchorOf(k), ln, c });
   });
   layoutDock(); fitDock(0);
 }
@@ -226,6 +228,87 @@ function placeDock() {
     d.c.setAttribute('cx', x); d.c.setAttribute('cy', y);
   });
 }
+
+// Modo "al pasar": tarjetas y etiquetas ocultas; un punto por elemento y su contenido aparece al pasar el puntero (o fijo con clic)
+const hots = document.createElement('div'); hots.id = 'hots'; host.appendChild(hots);
+const pop = document.getElementById('pop'), hotMap = new Map(), HOVER_KEY = 'utp-recorrido-al-pasar';
+let hoverMode = false, popKey = null, popPinned = false, popTimer = 0, popCards = [];
+function hotGroups() {
+  const g = new Map(), add = (pos, it) => { if (!g.has(pos)) g.set(pos, []); g.get(pos).push(it); };
+  labels.forEach(l => {
+    if (l.floor || l.hidden || (l.cond && !l.cond()) || (l.inside && shell === 'facade' && stop === 'g')) return;
+    add(l.pos, { l, html: l.bx.innerHTML, cls: l.el.className });
+  });
+  docks.forEach(d => { if (!d.fbl) add(d.a, { card: d.el, html: d.el.innerHTML, cls: '' }); });
+  return g;
+}
+function placeHots() {
+  const on = hoverMode && !host.classList.contains('off'), w = vp.clientWidth, h = vp.clientHeight;
+  // Agrupar los elementos cuyos anclajes están a menos de 1.6 m (p. ej., una tarjeta y una etiqueta sobre el mismo equipo).
+  // Se agrupa en el modelo y no en pantalla para que el grupo no cambie mientras la cámara se mueve.
+  const clusters = [];
+  if (on) hotGroups().forEach((items, k) => {
+    const c = clusters.find(c => c.k.distanceTo(k) < 1.6);
+    if (c) c.items.push(...items); else clusters.push({ k, items: [...items] });
+  });
+  clusters.forEach(c => {
+    v.copy(c.k).project(cam);
+    c.vis = v.z < 1 && v.z > -1; c.x = (v.x * 0.5 + 0.5) * w; c.y = (-v.y * 0.5 + 0.5) * h;
+  });
+  const keys = new Set(clusters.map(c => c.k));
+  hotMap.forEach((el, k) => { if (!keys.has(k)) el.style.display = 'none'; });
+  clusters.forEach(({ k, x, y, items, vis }) => {
+    let el = hotMap.get(k);
+    if (!el) {
+      el = document.createElement('button'); el.className = 'hot'; el.type = 'button'; hots.appendChild(el); hotMap.set(k, el);
+      el.addEventListener('pointerenter', () => { if (!popPinned) openPop(k); });
+      el.addEventListener('pointerleave', () => { if (!popPinned) schedClose(); });
+      el.addEventListener('click', () => { if (popPinned && popKey === k) { closePop(); return; } openPop(k); popPinned = true; });
+    }
+    el._items = items; el._xy = [x, y];
+    const tag = items.some(i => /st real/.test(i.html)) ? 'real' : items.some(i => /\bcyan\b/.test(i.cls)) ? 'cyan' : items.some(i => /\bheat\b/.test(i.cls)) ? 'heat' : '';
+    el.className = 'hot ' + tag + (popKey === k ? ' on' : '');
+    el.setAttribute('aria-label', items.map(i => (i.card ? i.card.querySelector('h4')?.textContent : i.l?.bx.textContent) || '').join(' · ').trim());
+    el.style.display = vis ? '' : 'none';
+    el.style.transform = `translate(${x}px, ${y}px)`;
+  });
+  if (popKey) {
+    const el = hotMap.get(popKey);
+    if (!on || !el || el.style.display === 'none') { closePop(); return; }
+    const [x, y] = el._xy, pw = pop.offsetWidth, ph = pop.offsetHeight;
+    const left = x + 18 + pw <= w - 8 ? x + 18 : Math.max(8, x - 18 - pw), top = Math.min(h - ph - 8, Math.max(8, y - 24));
+    pop.style.transform = `translate(${left}px, ${top}px)`;
+  }
+}
+function openPop(k) {
+  clearTimeout(popTimer);
+  if (popKey === k) return;
+  closePop();
+  const items = hotMap.get(k)?._items || [];
+  items.forEach(i => {
+    if (i.card) { i.card.classList.remove('fold'); popCards.push(i.card); pop.appendChild(i.card); }
+    else { const c = document.createElement('div'); c.className = 'card mini'; c.innerHTML = i.html; pop.appendChild(c); }
+  });
+  popKey = k; pop.hidden = false;
+}
+function closePop() {
+  clearTimeout(popTimer);
+  popCards.forEach(c => dock.appendChild(c)); popCards = [];
+  pop.innerHTML = ''; pop.hidden = true; popKey = null; popPinned = false;
+}
+const schedClose = () => { clearTimeout(popTimer); popTimer = setTimeout(closePop, 280); };
+pop.addEventListener('pointerenter', () => clearTimeout(popTimer));
+pop.addEventListener('pointerleave', () => { if (!popPinned) schedClose(); });
+vp.addEventListener('pointermove', e => { if (popKey && !popPinned && !e.target.closest?.('.hot, #pop')) schedClose(); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && popKey) closePop(); });
+function setHoverMode(on) {
+  hoverMode = on; closePop();
+  vp.classList.toggle('hover', on);
+  const b = document.getElementById('tHover'); b.classList.toggle('on', on); b.textContent = on ? 'Tarjetas: al pasar' : 'Tarjetas: siempre';
+  try { localStorage.setItem(HOVER_KEY, on ? '1' : '0'); } catch (e) {}
+  if (stop !== 'g') buildDock(stop);
+}
+document.getElementById('tHover').onclick = () => setHoverMode(!hoverMode);
 
 // Atenuación del resto del modelo
 const shellSet = new Set(m.shell.mats.map(s => s.mat)), base = [], dimCache = new Map();
@@ -327,8 +410,10 @@ function applyVfd() {
   $('vfdS').textContent = fmt((1 - c) * 100, 1) + ' %';
   $('vfdB').textContent = 'B/. ' + (saved * 0.18).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' /mes';
 }
-dock.addEventListener('input', e => { if (e.target.id === 'vfdR') { vfdPct = +e.target.value; applyVfd(); } });
-dock.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { vfdPct = +b.dataset.v; applyVfd(); } });
+[dock, pop].forEach(el => {
+  el.addEventListener('input', e => { if (e.target.id === 'vfdR') { vfdPct = +e.target.value; applyVfd(); } });
+  el.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { vfdPct = +b.dataset.v; applyVfd(); } });
+});
 
 // Vista termográfica cualitativa: paleta Ironbow sobre una temperatura relativa (0–1) por clase de componente, sin °C
 const $t = id => document.getElementById(id);
@@ -455,6 +540,9 @@ function navLabels(s) {
 document.getElementById('spPrev').onclick = () => step(-1);
 document.getElementById('spNext').onclick = () => { if (stop === 'i') applyStop('g'); else step(1); };
 function step(d) { const i = ORDER.indexOf(stop) + d; if (i >= 0 && i < ORDER.length) applyStop(ORDER[i]); }
+// La cámara se corre a la derecha lo que ocupan las tarjetas visibles a la izquierda
+// (en modo "al pasar" las tarjetas quedan invisibles pero ocupan su lugar, así el encuadre no cambia)
+function dockOffset() { return dock.children.length ? (dock.getBoundingClientRect().right - vp.getBoundingClientRect().left) / 2 : 0; }
 function applyStop(s) {
   if (s !== stop) closeInspector();
   const keepThermo = thermo && (s === 'g' || s === '5');
@@ -473,7 +561,7 @@ function applyStop(s) {
   panel(s); navLabels(s);
   sky.setActive(g || s === 'i'); document.getElementById('skyPanel').hidden = !(g || s === 'i');
   buildDock(s);
-  offT = dock.children.length ? (dock.getBoundingClientRect().right - vp.getBoundingClientRect().left) / 2 : 0;
+  offT = dockOffset();
   if (g) setMode(mode); else refreshLabels();
   if (g) goView(currentView); else goPose(STOPS[s].pose, 1300, true);
   stage._toolbar.style.display = g ? '' : 'none'; Object.assign(stage._toolbar.style, { top: 'auto', bottom: '70px' });
@@ -487,7 +575,7 @@ addEventListener('keydown', e => {
   const inField = e.target.closest && e.target.closest('input, textarea, select');
   if (/^[0-6]$/.test(e.key) && !(inField && e.target.type !== 'range')) { applyStop(ORDER[+e.key]); e.preventDefault(); }
 });
-new ResizeObserver(() => { layoutDock(); fitDock(Math.max(0, [...dock.querySelectorAll('.card:not(.mini)')].findIndex(c => c.querySelector('.ch[aria-expanded=true]')))); if (dock.children.length) offT = (dock.getBoundingClientRect().right - vp.getBoundingClientRect().left) / 2; }).observe(vp);
+new ResizeObserver(() => { layoutDock(); fitDock(Math.max(0, [...dock.querySelectorAll('.card:not(.mini)')].findIndex(c => c.querySelector('.ch[aria-expanded=true]')))); offT = dockOffset(); }).observe(vp);
 
 // Etiquetas / pausa
 const tL = document.getElementById('tLabels'), tP = document.getElementById('tPause');
@@ -584,9 +672,11 @@ stage.onFrame = () => {
   }
   placeLabels();
   placeDock();
+  placeHots();
 };
 flows.forEach(f => stepFlow(f, 0)); stepFlow(dataFlow, 0); stepFlow(arcFlow, 0); T.tick(0);
 setShell('xray');
 applyStop('g');
+try { if (localStorage.getItem(HOVER_KEY) === '1') setHoverMode(true); } catch (e) {}
 if (tween) tween.d = 1;
 if (!vp.clientHeight) { const ro0 = new ResizeObserver(() => { if (vp.clientHeight) { ro0.disconnect(); goView(currentView); if (tween) tween.d = 1; } }); ro0.observe(vp); }
