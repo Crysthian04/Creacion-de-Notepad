@@ -29,7 +29,7 @@ export function createSky({ scene, stage, m, lamps }) {
   const fill = scene.children.find(o => o.isDirectionalLight && o !== key);
   const base = { hemi: hemi.intensity, key: key.intensity, amb: amb?.intensity ?? 0, fill: fill?.intensity ?? 0, hc: hemi.color.clone(), hg: hemi.groundColor.clone() };
   const root = new THREE.Group(); root.name = 'cielo_clima'; scene.add(root);
-  const S = { hour: 10, month: new Date().getMonth() + 1, wx: 'soleado', front: 45, active: true, load: 'Alta', factor: 1, sun: null, night: false };
+  const S = { hour: 10, month: new Date().getMonth() + 1, wx: 'soleado', front: 45, active: true, factor: 1, sun: null, night: false };
 
   // Sol y luna
   const sunM = new THREE.MeshBasicMaterial({ color: 0xFFE6A8 }), sun = new THREE.Mesh(new THREE.SphereGeometry(2.6, 20, 14), sunM); root.add(sun);
@@ -95,10 +95,8 @@ export function createSky({ scene, stage, m, lamps }) {
     const mp = sunPosition(S.month, 15, (S.hour + 12) % 24), md = bearingToWorld(mp.az, mp.el, S.front).normalize();
     const w = WX[S.wx], day = clamp(Math.sin(el) * 4 + 0.15), twi = clamp(1 - Math.abs(Math.sin(el)) * 5) * (el > -0.12 ? 1 : 0);
     const irr = Math.max(0, Math.sin(el)) * w.clear; // índice relativo 0–1 (no W/m²)
-    const occ = S.hour >= 7 && S.hour < 21 ? 1 : 0;
-    const idx = 0.65 * irr + 0.35 * occ * (0.55 + 0.45 * day) + (occ ? 0 : 0.05);
-    S.load = idx > 0.62 ? 'Alta' : idx > 0.3 ? 'Media' : 'Baja';
-    S.factor = { Alta: 1, Media: 0.72, Baja: 0.42 }[S.load];
+    // Sin fuente para una respuesta del sistema al clima o a la hora: la animación no cambia de ritmo (FUENTES_COMPENDIO, «Lo que el compendio NO reporta»)
+    S.factor = 1;
     S.night = el < -0.05; S.el = el; S.az = az; S.irr = irr; S.sd = sd; S.md = md; S.day = day; S.twi = twi; S.w = w;
   }
   function applyLights() {

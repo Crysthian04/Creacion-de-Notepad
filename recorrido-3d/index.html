@@ -455,6 +455,16 @@
   .skload { border: 1px solid rgba(214,224,232,.18); padding: 10px; margin-top: 4px; font-size: 12.5px; }
   .skload b { font: 600 15px "IBM Plex Mono", monospace; color: #F2C14E; } .skload b[data-l="Media"] { color: #E6D8BA; } .skload b[data-l="Baja"] { color: #8FC3F0; }
   .skbar { height: 6px; background: rgba(214,224,232,.1); margin: 7px 0; } .skbar div { height: 100%; background: #F2C14E; transition: width .4s; }
+  .occbar { position: relative; height: 8px; margin: 8px 0 3px; background: rgba(214,224,232,.1); }
+  .occbar .occ-on { position: absolute; top: 0; bottom: 0; left: 29.17%; width: 65.63%; background: #7FD1B9; }
+  .occbar .occ-out { position: absolute; top: 0; bottom: 0; left: 94.79%; width: 3.13%; background: #E3A857; }
+  .occbar i { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: #F1F4F6; }
+  .occlb { position: relative; height: 12px; font: 400 9.5px "IBM Plex Mono", monospace; color: #6E7A85; }
+  .occlb span { position: absolute; transform: translateX(-50%); } .occlb span:nth-child(1) { left: 0; transform: none; } .occlb span:nth-child(2) { left: 29.17%; } .occlb span:nth-child(3) { left: 94.79%; transform: translateX(-100%); } .occlb span:nth-child(4) { left: 100%; transform: translateX(-100%); top: 0; display: none; }
+  #occStamps { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 4px; font-size: 11.5px; color: #C4CCD3; }
+  #occStamps .st { display: block; width: fit-content; max-width: 100%; white-space: normal; line-height: 1.3; margin-bottom: 2px; }
+  #occState { font-size: 13.5px; text-align: right; }
+  .skload b[data-o="uso"] { color: #7FD1B9; } .skload b[data-o="salida"] { color: #E3A857; } .skload b[data-o="vacio"] { color: #8FC3F0; }
   .skload p { margin: 0; color: #C4CCD3; line-height: 1.4; text-wrap: pretty; }
   .skfn { margin: 0; font-size: 11px; color: #7D8994; line-height: 1.45; }
   .lbl.sun .box { border-color: #F2C14E; } .lbl.sun .dot { background: #F2C14E; }
@@ -686,12 +696,15 @@
       <div class="skl">Orientación de la fachada principal</div>
       <div class="skr"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15" fill="none" stroke="rgba(214,224,232,.3)"></circle><g id="skNeedle" style="transform-origin:17px 17px"><path d="M17 5 L20 17 L14 17 Z" fill="#E6EBEF"></path><path d="M17 29 L20 17 L14 17 Z" fill="#59636D"></path></g><text x="17" y="4" text-anchor="middle" font-size="5" fill="#8E9AA5" font-family="IBM Plex Mono">fachada ↑</text></svg>
         <input type="range" id="skOri" min="0" max="359" step="1" aria-label="Orientación" style="flex:1"><output id="skOriV" class="mono"></output></div>
-      <div class="skload">
-        <div class="skr" style="justify-content:space-between"><span>Carga de climatización</span><b id="skLoad">Alta</b></div>
-        <div class="skbar"><div id="skBar"></div></div>
-        <p id="skResp"></p>
+      <div class="skload" id="occ">
+        <div class="skr" style="justify-content:space-between"><span>Ocupación del edificio</span><b id="occState"></b></div>
+        <div class="occbar" aria-hidden="true"><div class="occ-on"></div><div class="occ-out"></div><i id="occNow"></i></div>
+        <div class="occlb"><span>00</span><span>07</span><span>22:45</span><span>23:30</span></div>
+        <div id="occStamps"></div>
+        <p id="occExtra" hidden="">No se sabe si la climatización se apaga al quedar vacío el edificio. Un BMS podría controlarla según la ocupación (INV3, p.&nbsp;35).</p>
       </div>
-      <p class="skfn">Posición del sol calculada para 9.02° N, 79.53° O. La carga y la respuesta del sistema son cualitativas: no hay datos horarios de carga del Edificio 2.</p>
+      <p class="skfn">La demanda térmica varía durante el día; por eso los chillers trabajan a carga parcial (IPLV) y los controles deben ajustarse a la demanda real (INV5, pp.&nbsp;58–59).</p>
+      <p class="skfn">Posición del sol calculada para 9.02° N, 79.53° O. La ocupación es solo un indicador: no se usa para calcular carga, consumo ni ahorro.</p>
       <details class="psy" id="psy">
         <summary>Calor sensible y latente <span class="st ilus">Ilustrativo</span></summary>
         <p class="psy-ex">Valores de ejemplo, no medidos en el Edificio 2.</p>
@@ -739,12 +752,13 @@
       </div>
     </section>
     <section>
-      <h2>Lo que no se conoce</h2>
+      <h2>No reportado en el compendio</h2>
       <ul class="unk">
         <li>Cantidad exacta de UMA por piso</li>
         <li>Número de mini-splits</li>
         <li>Ubicación interior exacta de los equipos</li>
         <li>Si el edificio cuenta con BMS</li>
+        <li>Perfil horario de carga del Edificio 2</li>
       </ul>
     </section>
     <p class="src">Fuente: Henríquez Espinosa et al. (2021). Edificio de 3 plantas (planta baja, primer alto, segundo alto): salones, laboratorios y oficinas.</p>

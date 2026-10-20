@@ -37,7 +37,7 @@ Si Playwright no encuentra navegador: `npx playwright install chromium`, o expor
 - `src/app/tools-v25.js`: escenas de las subventanas 5.2–5.4 (cámara termográfica portátil, salón con realidad aumentada, dron en ducto), adaptadas del modelo «Herramientas HVAC 3D» del grupo y colocadas dentro del edificio. Internamente son las paradas `'5.2'`, `'5.3'` y `'5.4'`; la `'5'` es la 5.1. Igual en la vista integrada: `'i'` es la i.1, y `'i.2'`, `'i.3'`.
 - `src/app/features.js`: interruptores (`FEATURES.psychro = false`: calculadora en pausa).
 - `src/app/psychro.js`: psicrometría a 101.325 kPa (Hyland-Wexler, W, h, punto de rocío, proceso de serpentín). Funciones puras, probadas en `tests/psychro.test.mjs`.
-- `src/app/sky-v2.js`: sol astronómico (9.0247° N, 79.5299° O, UTC−5), clima y respuesta cualitativa.
+- `src/app/sky-v2.js`: sol astronómico (9.0247° N, 79.5299° O, UTC−5), clima y ocupación del edificio (solo indicador).
 - `src/app/site-v2.js`: entorno ilustrativo (loma, Edificio 1, kiosco, autos, postes).
 - `src/stage/three-d-stage.js`: componente `<three-d-stage>` (renderizador, OrbitControls, barra de exportación OBJ/GLB). Evita modificarlo.
 - `vendor/`: three.js r184 y addons, copiados tal cual. No los actualices.

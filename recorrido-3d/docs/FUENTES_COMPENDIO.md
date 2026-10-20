@@ -33,6 +33,7 @@
 - La frecuencia preventiva debe considerar el manual del fabricante, las horas de operación, el polvo, la humedad, el historial de fallas y la criticidad (FEMP, 2010). p. 17
 - **Flujo de 7 pasos** de una orden de trabajo (p. 20): 1) detectar (inspección, alarma, solicitud o tendencia anormal); 2) registrar (código, síntoma, ubicación, prioridad); 3) planificar (alcance, riesgos, instrumentos, repuestos, tiempo; revisar manuales); 4) programar (ventana de parada coordinada con los usuarios); 5) ejecutar con aislamiento eléctrico y bloqueo/etiquetado, EPP y prácticas seguras con refrigerantes; 6) probar y registrar mediciones; 7) cerrar (causa probable, materiales, tiempo real, recomendaciones; actualizar historial).
 - Prioridades: crítica, alta, media, baja (p. 20).
+- Tipos (pp. 16–18): correctivo = después de una avería o pérdida de función; preventivo = a intervalos definidos por calendario, horas de funcionamiento o recomendaciones del fabricante; predictivo = mediciones y tendencias, para intervenir a partir de evidencia de condición.
 - CMMS: registra cada split, chiller, UMA, bomba y compresor; genera tareas periódicas; implantación con datos depurados y **grupo piloto** antes de extender (FEMP, 2010). pp. 21–22
 - Ejemplo del compendio: "edificio con varias unidades tipo split y un chiller central". p. 22
 - **Plan del split de referencia de 12,000 BTU/h** (ASHRAE, s. f.; ASHRAE & ACCA, 2018), pp. 27–29:
@@ -55,6 +56,7 @@
 ## INV4: Seguridad (pp. 41–56)
 - Refrigerantes: riesgo de asfixia "por desplazamiento de oxígeno en espacios cerrados al ser fluidos más densos que el aire" (National Refrigerants, s. f.). p. 43 → **Usar esta cita en la Parada 3, en lugar de (Honeywell, 2014).**
 - Riesgo por presión, incluido el golpe de ariete hidráulico. p. 43
+- Riesgo térmico: contacto con tuberías de descarga de compresores a más de 100 °C (quemaduras) o con refrigerante líquido en evaporación (congelación de piel y ojos) (National Refrigerants, s. f.). p. 43
 - NFPA 70E: protección contra arco eléctrico al intervenir tableros de control de chillers y de manejadoras (AHU) (NFPA, 2026). p. 45
 - EPP por tarea (pp. 46–47):
   - Tableros eléctricos: guantes dieléctricos clase 00 con protectores de cuero, gafas de seguridad contra impacto, calzado dieléctrico y ropa ignífuga con clasificación contra arco (cal/cm²) según NFPA 70E.
@@ -66,6 +68,9 @@
 - Alturas: desde 1.50 m sobre el suelo. p. 50
 
 ## INV1: Refrigerantes (pp. 3–12)
+- Los HFC no dañan el ozono, pero "son gases de efecto invernadero muy potentes", con una capacidad de atrapar calor miles de veces mayor que la del CO₂ (MINSA/UNO y PNUD, 2020). p. 5
+- GWP: cuánto calor atrapa una tonelada del gas frente a una de CO₂, en 100 años (Engineering ToolBox, s. f.). p. 5
+- Recuperar sirve para evitar el venteo, es decir, la liberación directa a la atmósfera; así el refrigerante de los equipos no se libera a la atmósfera. p. 8
 - Recuperar (extraer sin purificar, para no ventear) → reciclar (separar aceite y filtrar) → regenerar (calidad de producto virgen). p. 8
 - GWP a 100 años: R-22 = 1,810 (ODP 0.055); R-410A = 2,088; R-32 = 675; R-290 = 3. p. 6
 - Protocolo de Montreal adoptado en 1987 (p. 6). Enmienda de Kigali adoptada en octubre de 2016, en la 28.ª Reunión de las Partes (p. 7). Panamá ratificó Montreal por la Ley 7 de 1989 (p. 7).
@@ -78,6 +83,17 @@
 - Prácticas que ahorran energía: limpiar filtros, serpentines y condensadoras; verificar la carga y corregir fugas; calibrar sensores, termostatos y controles (ASHRAE, 2018). pp. 59–60
 - Los VFD regulan la velocidad de los motores de **bombas y ventiladores** según la demanda. p. 60
 - Auditorías (ASHRAE 211): variables kWh, kW, temperaturas, presiones, caudales y horas de operación; **dar seguimiento con mediciones posteriores** para verificar los ahorros (ASHRAE, 2023). pp. 60–61
-- Caso VFD (ilustrativo, **una UMA cualquiera**, no del Edificio 2): 15 kW × 360 h = 5,400 kWh/mes; al 80 %: 7.68 kW, 2,764.8 kWh/mes, 48.8 %, B/. 474.34/mes con tarifa hipotética de B/. 0.18/kWh; sin pérdidas del VFD. p. 62
+- Caso VFD (ilustrativo, **una UMA cualquiera**, no del Edificio 2), calculado con las "leyes de afinidad de los ventiladores", P₂ = P₁ × (velocidad)³ (p. 62): 15 kW × 360 h = 5,400 kWh/mes; al 80 %: 7.68 kW, 2,764.8 kWh/mes, 48.8 %, B/. 474.34/mes con tarifa hipotética de B/. 0.18/kWh; sin pérdidas del VFD. p. 62
 - Ley 69 de 2012 y Decreto Ejecutivo 398 de 2013. p. 61
 - Recomendación: auditorías energéticas periódicas (sin frecuencia). p. 64
+
+## Lo que el compendio NO reporta (se puede decir así, como límite de la fuente)
+- El número de mini-splits del Edificio 2 (solo da el rango de 12,000–60,000 BTU/h, p. 36).
+- Si el Edificio 2 tiene BMS (el BMS aparece solo dentro de la propuesta hipotética, p. 37).
+- El refrigerante del chiller y de los mini-splits.
+- Frecuencias de mantenimiento para el chiller, las UMA y las bombas.
+- Cualquier respuesta del sistema al clima, a la hora o a la noche (carga, marcha, envolvente): **sin fuente**.
+
+## Observación del grupo (no está en el compendio; usar con su propio sello)
+- Horario del Edificio 2 según Cristian Batista (20/10/2026): las clases terminan a las 10:45 p. m. y hacia las 11:30 p. m. el edificio queda desocupado, solo con el personal de seguridad. Sello: "Observación del grupo – no medido". Inicio de clases: 7:00 a. m. en la universidad; se **supone** el mismo horario para el Edificio 2 (supuesto del grupo, no confirmado para este edificio).
+- No se sabe si la climatización se apaga al quedar desocupado el edificio. No afirmarlo.

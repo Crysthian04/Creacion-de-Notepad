@@ -122,6 +122,14 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     if (!(await pg.evaluate(() => document.getElementById('pop').hidden))) fails.push(`${W}x${H} modo al pasar: Esc no cierra la tarjeta`);
   }
   await pg.click('#tHover'); await pg.keyboard.press('0'); await pg.waitForTimeout(2500);
+  // Panel Clima y hora: indicador de ocupación (sin carga de climatización)
+  for (const [hr, want, extra] of [[10, 'En uso (horario de clases)', false], [23, 'Salida del edificio', false], [2, 'Desocupado: solo personal de seguridad', true]]) {
+    const got = await pg.evaluate(h => { const r = document.getElementById('skHour'); r.value = h; r.dispatchEvent(new Event('input', { bubbles: true })); return [document.getElementById('occState').textContent, !document.getElementById('occExtra').hidden]; }, hr);
+    if (got[0] !== want || got[1] !== extra) fails.push(`${W}x${H} ocupación a las ${hr} h: «${got[0]}», nota de BMS ${got[1]}`);
+    if (hr === 2) await pg.screenshot({ path: join(shots, `${W}_ocupacion_noche.png`) });
+  }
+  if (/Carga de climatización|mayor marcha|envolvente libera calor/.test(await pg.evaluate(() => document.body.innerText))) fails.push(`${W}x${H} quedan textos de carga sin fuente`);
+  await pg.evaluate(() => { const r = document.getElementById('skHour'); r.value = 10; r.dispatchEvent(new Event('input', { bubbles: true })); });
   // Calculadora psicrométrica (2.2): en pausa, no se muestra
   if (await pg.evaluate(() => !document.getElementById('psy').hidden)) fails.push(`${W}x${H} la calculadora psicrométrica (en pausa) sigue visible`);
   // Vista termográfica cualitativa: vista general y Parada 5, leyenda sin °C

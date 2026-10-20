@@ -103,8 +103,6 @@ label(A.thermal, 'Uniones con deterioro', 'Detectadas en la auditoría energéti
 // Clima (vista general e integrada)
 label(sky.radAnchor, 'Radiación solar sobre la fachada', 'Intensidad relativa', 'sun', 'all', { stops: ['g'], stamp: 'ilus', stem: 28, dx: 50, prio: 2 });
 labels[labels.length - 1].cond = () => sky.S.active && !sky.S.night && sky.S.irr > 0.15 && sky.bestFace();
-label(sky.heatAnchor, 'Noche: la envolvente libera calor', 'Carga baja · el sistema reduce su marcha', 'night', 'all', { stops: ['g'], stamp: 'ilus', stem: 28, dx: 60, prio: 2 });
-labels[labels.length - 1].cond = () => sky.S.active && sky.S.night;
 // Parada 1
 const S = (s, x = {}) => Object.assign({ stops: [s], stamp: 'ilus' }, x);
 label(B.tech, 'Técnico en el tablero del chiller', 'Guantes dieléctricos clase 00 · gafas de seguridad · calzado dieléctrico · ropa ignífuga contra arco (NFPA 70E)', 'wrap', 'all', S('1', { stem: 40, dx: 30, prio: 1 }));
@@ -711,6 +709,17 @@ const MES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct
 const RUMBO = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
 q('skMonth').innerHTML = MES.map((x, i) => `<option value="${i + 1}">${x}</option>`).join('');
 let saveT = 0;
+// Ocupación del edificio: solo un indicador (no calcula carga, consumo ni ahorro). Horario según FUENTES_COMPENDIO, «Observación del grupo»
+function syncOcc(h) {
+  const st = h >= 7 && h < 22.75 ? 'uso' : h >= 22.75 && h < 23.5 ? 'salida' : 'vacio';
+  const b = q('occState'); b.dataset.o = st;
+  b.textContent = { uso: 'En uso (horario de clases)', salida: 'Salida del edificio', vacio: 'Desocupado: solo personal de seguridad' }[st];
+  q('occNow').style.left = (h / 24 * 100).toFixed(2) + '%';
+  const html = st === 'uso' ? `<span>${STAMP.sup}Inicio: 7:00 a.&nbsp;m.</span><span>${STAMP.obs}Fin de clases: 10:45 p.&nbsp;m.</span>`
+    : st === 'salida' ? `<span>${STAMP.obs}De 10:45 p.&nbsp;m. a 11:30 p.&nbsp;m.</span>` : `<span>${STAMP.obs}De 11:30 p.&nbsp;m. a 7:00 a.&nbsp;m.</span>`;
+  if (q('occStamps').innerHTML !== html) q('occStamps').innerHTML = html;
+  q('occExtra').hidden = st !== 'vacio';
+}
 function syncSky() {
   if (thermo) applyThermo();
   const K = sky.S, hh = Math.floor(K.hour), mm = Math.floor((K.hour - hh) * 60);
@@ -723,9 +732,7 @@ function syncSky() {
   q('skOri').value = K.front; q('skOriV').textContent = `${RUMBO[Math.round(K.front / 45) % 8]} · ${Math.round(K.front)}°`;
   q('skNeedle').style.transform = `rotate(${-K.front}deg)`;
   q('skPlay').textContent = playing ? 'Pausar ciclo' : 'Reproducir ciclo';
-  q('skLoad').textContent = K.load; q('skLoad').dataset.l = K.load;
-  q('skBar').style.width = { Alta: '100%', Media: '62%', Baja: '28%' }[K.load];
-  q('skResp').textContent = K.load === 'Alta' ? 'Chiller y ventiladores a mayor marcha; más flujo de agua helada.' : K.load === 'Media' ? 'Marcha intermedia: menos ganancia solar u ocupación.' : 'Refrigeración nocturna: el sistema baja su marcha.';
+  syncOcc(K.hour);
   const now = performance.now(); if (now - saveT > 800) { saveT = now; localStorage.setItem(KEY, JSON.stringify({ hour: K.hour, month: K.month, wx: K.wx, front: K.front, spd })); }
 }
 q('skHour').oninput = e => { sky.set({ hour: +e.target.value }); syncSky(); };

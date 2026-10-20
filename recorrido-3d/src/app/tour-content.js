@@ -3,6 +3,8 @@ export const STAMP = {
   ilus: '<span class="st ilus">Ilustrativo</span>',
   inv2: '<span class="st ilus">Ilustrativo – plan de la INV2</span>',
   prop: '<span class="st ilus">Propuesta del grupo (ilustrativa)</span>',
+  sup: '<span class="st ilus">Supuesto del grupo – horario general de la UTP</span>',
+  obs: '<span class="st ilus">Observación del grupo – no medido</span>',
   split: '<span class="st ilus">Ilustrativo – plan de la INV2 (split de referencia de 12,000 BTU/h)</span>',
 };
 const tri = '<path d="M10 1.8 L19 17.2 H1 Z" fill="rgba(242,193,78,.12)" stroke="#F2C14E" stroke-width="1.6" stroke-linejoin="round"/>';
