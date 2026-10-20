@@ -30,12 +30,12 @@ Si Playwright no encuentra navegador: `npx playwright install chromium`, o expor
 
 - `index.html`: interfaz (barra de paradas, panel derecho, tarjetas, panel Clima y hora) y todo el CSS.
 - `src/main.js`: entrada; importa `app/tour-app-v2.js`.
-- `src/app/hvac-model.js`: geometría procedural. Edificio, chiller (`chiller_155TR`), 16 UMA (`UMA_01`…`UMA_16`, grupo `unidades_manejadoras`), circuito de agua helada (`circuito_agua_helada`), mini-splits, puntos de termografía (`thermalPts`) y propuesta IoT (`m.prop`).
+- `src/app/hvac-model.js`: geometría procedural. Edificio, chiller (`chiller_155TR`), 16 UMA (`UMA_01`…`UMA_16`, grupo `unidades_manejadoras`), circuito de agua helada (`circuito_agua_helada`, con funda de aislamiento translúcida `aislamiento_termico` en InstancedMesh y una separación en las dos uniones con deterioro), mini-splits (línea de refrigerante también con funda), puntos de termografía (`thermalPts`) y propuesta IoT (`m.prop`).
 - `src/app/tour-app-v2.js`: escena, cámara, etiquetas, tarjetas, atenuación por parada, VFD, bucle de animación y atajos 0–6.
 - `src/app/tour-layers.js`: objetos propios de cada parada (técnicos, LOTO, cilindros, recuperadora, fuga, VFD, BMS) y su animación (`tick`).
 - `src/app/tour-content.js`: TODO el texto (viñetas, tarjetas, sellos). Los cambios de contenido van aquí.
 - `src/app/tools-v25.js`: escenas de las subventanas 5.2–5.4 (cámara termográfica portátil, salón con realidad aumentada, dron en ducto), adaptadas del modelo «Herramientas HVAC 3D» del grupo y colocadas dentro del edificio. Internamente son las paradas `'5.2'`, `'5.3'` y `'5.4'`; la `'5'` es la 5.1. Igual en la vista integrada: `'i'` es la i.1, y `'i.2'`, `'i.3'`.
-- `src/app/falla-scene.js`: escenas con personas de la i.1 (inspector, planificador en la oficina con el CMMS, técnicos de LOTO, reparación del aislamiento sin llamas, verificación y cierre). Reutiliza `person()` y los materiales que exporta `tour-layers.js`.
+- `src/app/falla-scene.js`: escenas con personas de la i.1 (inspector, planificador en la oficina con el CMMS, técnicos de LOTO, reparación: se cierra la separación de la funda, sin llamas, verificación y cierre). Reutiliza `person()` y los materiales que exporta `tour-layers.js`.
 - `src/app/features.js`: interruptores (`FEATURES.psychro = false`: calculadora en pausa).
 - `src/app/psychro.js`: psicrometría a 101.325 kPa (Hyland-Wexler, W, h, punto de rocío, proceso de serpentín). Funciones puras, probadas en `tests/psychro.test.mjs`.
 - `src/app/sky-v2.js`: sol astronómico (9.0247° N, 79.5299° O, UTC−5), clima y ocupación del edificio (solo indicador).

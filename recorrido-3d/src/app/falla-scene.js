@@ -93,14 +93,14 @@ export function buildFalla({ m, halos, haloMat, irCam }) {
   const repA = worker('tecnico_reparacion_a', { suit: overol }); repA.position.set(-11.25, 0, U[0].z - 0.1); g.add(repA);
   const repB = worker('tecnico_reparacion_b'); repB.position.set(-11.25, 0, U[1].z + 0.15); g.add(repB); at([3], repA, repB);
   [repA, repB].forEach(p => { reach(p, 0, 0.62, 0.95, -0.12); reach(p, 1, 0.62, 0.95, 0.12); });
-  const oldM = mat('aislamiento_danado', 0x6B5A44, { r: 0.95 }), newM = mat('aislamiento_nuevo', 0xE9E6DD, { r: 0.85 });
+  // Tramo nuevo de funda que cierra la separación del aislamiento en cada unión: aparece opaco y se vuelve translúcido
   const ins = U.map((u, i) => {
-    const old = [-1, 1].map(s => { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.2, 0.32, 14), oldM); c.name = `aislamiento_danado_${i}`; c.rotation.x = Math.PI / 2; c.position.set(u.x, u.y, u.z + s * 0.36); c.userData.p0 = c.position.clone(); g.add(c); return c; });
-    const fresh = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 1.0, 16), newM); fresh.name = `aislamiento_nuevo_${i}`; fresh.rotation.x = Math.PI / 2; fresh.position.copy(u); g.add(fresh);
-    return { old, fresh };
+    const mt = new THREE.MeshStandardMaterial({ name: 'aislamiento_reparado', color: 0xDDE2E6, roughness: 0.9, transparent: true, opacity: 1 });
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * 1.6, 0.13 * 1.6, 0.5, 16, 1, true), mt);
+    c.name = 'aislamiento_reparado_' + i; c.rotation.x = Math.PI / 2; c.position.copy(u); c.castShadow = false; g.add(c); return c;
   });
   const sparks = m.root.getObjectByName('punto_termico_0') ? [0, 1].map(i => m.root.getObjectByName('punto_termico_' + i)) : [];
-  A.repair = U[0].clone().setY(1.2);
+  A.repair = U[0].clone().setY(1.2); A.insul = V(U[0].x, U[0].y + 0.22, (U[0].z + U[1].z) / 2);
 
   const persons = [insp, planner, elec, mech, repA, repB];
   let k = 0;
@@ -108,12 +108,9 @@ export function buildFalla({ m, halos, haloMat, irCam }) {
   // repaired: 0 = con deterioro, 1 = reparado; f = avance del paso 4
   function tick(t, ts) {
     // ts: segundos desde que empezó el paso
-    const repaired = k > 3 ? 1 : k === 3 ? ramp(4.2, 4.8, ts) : 0;
-    ins.forEach(({ old, fresh }) => {
-      const out = k > 3 ? 1 : k === 3 ? ramp(1.0, 2.4, ts) : 0, put = k > 3 ? 1 : k === 3 ? ramp(2.6, 4.2, ts) : 0;
-      old.forEach(c => { c.visible = out < 1; c.position.copy(c.userData.p0).add(V(-0.7 * out, -0.75 * out, 0)); });
-      fresh.visible = put > 0; fresh.scale.set(1, Math.max(0.001, put), 1);
-    });
+    const repaired = k > 3 ? 1 : k === 3 ? ramp(3.6, 4.6, ts) : 0;
+    const put = k > 3 ? 1 : k === 3 ? ramp(1.2, 3.0, ts) : 0, clear = k > 3 ? 1 : k === 3 ? ramp(3.4, 4.6, ts) : 0;
+    ins.forEach(c => { c.visible = put > 0; c.scale.set(1, Math.max(0.001, put), 1); c.material.opacity = 1 - 0.75 * clear; c.material.depthWrite = clear < 0.5; });
     haloMat.opacity = 1 - repaired; halos.forEach(h => { h.visible = repaired < 1; });
     sparks.forEach(s => { if (s) s.visible = repaired < 1; });
     if (k === 0 || k === 4) { // el inspector sostiene la cámara termográfica
@@ -135,5 +132,5 @@ export function buildFalla({ m, halos, haloMat, irCam }) {
   }
   function reset() { haloMat.opacity = 1; wheel.rotation.z = wheel0; sparks.forEach(s => { if (s) s.visible = true; }); }
   setStep(0); tick(0, 0);
-  return { group: g, setStep, tick, reset, A, persons, steps };
+  return { group: g, setStep, tick, reset, A, persons, steps, gapSleeves: ins };
 }

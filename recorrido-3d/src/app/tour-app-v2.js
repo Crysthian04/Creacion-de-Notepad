@@ -110,6 +110,8 @@ atStep([1], FS.A.cmms, 'CMMS · orden de trabajo', 'Estado: abierta', '', 'all',
 atStep([5], FS.A.cmms, 'CMMS · orden de trabajo', 'Estado: cerrada', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 30, prio: 1 });
 atStep([2], FS.A.lock, 'Candado y tarjeta', 'Técnico eléctrico · NFPA 70E', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 40, dx: 60, prio: 1 });
 atStep([2], FS.A.valve, 'Válvula de corte cerrada', 'Purga de presiones', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 34, dx: -60, prio: 1 });
+atStep([0], FS.A.insul, 'Aislamiento térmico (translúcido para ver la tubería)', '', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 40, dx: -140, prio: 2 });
+label(FS.A.insul, 'Aislamiento térmico (translúcido para ver la tubería)', '', '', 'all', { stops: ['5.2'], stamp: 'ilus', stem: 40, dx: -140, prio: 2 });
 atStep([3], FS.A.repair, 'Se rehace la unión y su aislamiento', '', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 60, dx: -150, prio: 1 });
 label(A.thermal, 'Unión reparada', 'Sin anomalía en la nueva lectura', '', 'all', { stops: ['i'], stamp: 'resIlus', down: true, stem: 30, dx: 80, prio: 1 });
 labels[labels.length - 1].cond = () => fallaRep >= 1 && (falla.k === 3 || falla.k === 4);
@@ -474,6 +476,7 @@ scene.traverse(o => { if (o.name === 'radiacion_cara') radFaces.push(o); });
 function thermoTemp(o, site, mt) {
   if (site) return null; // el entorno no se colorea: se oscurece para no distraer
   if (mt === m.M.thermal) return TH.anomaly;
+  if (mt === m.M.insul) return null; // la funda queda translúcida: no tapa el color de la tubería ni la anomalía de las uniones
   if (mt === m.M.supply) return TH.supply;
   if (mt === m.M.ret) return TH.ret;
   if (under(o, pumpG)) return /motor/.test(o.name) ? TH.motor : TH.pump;

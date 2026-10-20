@@ -77,11 +77,17 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     await pg.click(`[data-step="${i}"]`); await pg.waitForTimeout(400);
     const ps = await people();
     if (!ps.length || !ps.some(n => !prev.includes(n))) fails.push(`${W}x${H} i.1 paso ${i + 1}: personas ${ps} (paso anterior: ${prev})`);
+    // halo apagado y separación del aislamiento cerrada (tramo nuevo completo)
+    const fixed = () => { const s = document.querySelector('three-d-stage')._scene, h = s.getObjectByName('halo_termico_0');
+      const sl = [0, 1].map(j => s.getObjectByName('aislamiento_reparado_' + j));
+      return !!h && !h.visible && sl.every(c => c && c.visible && c.scale.y > 0.99); };
+    if (i === 0) { if (await pg.evaluate(fixed)) fails.push(`${W}x${H} i.1 paso 1: la separación del aislamiento ya aparece cerrada`); await pg.screenshot({ path: join(shots, `${W}_integrada_i.1_aislamiento.png`) }); }
     if (i === 3) {
-      const off = await pg.waitForFunction(() => { const h = document.querySelector('three-d-stage')._scene.getObjectByName('halo_termico_0'); return h && !h.visible; }, null, { timeout: 40000 }).then(() => true, () => false);
-      if (!off) fails.push(`${W}x${H} i.1 paso 4: el halo no se apaga`);
+      const off = await pg.waitForFunction(fixed, null, { timeout: 40000 }).then(() => true, () => false);
+      if (!off) fails.push(`${W}x${H} i.1 paso 4: el halo o la separación del aislamiento no desaparecen`);
       await pg.screenshot({ path: join(shots, `${W}_integrada_i.1_paso4.png`) });
     }
+    if (i === 4 && !(await pg.evaluate(fixed))) fails.push(`${W}x${H} i.1 paso 5: vuelven el halo o la separación del aislamiento`);
     if (/soldadura|soplete/i.test(await shown())) fails.push(`${W}x${H} i.1 paso ${i + 1}: aparece «soldadura» o «soplete»`);
     prev = ps;
   }

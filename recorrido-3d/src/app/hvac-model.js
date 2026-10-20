@@ -27,8 +27,9 @@ function seg(name, a, b, r, mat) {
   m.quaternion.setFromUnitVectors(UP, dir.normalize());
   return m;
 }
-function pipe(group, name, pts, r, mat) {
+function pipe(group, name, pts, r, mat, ins) {
   const jg = new THREE.SphereGeometry(r * 1.02, 16, 10);
+  if (ins) ins.push({ pts, r });
   pts.forEach((p, i) => {
     if (i > 0) group.add(seg(`${name}_tramo${i}`, pts[i - 1], p, r, mat));
     const j = new THREE.Mesh(jg, mat); j.name = `${name}_codo${i}`; j.position.copy(p); group.add(j);
@@ -49,6 +50,34 @@ function fanBlades(name, r, mat, n = 4) {
     g.add(b);
   }
   return g;
+}
+// Aislamiento térmico translúcido (como los rayos X): una funda por tramo, en un solo InstancedMesh.
+// gaps: [{ p, half }] puntos donde la funda se corta (uniones con deterioro, bombas)
+const FUNDA = 1.6;
+function insulation(name, runs, mat, gaps = []) {
+  const segs = [], joints = [];
+  runs.forEach(({ pts, r }) => pts.forEach((b, i) => {
+    joints.push({ p: b, r });
+    if (!i) return;
+    const a = pts[i - 1], d = b.clone().sub(a), len = d.length(), u = d.clone().divideScalar(len);
+    // tramos libres de separaciones
+    const cuts = gaps.map(g => { const t = g.p.clone().sub(a).dot(u); const off = a.clone().addScaledVector(u, t).distanceTo(g.p);
+      return off < 0.05 && t > -g.half && t < len + g.half ? [t - g.half, t + g.half] : null; }).filter(Boolean).sort((x, y) => x[0] - y[0]);
+    let t0 = 0;
+    [...cuts, [len, len]].forEach(([c0, c1]) => { if (c0 > t0 + 0.02) segs.push({ a: a.clone().addScaledVector(u, t0), b: a.clone().addScaledVector(u, Math.min(c0, len)), r }); t0 = Math.max(t0, c1); });
+  }));
+  const freeJ = joints.filter(j => !gaps.some(g => g.p.distanceTo(j.p) < g.half));
+  const cylIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, 16, 1, true), mat, segs.length);
+  const sphIM = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 14, 8), mat, freeJ.length);
+  const o = new THREE.Object3D();
+  segs.forEach(({ a, b, r }, i) => {
+    const d = b.clone().sub(a); o.position.copy(a).add(b).multiplyScalar(0.5);
+    o.quaternion.setFromUnitVectors(UP, d.clone().normalize()); o.scale.set(r * FUNDA, d.length(), r * FUNDA); o.updateMatrix(); cylIM.setMatrixAt(i, o.matrix);
+  });
+  freeJ.forEach(({ p, r }, i) => { o.position.copy(p); o.quaternion.identity(); o.scale.setScalar(r * FUNDA); o.updateMatrix(); sphIM.setMatrixAt(i, o.matrix); });
+  cylIM.name = name; sphIM.name = name + '_codos';
+  [cylIM, sphIM].forEach(m => { m.castShadow = false; m.receiveShadow = false; m.userData.ifcClass = 'IfcCovering'; m.userData.fuente = 'ilustrativo'; m.computeBoundingSphere(); });
+  return [cylIM, sphIM];
 }
 // Techo a cuatro aguas (w a lo largo de x)
 function hipGeo(w, d, h) {
@@ -76,6 +105,7 @@ export function buildModel() {
     split: std('minisplit', 0xEEF0EE, 0.4, 0),
     splitAccent: std('minisplit_acento', 0xE3A857, 0.5, 0, 0xE3A857, 0.35),
     refrig: std('linea_refrigerante', 0xA8876A, 0.45, 0.3),
+    insul: new THREE.MeshStandardMaterial({ name: 'aislamiento_termico', color: 0xDDE2E6, roughness: 0.9, transparent: true, opacity: 0.25, depthWrite: false }),
     thermal: new THREE.MeshBasicMaterial({ name: 'punto_termografia', color: 0xFF6A2B }),
     sensor: new THREE.MeshStandardMaterial({ name: 'sensor_iot', color: 0x29A9E0, emissive: 0x29A9E0, emissiveIntensity: 1.2, roughness: 0.3 }),
     platform: new THREE.MeshStandardMaterial({ name: 'plataforma', color: 0x0F2A38, emissive: 0x29A9E0, emissiveIntensity: 0.25, roughness: 0.5, transparent: true, opacity: 0.85 }),
@@ -201,12 +231,13 @@ export function buildModel() {
 
   // ---------- Agua helada ----------
   const pipes = new THREE.Group(); pipes.name = 'circuito_agua_helada'; root.add(pipes);
+  const insW = []; // tramos de agua helada que llevan funda
   pipes.userData.equip = { type: 'pipe' };
   const mainS = [V(CX - 0.6, 0.9, -9.7), V(CX - 0.6, 0.9, -7.5), V(RXS, 0.9, -7.5), V(RXS, 0.9, ZS)];
   const mainR = [V(RXR, 0.5, ZR), V(RXR, 0.5, -8.2), V(CX + 0.6, 0.5, -8.2), V(CX + 0.6, 0.5, -9.7)];
   const topHy = 2 * H + 3.1;
-  pipe(pipes, 'suministro_principal', [...mainS, V(RXS, topHy, ZS)], 0.13, M.supply);
-  pipe(pipes, 'retorno_principal', [V(RXR, topHy, ZR), ...mainR], 0.13, M.ret);
+  pipe(pipes, 'suministro_principal', [...mainS, V(RXS, topHy, ZS)], 0.13, M.supply, insW);
+  pipe(pipes, 'retorno_principal', [V(RXR, topHy, ZR), ...mainR], 0.13, M.ret, insW);
   [[V(RXS, 0.9, -5.12), M.supply, 'brida_suministro_muro'], [V(RXS, 0.9, -7.25), M.supply, 'brida_suministro_codo'], [V(RXR, 0.5, -5.12), M.ret, 'brida_retorno_muro']]
     .forEach(([p, m, n]) => { const t = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.05, 10, 28), m); t.name = n; t.position.copy(p); pipes.add(t); });
   const thermalPts = [V(RXS, 0.9, -5.12), V(RXS, 0.9, -7.25)];
@@ -253,8 +284,8 @@ export function buildModel() {
   LAYOUT.forEach((xs, f) => {
     const y0 = f * H, hy = y0 + 3.1, my = y0 + 0.85;
     const lo = Math.min(...xs), hi = Math.max(...xs);
-    pipe(pipes, `suministro_cabezal_p${f}`, [V(lo - 0.3, hy, ZS), V(hi - 0.3, hy, ZS)], 0.09, M.supply);
-    pipe(pipes, `retorno_cabezal_p${f}`, [V(hi + 0.3, hy, ZR), V(lo + 0.3, hy, ZR)], 0.09, M.ret);
+    pipe(pipes, `suministro_cabezal_p${f}`, [V(lo - 0.3, hy, ZS), V(hi - 0.3, hy, ZS)], 0.09, M.supply, insW);
+    pipe(pipes, `retorno_cabezal_p${f}`, [V(hi + 0.3, hy, ZR), V(lo + 0.3, hy, ZR)], 0.09, M.ret, insW);
     xs.forEach(x => {
       n++;
       const id = `UMA_${String(n).padStart(2, '0')}`;
@@ -272,19 +303,23 @@ export function buildModel() {
       g.add(box(id + '_ducto_vertical', 0.6, 1.15, 0.4, M.duct, x, y0 + 2.025, ZU));
       g.add(box(id + '_ducto_horizontal', 0.6, 0.4, 6.2, M.duct, x, y0 + 2.6, ZU + 3.1));
       g.add(box(id + '_difusor', 0.9, 0.06, 0.9, M.dark, x, y0 + 2.38, 2.6));
-      pipe(pipes, id + '_suministro', [V(x - 0.3, hy, ZS), V(x - 0.3, my, ZS), V(x - 0.3, my, ZU - 0.5)], 0.06, M.supply);
-      pipe(pipes, id + '_retorno', [V(x + 0.3, my, ZU - 0.5), V(x + 0.3, my, ZR), V(x + 0.3, hy, ZR)], 0.06, M.ret);
+      pipe(pipes, id + '_suministro', [V(x - 0.3, hy, ZS), V(x - 0.3, my, ZS), V(x - 0.3, my, ZU - 0.5)], 0.06, M.supply, insW);
+      pipe(pipes, id + '_retorno', [V(x + 0.3, my, ZU - 0.5), V(x + 0.3, my, ZR), V(x + 0.3, hy, ZR)], 0.06, M.ret, insW);
       supplyPaths.push([...mainS, V(RXS, hy, ZS), V(x - 0.3, hy, ZS), V(x - 0.3, my, ZS), V(x - 0.3, my, ZU - 0.5)]);
       returnPaths.push([V(x + 0.3, my, ZU - 0.5), V(x + 0.3, my, ZR), V(x + 0.3, hy, ZR), V(RXR, hy, ZR), ...mainR]);
       umas.push({ id, x, f, y0, my });
     });
   });
+  // Funda del agua helada: separación en las dos uniones con deterioro (aislamiento dañado) y en la estación de bombeo
+  const insGaps = [...thermalPts.map(p => ({ p, half: 0.25 })), { p: V(-15.5, 0.9, -7.5), half: 0.85 }];
+  insulation('aislamiento_termico', insW, M.insul, insGaps).forEach(o => pipes.add(o));
   const lastU = umas[umas.length - 1];
   anchors.uma = V(lastU.x, 2 * H + 1.6, ZU);
   anchors.floors = [0, 1, 2].map(f => V(24.2, f * H + 1.6, 5));
 
   // ---------- Mini-splits (muro extremo del ala izquierda) ----------
   const ms = new THREE.Group(); ms.name = 'mini_splits_inverter'; root.add(ms);
+  const insR = [];
   const XW = -23;
   [{ f: 0, z: 3 }, { f: 1, z: 3.5 }, { f: 1, z: -1.5 }, { f: 2, z: 1 }].forEach(({ f, z }, i) => {
     const yi = f * H + 2.7, yo = f * H + 0.9, id = `minisplit_${i + 1}`, k0 = ms.children.length;
@@ -299,9 +334,10 @@ export function buildModel() {
     const fb = fanBlades(id + '_ventilador', 0.22, M.coil, 3); fb.rotation.z = Math.PI / 2;
     const spin = new THREE.Group(); spin.name = id + '_rotor'; spin.position.set(XW - 0.91, yo, z); spin.add(fb); ms.add(spin);
     fans.push({ obj: spin, axis: 'x', speed: 7 });
-    pipe(ms, id + '_linea', [V(XW + 0.16, yi, z + 0.4), V(XW - 0.5, yi, z + 0.4), V(XW - 0.5, yo + 0.4, z + 0.4)], 0.03, M.refrig);
+    pipe(ms, id + '_linea', [V(XW + 0.16, yi, z + 0.4), V(XW - 0.5, yi, z + 0.4), V(XW - 0.5, yo + 0.4, z + 0.4)], 0.03, M.refrig, insR);
     ms.children.slice(k0).forEach(o => { o.userData.equip = { type: 'split', n: i + 1, f }; if (!o.userData.ifcClass) ifc(o, 'IfcUnitaryEquipment', 'real'); });
   });
+  insulation('aislamiento_linea_refrigerante', insR, M.insul).forEach(o => ms.add(o)); // funda ≈ 0.05 en la línea de 0.03
   anchors.split = V(XW - 0.65, 2 * H + 1.4, 1);
 
   // ---------- Propuesta (hipotética) ----------
