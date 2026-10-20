@@ -469,6 +469,12 @@
   .card .ch[role=button] h4::after { content: " ▾"; font-size: 11px; color: #8E9AA5; }
   .card.fold .ch { margin-bottom: 0; } .card.fold .ch h4::after { content: " ▸"; } .card.fold .cb { display: none; }
   .card.fold:hover { border-color: rgba(214,224,232,.45); }
+  #tThermo.on { background: linear-gradient(90deg, #1F1A8A, #9B1F9A, #F06A1F); color: #fff; border-color: #F06A1F; }
+  .thl { border: 1px solid rgba(240,106,31,.6); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .thl h2 { margin: 0; display: flex; align-items: center; gap: 8px; }
+  .thbar { height: 12px; border-radius: 2px; background: linear-gradient(90deg, #07041A 0%, #1F1A8A 22%, #9B1F9A 48%, #F06A1F 74%, #FFD23F 92%, #FFF6CC 100%); }
+  .thends { display: flex; justify-content: space-between; font: 500 11px "IBM Plex Mono", monospace; color: #C4CCD3; }
+  .thnote { margin: 0; font-size: 12px; line-height: 1.45; color: #E6EBEF; text-wrap: pretty; }
   .psy { border: 1px solid rgba(214,224,232,.18); padding: 8px 10px; margin-top: 4px; }
   .psy summary { cursor: pointer; font: 500 11px "IBM Plex Mono", monospace; color: #C4CCD3; text-transform: uppercase; letter-spacing: .06em; }
   .psy summary .st { margin-left: 6px; vertical-align: 1px; }
@@ -562,6 +568,9 @@
           <button class="btn" data-shell="facade">Fachada</button>
           <button class="btn on" data-shell="xray">Rayos X</button>
         </div>
+        <div class="seg" id="thermoSeg">
+          <button class="btn" id="tThermo">Vista termográfica</button>
+        </div>
         <div class="seg">
           <button class="btn on" id="tLabels">Etiquetas: sí</button>
           <button class="btn" id="tPause">Pausar animación</button>
@@ -572,6 +581,13 @@
     </div>
   </main>
   <aside>
+    <section id="thermoLegend" class="thl" hidden="">
+      <h2 id="thT"></h2>
+      <div class="thbar"></div>
+      <div class="thends"><span id="thC"></span><span>↔</span><span id="thH"></span></div>
+      <p class="thnote" id="thN"></p>
+      <p class="skfn" id="thK"></p>
+    </section>
     <section id="inspector" class="insp" hidden="" aria-live="polite">
       <h2>Inspector</h2>
       <div id="inBody"></div>

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildModel, H } from 'app/hvac-model.js';
 import { buildTour } from 'app/tour-layers.js';
-import { STAMP, ICON, STOPS, CARDS, inspectorHTML } from 'app/tour-content.js';
+import { STAMP, ICON, STOPS, CARDS, inspectorHTML, THERMO } from 'app/tour-content.js';
 import { enrichSite } from 'app/site-v2.js';
 import { createSky } from 'app/sky-v2.js';
 import { coilProcess } from 'app/psychro.js';
@@ -208,6 +208,7 @@ function fallback(l) {
     l.fb = { el, a: l.pos, ln, c, fbl: l }; docks.push(l.fb);
   }
   l.fb.el.style.display = ''; l.fb.on = true;
+  if (dock.scrollHeight - dock.clientHeight > 8 && !dock.querySelector('.card.fold')) fitDock(0);
 }
 function placeDock() {
   if (!docks.length) return;
@@ -306,6 +307,7 @@ function setShell(s) {
   m.shell.meshes.forEach(o => { o.castShadow = !x; o.receiveShadow = !x; });
   m.shell.lines.forEach(l => l.visible = x);
   document.querySelectorAll('[data-shell]').forEach(b => b.classList.toggle('on', b.dataset.shell === s));
+  if (thermo) applyThermo();
 }
 document.querySelectorAll('[data-shell]').forEach(b => b.onclick = () => setShell(b.dataset.shell));
 
@@ -326,6 +328,67 @@ function applyVfd() {
 }
 dock.addEventListener('input', e => { if (e.target.id === 'vfdR') { vfdPct = +e.target.value; applyVfd(); } });
 dock.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { vfdPct = +b.dataset.v; applyVfd(); } });
+
+// Vista termográfica cualitativa: paleta Ironbow sobre una temperatura relativa (0–1) por clase de componente, sin °C
+const $t = id => document.getElementById(id);
+const IRON = [[0, 0x07041A], [0.22, 0x1F1A8A], [0.48, 0x9B1F9A], [0.74, 0xF06A1F], [0.92, 0xFFD23F], [1, 0xFFF6CC]].map(([k, c]) => [k, new THREE.Color(c)]);
+function ironbow(t) {
+  t = Math.min(1, Math.max(0, t)); let i = 1; while (i < IRON.length - 1 && IRON[i][0] < t) i++;
+  const [k0, c0] = IRON[i - 1], [k1, c1] = IRON[i]; return c0.clone().lerp(c1, (t - k0) / (k1 - k0));
+}
+const TH = { supply: 0.16, ret: 0.3, pump: 0.2, motor: 0.62, equip: 0.5, duct: 0.24, inner: 0.1, anomaly: 1 };
+const shellSetMesh = new Set(m.shell.meshes), thermoCache = new Map(), nrm = new THREE.Vector3(), radFaces = [];
+scene.traverse(o => { if (o.name === 'radiacion_cara') radFaces.push(o); });
+function thermoTemp(o, site, mt) {
+  if (site) return null; // el entorno no se colorea: se oscurece para no distraer
+  if (mt === m.M.thermal) return TH.anomaly;
+  if (mt === m.M.supply) return TH.supply;
+  if (mt === m.M.ret) return TH.ret;
+  if (under(o, pumpG)) return /motor/.test(o.name) ? TH.motor : TH.pump;
+  if (shellSetMesh.has(o)) {
+    // Fachada: más caliente cuanto más perpendicular le llega el sol (índice relativo de sky-v2), de noche se enfría
+    const K = sky.S, up = /techo|cubierta|cornisa/.test(o.name);
+    if (up) nrm.set(0, 1, 0); else nrm.set(0, 0, 1).transformDirection(o.matrixWorld);
+    const sun = K.night ? 0 : K.irr * Math.max(0, nrm.dot(K.sd));
+    return (K.night ? 0.2 : 0.26) + 0.6 * sun;
+  }
+  if (under(o, umaG) && /ducto|difusor/.test(o.name)) return TH.duct; // aire de suministro ya enfriado
+  if (under(o, chG) || under(o, umaG) || /^minisplit_/.test(o.name)) return TH.equip;
+  return TH.inner;
+}
+function thermoMat(t, shellMesh) {
+  const x = shellMesh && shell === 'xray', key = Math.round(t * 50) + (x ? 'x' : shellMesh ? 'f' : '');
+  if (!thermoCache.has(key)) thermoCache.set(key, new THREE.MeshBasicMaterial({ name: 'termografia', color: ironbow(Math.round(t * 50) / 50),
+    transparent: x, opacity: x ? 0.1 : 1, depthWrite: !x, side: shellMesh ? THREE.DoubleSide : THREE.FrontSide }));
+  return thermoCache.get(key);
+}
+let thermo = false;
+m.root.updateMatrixWorld(true);
+const thermoBase = base.map(b => ({ ...b, temp: b.o.isMesh && !under(b.o, m.prop) ? thermoTemp(b.o, b.site, b.mat) : null, shellMesh: shellSetMesh.has(b.o) }));
+function applyThermo() {
+  if (!thermo) return;
+  thermoBase.forEach(b => {
+    if (stop === '5' && (b.site || !FOCUS[5](b.o))) return; // en la Parada 5 el resto sigue atenuado
+    if (b.site) { b.o.material = dimMat(b.mat, true); return; }
+    if (b.temp === null) return;
+    if (b.shellMesh) b.temp = thermoTemp(b.o, false, b.mat);
+    b.o.material = thermoMat(b.temp, b.shellMesh); b.o.castShadow = false;
+  });
+  radFaces.forEach(f => { f.visible = false; });
+}
+function setThermo(on) {
+  thermo = on && (stop === 'g' || stop === '5');
+  $t('tThermo').classList.toggle('on', thermo);
+  $t('thermoLegend').hidden = !thermo;
+  if (thermo) { applyThermo(); $t('thermoLegend').parentElement.scrollTop = 0; return; }
+  radFaces.forEach(f => { f.visible = true; });
+  if (stop === 'g') { restoreMats(); setShell(shell); } else dimFor(stop);
+}
+$t('thT').innerHTML = THERMO.title + STAMP.ilus; $t('thC').textContent = THERMO.cold; $t('thH').textContent = THERMO.hot;
+$t('thN').textContent = THERMO.note; $t('thK').textContent = THERMO.classes; $t('tThermo').textContent = THERMO.button;
+$t('tThermo').onclick = () => setThermo(!thermo);
+// Las exportaciones OBJ/GLB llevan los materiales reales, no los de la vista termográfica
+stage._toolbar.addEventListener('click', () => { if (thermo) setThermo(false); }, true);
 
 // Inspector por clic (vista general y Parada 5)
 const equipOf = o => { for (let p = o; p; p = p.parent) if (p.userData.equip) return p.userData.equip; return null; };
@@ -393,6 +456,8 @@ document.getElementById('spNext').onclick = () => { if (stop === 'i') applyStop(
 function step(d) { const i = ORDER.indexOf(stop) + d; if (i >= 0 && i < ORDER.length) applyStop(ORDER[i]); }
 function applyStop(s) {
   if (s !== stop) closeInspector();
+  const keepThermo = thermo && (s === 'g' || s === '5');
+  if (thermo && !keepThermo) setThermo(false);
   stop = s; const g = s === 'g';
   app.classList.toggle('touring', !g);
   Object.entries(T.groups).forEach(([k, grp]) => grp.visible = k === s);
@@ -412,6 +477,8 @@ function applyStop(s) {
   if (g) goView(currentView); else goPose(STOPS[s].pose, 1300, true);
   stage._toolbar.style.display = g ? '' : 'none'; Object.assign(stage._toolbar.style, { top: 'auto', bottom: '70px' });
   if (s === '4') applyVfd(); else vfdFan.speed = vfdBase;
+  document.getElementById('thermoSeg').hidden = !(g || s === '5');
+  if (keepThermo) applyThermo();
 }
 document.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => applyStop(b.dataset.stop));
 addEventListener('keydown', e => {
@@ -437,6 +504,7 @@ const RUMBO = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
 q('skMonth').innerHTML = MES.map((x, i) => `<option value="${i + 1}">${x}</option>`).join('');
 let saveT = 0;
 function syncSky() {
+  if (thermo) applyThermo();
   const K = sky.S, hh = Math.floor(K.hour), mm = Math.floor((K.hour - hh) * 60);
   q('skHour').value = K.hour; q('skTime').textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
   q('skSun').textContent = K.el > 0 ? `Sol a ${Math.round(K.el / Math.PI * 180)}° de altura` : K.night ? 'Noche' : 'Crepúsculo';

@@ -54,6 +54,17 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   if (!(await pg.evaluate(() => /no medidos en el Edificio 2/.test(document.getElementById('psy').innerText)))) fails.push('Falta el aviso de valores de ejemplo en la calculadora');
   await pg.screenshot({ path: join(shots, `${W}_psicrometria.png`) });
   await pg.evaluate(() => { document.getElementById('psy').open = false; });
+  // Vista termográfica cualitativa: vista general y Parada 5, leyenda sin °C
+  for (const k of ['0', '5']) {
+    await pg.keyboard.press(k); await pg.waitForTimeout(2500);
+    await pg.click('#tThermo'); await pg.waitForTimeout(500);
+    const leg = await pg.evaluate(() => { const e = document.getElementById('thermoLegend'); return e.hidden ? '' : e.innerText; });
+    if (!/más frío/.test(leg) || !/Representación cualitativa/.test(leg) || /°C/.test(leg)) fails.push(`${W}x${H} parada ${k}: leyenda termográfica «${leg.slice(0, 60)}»`);
+    await pg.screenshot({ path: join(shots, `${W}_termografia_${k}.png`) });
+    await pg.click('#tThermo'); await pg.waitForTimeout(200);
+  }
+  await pg.keyboard.press('1'); await pg.waitForTimeout(300);
+  if (await pg.evaluate(() => !document.getElementById('thermoSeg').hidden)) fails.push(`${W}x${H} el botón de termografía aparece en la Parada 1`);
   await pg.keyboard.press('5'); await pg.waitForTimeout(300);
   if (!(await pg.evaluate(() => document.querySelector('[data-stop="5"]').classList.contains('on')))) fails.push(`${W}x${H} el atajo 5 dejó de funcionar tras el inspector`);
   fails.push(...errs.map(e => `${W}x${H} ${e}`));

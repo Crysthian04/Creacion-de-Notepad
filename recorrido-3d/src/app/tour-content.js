@@ -159,3 +159,12 @@ export function inspectorHTML(e) {
     body: isec('Equipo ilustrativo', 'ilus', '<p>Bomba en operación y bomba de respaldo, en paralelo</p>' + vars(['Datos de las bombas del Edificio 2'])),
   };
 }
+
+// Vista termográfica cualitativa (vista general y Parada 5). Sin °C: no hay temperaturas medidas en este modelo.
+export const THERMO = {
+  button: 'Vista termográfica',
+  title: 'Vista termográfica',
+  cold: 'más frío', hot: 'más caliente',
+  note: 'Representación cualitativa. El estudio reporta el deterioro detectado en una inspección termográfica, sin temperaturas en este modelo.',
+  classes: 'Colores por clase de componente: suministro de agua helada, retorno, equipos, fachada según la radiación solar del panel Clima y hora, y la anomalía en las uniones.',
+};
