@@ -7,6 +7,7 @@ import { createSky } from 'app/sky-v2.js';
 import { coilProcess } from 'app/psychro.js';
 import { FEATURES } from 'app/features.js';
 import { buildDrone, buildAR, buildIRCamera } from 'app/tools-v25.js';
+import { buildFalla } from 'app/falla-scene.js';
 
 const stage = document.querySelector('three-d-stage');
 await stage.ready;
@@ -45,7 +46,10 @@ const g2 = cv.getContext('2d'), rg = g2.createRadialGradient(64, 64, 0, 64, 64, 
 rg.addColorStop(0, 'rgba(255,200,120,1)'); rg.addColorStop(0.25, 'rgba(255,106,43,.75)'); rg.addColorStop(1, 'rgba(255,60,20,0)');
 g2.fillStyle = rg; g2.fillRect(0, 0, 128, 128);
 const haloMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
-const halos = m.thermalPts.map((p, i) => { const s = new THREE.Sprite(haloMat); s.position.copy(p); s.userData.base = i ? 1.0 : 1.6; fx.add(s); return s; });
+const halos = m.thermalPts.map((p, i) => { const s = new THREE.Sprite(haloMat); s.name = 'halo_termico_' + i; s.position.copy(p); s.userData.base = i ? 1.0 : 1.6; fx.add(s); return s; });
+// i.1 · escenas con personas para los 6 pasos de la falla
+const FS = buildFalla({ m, halos, haloMat, irCam: TOOLS['5.2'] }); FS.group.visible = false; scene.add(FS.group);
+let fallaRep = 0;
 
 // Partículas
 function mkPath(pts) { const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + pts[i].distanceTo(pts[i - 1])); return { pts, L, len: L[L.length - 1] }; }
@@ -100,6 +104,15 @@ label(A.thermal, 'Deterioro en uniones de la tubería de agua fría', 'Una sola 
 labels[labels.length - 1].cond = () => abStage === 0;
 // i.1 · la falla
 label(A.thermal, 'Uniones con deterioro', 'Detectadas en la auditoría energética', 'heat', 'all', { stops: ['i'], stamp: 'real', down: true, stem: 30, dx: 80, prio: 1 });
+labels[labels.length - 1].cond = () => fallaRep < 1 && falla.k !== 1 && falla.k !== 5;
+const atStep = (ks, ...args) => { label(...args); labels[labels.length - 1].cond = () => ks.includes(falla.k); };
+atStep([1], FS.A.cmms, 'CMMS · orden de trabajo', 'Estado: abierta', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 30, prio: 1 });
+atStep([5], FS.A.cmms, 'CMMS · orden de trabajo', 'Estado: cerrada', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 30, prio: 1 });
+atStep([2], FS.A.lock, 'Candado y tarjeta', 'Técnico eléctrico · NFPA 70E', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 40, dx: 60, prio: 1 });
+atStep([2], FS.A.valve, 'Válvula de corte cerrada', 'Purga de presiones', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 34, dx: -60, prio: 1 });
+atStep([3], FS.A.repair, 'Se rehace la unión y su aislamiento', '', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 60, dx: -150, prio: 1 });
+label(A.thermal, 'Unión reparada', 'Sin anomalía en la nueva lectura', '', 'all', { stops: ['i'], stamp: 'resIlus', down: true, stem: 30, dx: 80, prio: 1 });
+labels[labels.length - 1].cond = () => fallaRep >= 1 && (falla.k === 3 || falla.k === 4);
 // Clima (vista general e integrada)
 label(sky.radAnchor, 'Radiación solar sobre la fachada', 'Intensidad relativa', 'sun', 'all', { stops: ['g'], stamp: 'ilus', stem: 28, dx: 50, prio: 2 });
 labels[labels.length - 1].cond = () => sky.S.active && !sky.S.night && sky.S.irr > 0.15 && sky.bestFace();
@@ -555,7 +568,7 @@ addEventListener('keydown', ev => { if (ev.key === 'Escape' && inspKey) closeIns
 
 // ---------------------------------------------------------------- Vista integrada
 // i.1 · Una falla de punta a punta: 6 pasos sobre las uniones con deterioro; ◀ ▶ por paso y Reproducir
-const falla = { k: 0, playing: false, t0: 0 }, STEP_MS = 9000;
+const falla = { k: 0, playing: false, t0: 0 }, STEP_MS = 7000;
 function showStep(k, move = true) {
   falla.k = Math.max(0, Math.min(FALLA.length - 1, k)); falla.t0 = performance.now();
   const f = FALLA[falla.k], box = document.getElementById('falla');
@@ -564,7 +577,8 @@ function showStep(k, move = true) {
   if (dots) dots.innerHTML = FALLA.map((x, i) => `<button class="fdot${i === falla.k ? ' on' : ''}" data-step="${i}" aria-label="Paso ${i + 1}">${i + 1}</button>`).join('');
   syncPlay();
   [...document.getElementById('spB').children].forEach((li, i) => li.classList.toggle('cur', i === falla.k));
-  TOOLS['5.2'].group.visible = stop === 'i' && falla.k === 0; // paso 1: la cámara termográfica sobre las uniones
+  FS.setStep(falla.k);
+  TOOLS['5.2'].group.visible = stop === 'i' && (falla.k === 0 || falla.k === 4); // pasos 1 y 5: cámara termográfica sobre las uniones
   if (move && stop === 'i') goPose(f.pose, 1100, true);
 }
 function syncPlay() { const b = document.getElementById('fPlay'); if (b) { b.textContent = falla.playing ? 'Pausar' : 'Reproducir'; b.classList.toggle('on', falla.playing); } }
@@ -660,8 +674,9 @@ function applyStop(s) {
   if (g) { restoreMats(); setShell(shell); }
   else { dimFor(s); m.prop.visible = s === '5'; dataFlow.im.visible = s === '5'; }
   flows.forEach(f => f.im.visible = g || s === '5' || s === '5.2' || s === 'i' || s === 'i.2');
+  FS.group.visible = s === 'i'; if (s !== 'i') FS.reset();
   halos.forEach(h => h.visible = g || s === '5' || s === '5.2' || s === 'i' || s === 'i.2');
-  Object.entries(TOOLS).forEach(([k, t]) => { t.group.visible = k === s || (k === '5.2' && s === 'i' && falla.k === 0); });
+  Object.entries(TOOLS).forEach(([k, t]) => { t.group.visible = k === s || (k === '5.2' && s === 'i' && (falla.k === 0 || falla.k === 4)); });
   if (s !== 'i') falla.playing = false;
   m.prop.children.forEach(c => { c.visible = true; });
   if (s === 'i.2') setStage(abStage);
@@ -804,12 +819,13 @@ stage.onFrame = () => {
     if (dataFlow.im.visible) { stepFlow(dataFlow, simT); m.ia.rotation.y += 0.4 * dt; m.M.sensor.emissiveIntensity = 0.9 + 0.6 * Math.sin(simT * 4); }
     if (arcFlow.im.visible) stepFlow(arcFlow, simT);
     T.tick(simT);
-    const tool = TOOLS[stop] || (stop === 'i' && falla.k === 0 ? TOOLS['5.2'] : null);
+    const tool = TOOLS[stop] || (stop === 'i' && (falla.k === 0 || falla.k === 4) ? TOOLS['5.2'] : null);
     if (tool) tool.tick(simT, dt);
     const pulse = 0.82 + 0.18 * Math.sin(simT * 3.2);
     halos.forEach(s => s.scale.setScalar(s.userData.base * pulse));
   }
   syncTools();
+  if (stop === 'i') fallaRep = FS.tick(simT, (performance.now() - falla.t0) / 1000);
   playTick();
   placeLabels();
   placeDock();

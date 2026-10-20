@@ -35,6 +35,7 @@ Si Playwright no encuentra navegador: `npx playwright install chromium`, o expor
 - `src/app/tour-layers.js`: objetos propios de cada parada (técnicos, LOTO, cilindros, recuperadora, fuga, VFD, BMS) y su animación (`tick`).
 - `src/app/tour-content.js`: TODO el texto (viñetas, tarjetas, sellos). Los cambios de contenido van aquí.
 - `src/app/tools-v25.js`: escenas de las subventanas 5.2–5.4 (cámara termográfica portátil, salón con realidad aumentada, dron en ducto), adaptadas del modelo «Herramientas HVAC 3D» del grupo y colocadas dentro del edificio. Internamente son las paradas `'5.2'`, `'5.3'` y `'5.4'`; la `'5'` es la 5.1. Igual en la vista integrada: `'i'` es la i.1, y `'i.2'`, `'i.3'`.
+- `src/app/falla-scene.js`: escenas con personas de la i.1 (inspector, planificador en la oficina con el CMMS, técnicos de LOTO, reparación del aislamiento sin llamas, verificación y cierre). Reutiliza `person()` y los materiales que exporta `tour-layers.js`.
 - `src/app/features.js`: interruptores (`FEATURES.psychro = false`: calculadora en pausa).
 - `src/app/psychro.js`: psicrometría a 101.325 kPa (Hyland-Wexler, W, h, punto de rocío, proceso de serpentín). Funciones puras, probadas en `tests/psychro.test.mjs`.
 - `src/app/sky-v2.js`: sol astronómico (9.0247° N, 79.5299° O, UTC−5), clima y ocupación del edificio (solo indicador).

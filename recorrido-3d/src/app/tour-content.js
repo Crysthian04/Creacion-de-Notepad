@@ -5,6 +5,7 @@ export const STAMP = {
   prop: '<span class="st ilus">Propuesta del grupo (ilustrativa)</span>',
   sup: '<span class="st ilus">Supuesto del grupo – horario general de la UTP</span>',
   obs: '<span class="st ilus">Observación del grupo – no medido</span>',
+  resIlus: '<span class="st ilus">Resultado ilustrativo: así se vería una reparación efectiva</span>',
   split: '<span class="st ilus">Ilustrativo – plan de la INV2 (split de referencia de 12,000 BTU/h)</span>',
 };
 const tri = '<path d="M10 1.8 L19 17.2 H1 Z" fill="rgba(242,193,78,.12)" stroke="#F2C14E" stroke-width="1.6" stroke-linejoin="round"/>';
@@ -114,10 +115,10 @@ export const STOPS = {
     bullets: [
       ['1 · INV3 · Detectar', 'flow'],
       ['2 · INV2 · Registrar, planificar y programar', 'flow'],
-      ['3 · INV4 · Ejecutar con seguridad', 'flow'],
-      ['4 · INV1 · Refrigerante', 'flow'],
-      ['5 · INV5 · Energía', 'flow'],
-      ['6 · INV2 · Probar y cerrar', 'flow'],
+      ['3 · INV4 · Bloquear energías (LOTO)', 'flow'],
+      ['4 · INV4/INV5 · Reparar', 'flow'],
+      ['5 · INV2/INV3 · Probar y verificar', 'flow'],
+      ['6 · INV2/INV5 · Cerrar y dar seguimiento', 'flow'],
     ],
   },
   'i.2': {
@@ -301,25 +302,29 @@ export const GLB_LABEL = 'Descargar GLB (con clases IFC como metadatos)';
 // ---------------------------------------------------------------- Vista integrada (Fase 2.6)
 // i.1 · Una falla de punta a punta: 6 pasos, cada uno con su investigación y su fuente (docs/FUENTES_COMPENDIO.md)
 const ol = items => `<ol class="fol">${items.map(t => `<li>${t}</li>`).join('')}</ol>`;
+const ot = rows => `<div class="ot">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>`;
 export const FALLA = [
   { inv: 'INV3', t: 'Detectar', st: 'real', pose: { pos: [-6.5, 4.6, -13.5], tgt: [-10.8, 0.9, -6.2] },
     html: 'La termografía infrarroja de la auditoría energética detectó deterioro en las uniones de la tubería de agua fría, en una sola inspección y sin monitoreo permanente.',
     src: '(Henríquez Espinosa et al., 2021) · INV3, pp. 35–36' },
-  { inv: 'INV2', t: 'Registrar, planificar y programar', st: 'ilus', pose: { pos: [-15.5, 5.2, -13.5], tgt: [-10.6, 0.9, -6.4] },
-    html: 'Flujo de la orden de trabajo, pasos 1 a 4:' + ol(['<b>Detectar</b>: inspección, alarma, solicitud o tendencia anormal.', '<b>Registrar</b>: código, síntoma, ubicación y prioridad (crítica / alta / media / baja, según el criterio del planificador).', '<b>Planificar</b>: alcance, riesgos, instrumentos, repuestos y tiempo; revisar manuales.', '<b>Programar</b>: ventana de parada coordinada con los usuarios.']),
+  { inv: 'INV2', t: 'Registrar, planificar y programar', st: 'ilus', pose: { pos: [-15.4, 6.0, 6.6], tgt: [-18.3, 4.5, 2.3] },
+    html: 'Orden de trabajo en el CMMS (pasos 1–4: detectar → registrar → planificar → programar):' + ot([
+      ['Código', '—'], ['Síntoma', 'deterioro en uniones de la tubería de agua fría'], ['Ubicación', '—'],
+      ['Prioridad', 'crítica / alta / media / baja, según el criterio del planificador'], ['Alcance', '—'], ['Riesgos', '—'], ['Repuestos', '—'],
+      ['Ventana de parada', 'coordinada con los usuarios']]),
     src: 'INV2, p. 20' },
-  { inv: 'INV4', t: 'Ejecutar con seguridad', st: 'ilus', pose: { pos: [-12.8, 2.8, -10.5], tgt: [-12.6, 0.9, -6.6] },
-    html: 'LOTO de 6 pasos: preparar (reconocer los tipos de energía) → apagar → aislar → candado y tarjeta por técnico → disipar la energía residual → verificar.<br>Para esta falla, la lista de verificación pide identificar la energía <b>hidráulica</b> y <b>térmica</b> además de la eléctrica, <b>cerrar válvulas</b> y <b>purgar presiones</b>. EPP según la tarea.',
-    src: 'OSHA 1910.147 · INV4, pp. 46–48' },
-  { inv: 'INV1', t: 'Refrigerante', st: 'ilus', pose: { pos: [-20.5, 5.4, -16.5], tgt: [-13.5, 1.0, -8.5] },
-    html: 'Esta reparación es en el circuito de agua fría y no abre el circuito de refrigerante. Si la falla estuviera en el chiller: recuperar con máquina certificada, cilindro sin superar el 80&nbsp;%, sin ventear (INV4, p. 49) → reciclar → regenerar (INV1, p. 8). En Panamá no hay instalaciones de reciclaje (MINSA/UNO y PNUD, 2020).',
-    src: 'INV4, p. 49 · INV1, p. 8 · p. 9' },
-  { inv: 'INV5', t: 'Energía', st: 'ilus', pose: { pos: [-5.5, 7.2, -16], tgt: [-12.4, 0.9, -7.2] },
-    html: '«El deterioro del aislamiento térmico genera pérdidas energéticas y aumenta la carga de enfriamiento» (ASHRAE, 2018). Después de la reparación, verificar con mediciones posteriores (ASHRAE, 2023).',
-    src: 'INV5, pp. 59–61' },
-  { inv: 'INV2', t: 'Probar y cerrar', st: 'ilus', pose: { pos: [-8.6, 3.2, -10.4], tgt: [-10.5, 0.9, -5.6] },
-    html: 'Paso 6: probar y registrar mediciones. Paso 7: cerrar la orden (causa probable, materiales, tiempo real y recomendaciones) y actualizar el historial en el CMMS.<div class="qs" style="margin-top:6px"><button class="btn" data-go="i.3">Ver el plan de 2 años (i.3) →</button></div>',
-    src: 'INV2, p. 20' },
+  { inv: 'INV4', t: 'Bloquear energías (LOTO)', st: 'ilus', pose: { pos: [-9.2, 4.2, -15.2], tgt: [-15.0, 0.9, -8.9] },
+    html: '<b>Técnico eléctrico</b>, en el tablero: coloca candado y tarjeta. EPP: guantes dieléctricos clase 00, gafas de seguridad, calzado dieléctrico y ropa ignífuga contra arco (NFPA 70E; INV4, p. 46).<br><b>Técnico mecánico</b>, en la válvula de corte del suministro: energía hidráulica y térmica: válvulas cerradas y purga de presiones (lista LOTO, p. 48).',
+    src: 'LOTO: preparar → apagar → aislar → candado y tarjeta por técnico → disipar la energía residual → verificar (OSHA 1910.147; INV4, p. 47)' },
+  { inv: 'INV4 · INV5', t: 'Reparar', st: 'ilus', pose: { pos: [-7.0, 2.9, -9.9], tgt: [-10.9, 0.9, -6.2] },
+    html: 'Se rehace la unión y su aislamiento. El deterioro del aislamiento térmico genera pérdidas energéticas y aumenta la carga de enfriamiento (ASHRAE, 2018; INV5, p. 59).<p class="fn" style="margin-top:6px">INV1: esta reparación es en el circuito de agua fría y no abre el circuito de refrigerante. Si la falla estuviera en el chiller: recuperar sin ventear, cilindro hasta el 80&nbsp;% (INV4, p. 49) → reciclar → regenerar (INV1, p. 8).</p>',
+    src: 'INV5, p. 59 · INV4, p. 49 · INV1, p. 8' },
+  { inv: 'INV2 · INV3', t: 'Probar y verificar', st: 'resIlus', pose: { pos: [-6.5, 4.6, -13.5], tgt: [-10.8, 0.9, -6.2] },
+    html: 'Se retiran candado y tarjeta, y la cámara termográfica vuelve a la unión: ya no hay anomalía. Probar el equipo y registrar mediciones.',
+    src: 'INV2, paso 6, p. 20' },
+  { inv: 'INV2 · INV5', t: 'Cerrar y dar seguimiento', st: 'ilus', pose: { pos: [-15.4, 6.0, 6.6], tgt: [-18.3, 4.5, 2.3] },
+    html: 'La orden pasa a «Cerrada» en el CMMS: causa probable, materiales, tiempo real y recomendaciones; actualizar el historial (INV2, paso 7, p. 20). Programar mediciones posteriores para verificar el resultado (ASHRAE, 2023; INV5, p. 61).<div class="qs" style="margin-top:6px"><button class="btn" data-go="i.3">Plan de 2 años (i.3) →</button></div>',
+    src: 'INV2, p. 20 · INV5, p. 61' },
 ];
 
 // i.2 · Antes / después: el deslizador recorre el estado de 2021 y las 3 etapas del caso hipotético de la INV3 (p. 37)

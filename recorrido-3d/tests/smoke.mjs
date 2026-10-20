@@ -68,6 +68,23 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   await pg.click('#fPlay');
   if (/°C/.test(await shown())) fails.push(`${W}x${H} i.1 muestra °C`);
   await pg.screenshot({ path: join(shots, `${W}_integrada_i.1.png`) });
+  // i.1 · escenas con personas: en cada paso hay al menos una persona visible distinta a la del paso anterior; el halo se apaga en el paso 4
+  const people = () => pg.evaluate(() => { const s = document.querySelector('three-d-stage')._scene, ps = [];
+    const vis = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+    s.traverse(o => { if (o.userData.person && vis(o)) ps.push(o.name); }); return ps; });
+  let prev = [];
+  for (let i = 0; i < 6; i++) {
+    await pg.click(`[data-step="${i}"]`); await pg.waitForTimeout(400);
+    const ps = await people();
+    if (!ps.length || !ps.some(n => !prev.includes(n))) fails.push(`${W}x${H} i.1 paso ${i + 1}: personas ${ps} (paso anterior: ${prev})`);
+    if (i === 3) {
+      const off = await pg.waitForFunction(() => { const h = document.querySelector('three-d-stage')._scene.getObjectByName('halo_termico_0'); return h && !h.visible; }, null, { timeout: 40000 }).then(() => true, () => false);
+      if (!off) fails.push(`${W}x${H} i.1 paso 4: el halo no se apaga`);
+      await pg.screenshot({ path: join(shots, `${W}_integrada_i.1_paso4.png`) });
+    }
+    if (/soldadura|soplete/i.test(await shown())) fails.push(`${W}x${H} i.1 paso ${i + 1}: aparece «soldadura» o «soplete»`);
+    prev = ps;
+  }
   await pg.click('#spNext'); await pg.waitForTimeout(3000);
   if (!(await pg.evaluate(() => document.getElementById('spT').textContent.startsWith('i.2')))) fails.push(`${W}x${H} «Siguiente» desde i.1 no lleva a i.2`);
   await pg.evaluate(() => { const r = document.getElementById('abR'); r.value = 3; r.dispatchEvent(new Event('input', { bubbles: true })); });

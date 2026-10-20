@@ -168,3 +168,6 @@ export function buildTour() {
   }
   return { groups: G, A, arcs, tick };
 }
+
+// Piezas reutilizables (escenas de la vista integrada i.1)
+export { person, P, box, cyl };
