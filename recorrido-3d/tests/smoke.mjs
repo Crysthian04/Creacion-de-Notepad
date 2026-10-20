@@ -28,7 +28,7 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
       if (JSON.stringify(v) !== JSON.stringify(want)) fails.push(`VFD 80 %: ${v} ≠ ${want}`);
     }
     const ov = await pg.evaluate(() => { const d = document.getElementById('dock'); return d && d.scrollHeight - d.clientHeight; });
-    if (W >= 1920 && ov > 8) fails.push(`${W}x${H} parada ${k}: tarjetas desbordan ${ov}px`);
+    if (ov > 8) fails.push(`${W}x${H} parada ${k}: tarjetas desbordan ${ov}px`);
     await pg.screenshot({ path: join(shots, `${W}_parada_${k}.png`) });
   }
   if (!(await pg.evaluate(() => /no a escala/i.test(document.body.innerText)))) fails.push('Falta la nota "Modelo conceptual, no a escala"');

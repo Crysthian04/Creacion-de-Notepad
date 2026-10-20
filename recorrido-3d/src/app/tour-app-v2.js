@@ -163,14 +163,34 @@ function buildDock(s) {
   dock.innerHTML = ''; leaders.innerHTML = ''; docks = []; labels.forEach(l => { l.fb = null; });
   (CARDS[s] || []).forEach(([html, k]) => {
     const el = document.createElement('div'); el.className = 'card'; el.innerHTML = html; dock.appendChild(el);
+    const ch = el.querySelector('.ch'), cb = document.createElement('div'); cb.className = 'cb';
+    if (ch) { while (ch.nextSibling) cb.appendChild(ch.nextSibling); el.appendChild(cb); }
     const ln = document.createElementNS(NS, 'line'), c = document.createElementNS(NS, 'circle');
     ln.setAttribute('stroke', 'rgba(214,224,232,.5)'); ln.setAttribute('stroke-width', '1'); ln.setAttribute('stroke-dasharray', '3 3');
     c.setAttribute('r', '3.5'); c.setAttribute('fill', '#F1F4F6');
     if (!k) return;
     leaders.append(ln, c); docks.push({ el, a: anchorOf(k), ln, c });
   });
-  layoutDock();
+  layoutDock(); fitDock(0);
 }
+// Pantallas bajas (1366×768): si las tarjetas no caben, solo una queda abierta y las demás se pliegan a su encabezado
+function fitDock(open) {
+  const cards = [...dock.children].filter(c => !c.classList.contains('mini') && c.querySelector('.cb'));
+  cards.forEach(c => { c.classList.remove('fold'); const h = c.querySelector('.ch'); h.removeAttribute('role'); h.removeAttribute('tabindex'); h.removeAttribute('aria-expanded'); });
+  if (cards.length < 2 || dock.scrollHeight - dock.clientHeight <= 8) return;
+  cards.forEach((c, i) => {
+    const h = c.querySelector('.ch');
+    c.classList.toggle('fold', i !== open);
+    h.setAttribute('role', 'button'); h.tabIndex = 0; h.setAttribute('aria-expanded', i === open);
+  });
+}
+function unfold(h) {
+  const cards = [...dock.querySelectorAll('.card .ch[role=button]')].map(x => x.parentElement), c = h.parentElement;
+  if (!c.classList.contains('fold')) return;
+  cards.forEach(x => { x.classList.toggle('fold', x !== c); x.querySelector('.ch').setAttribute('aria-expanded', x === c); });
+}
+dock.addEventListener('click', e => { const h = e.target.closest('.ch[role=button]'); if (h) unfold(h); });
+dock.addEventListener('keydown', e => { const h = e.target.closest('.ch[role=button]'); if (h && (e.key === 'Enter' || e.key === ' ')) { unfold(h); e.preventDefault(); } });
 function layoutDock() {
   const hr = vp.getBoundingClientRect(), tb = vp.querySelector('.top').getBoundingClientRect(), bb = vp.querySelector('.bottom').getBoundingClientRect();
   dock.style.top = (tb.bottom - hr.top + 12) + 'px';
@@ -353,7 +373,7 @@ addEventListener('keydown', e => {
   const inField = e.target.closest && e.target.closest('input, textarea, select');
   if (/^[0-6]$/.test(e.key) && !(inField && e.target.type !== 'range')) { applyStop(ORDER[+e.key]); e.preventDefault(); }
 });
-new ResizeObserver(() => { layoutDock(); if (dock.children.length) offT = (dock.getBoundingClientRect().right - vp.getBoundingClientRect().left) / 2; }).observe(vp);
+new ResizeObserver(() => { layoutDock(); fitDock(Math.max(0, [...dock.querySelectorAll('.card:not(.mini)')].findIndex(c => c.querySelector('.ch[aria-expanded=true]')))); if (dock.children.length) offT = (dock.getBoundingClientRect().right - vp.getBoundingClientRect().left) / 2; }).observe(vp);
 
 // Etiquetas / pausa
 const tL = document.getElementById('tLabels'), tP = document.getElementById('tPause');
