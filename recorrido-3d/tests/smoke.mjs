@@ -45,6 +45,15 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   await pg.screenshot({ path: join(shots, `${W}_inspector.png`) });
   await pg.keyboard.press('Escape'); await pg.waitForTimeout(200);
   if (!(await pg.evaluate(() => document.getElementById('inspector').hidden))) fails.push(`${W}x${H} Esc no cierra el inspector`);
+  // Calculadora psicrométrica (valores por defecto 30 °C/75 % → 13 °C/100 %)
+  await pg.evaluate(() => { const d = document.getElementById('psy'); d.open = true; d.scrollIntoView(); });
+  await pg.waitForTimeout(300);
+  const psq = await pg.evaluate(() => [...document.querySelectorAll('#psQ b')].map(b => b.textContent.replace(/\s+/g, ' ').trim()));
+  const psWant = ['45.14 kJ/kg', '17.74 kJ/kg', '27.40 kJ/kg', '0.393'];
+  if (JSON.stringify(psq) !== JSON.stringify(psWant)) fails.push(`${W}x${H} psicrometría: ${psq} ≠ ${psWant}`);
+  if (!(await pg.evaluate(() => /no medidos en el Edificio 2/.test(document.getElementById('psy').innerText)))) fails.push('Falta el aviso de valores de ejemplo en la calculadora');
+  await pg.screenshot({ path: join(shots, `${W}_psicrometria.png`) });
+  await pg.evaluate(() => { document.getElementById('psy').open = false; });
   await pg.keyboard.press('5'); await pg.waitForTimeout(300);
   if (!(await pg.evaluate(() => document.querySelector('[data-stop="5"]').classList.contains('on')))) fails.push(`${W}x${H} el atajo 5 dejó de funcionar tras el inspector`);
   fails.push(...errs.map(e => `${W}x${H} ${e}`));

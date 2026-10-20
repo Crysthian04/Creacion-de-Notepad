@@ -4,6 +4,7 @@ import { buildTour } from 'app/tour-layers.js';
 import { STAMP, ICON, STOPS, CARDS, inspectorHTML } from 'app/tour-content.js';
 import { enrichSite } from 'app/site-v2.js';
 import { createSky } from 'app/sky-v2.js';
+import { coilProcess } from 'app/psychro.js';
 
 const stage = document.querySelector('three-d-stage');
 await stage.ready;
@@ -458,6 +459,24 @@ q('skPlay').onclick = () => { playing = !playing; syncSky(); };
 document.querySelectorAll('[data-wx]').forEach(b => b.onclick = () => { sky.set({ wx: b.dataset.wx }); syncSky(); });
 document.querySelectorAll('[data-spd]').forEach(b => b.onclick = () => { spd = +b.dataset.spd; syncSky(); });
 syncSky();
+
+// Calculadora psicrométrica (valores de ejemplo, no medidos)
+function syncPsy() {
+  const num = id => parseFloat(q(id).value), t1 = num('psT1'), r1 = num('psR1'), t2 = num('psT2'), r2 = num('psR2');
+  const ok = [t1, t2].every(t => t >= 0 && t <= 50) && [r1, r2].every(r => r >= 1 && r <= 100);
+  if (!ok) { q('psOut').innerHTML = q('psQ').innerHTML = ''; q('psNote').textContent = 'Usa temperaturas de 0 a 50 °C y humedad relativa de 1 a 100 %.'; return; }
+  const r = coilProcess({ t: t1, rh: r1 / 100 }, { t: t2, rh: r2 / 100 }), f = (x, d) => x == null ? '—' : x.toFixed(d);
+  q('psOut').innerHTML = `<span></span><span class="hd2">Entrada</span><span class="hd2">Salida</span>`
+    + [['Humedad absoluta W (g/kg)', s => f(s.W * 1000, 2)], ['Entalpía h (kJ/kg)', s => f(s.h, 2)], ['Punto de rocío (°C)', s => f(s.td, 1)]]
+      .map(([n, g]) => `<span>${n}</span><b>${g(r.s1)}</b><b>${g(r.s2)}</b>`).join('');
+  q('psQ').innerHTML = [['q total', r.qt, 2, 'kJ/kg'], ['q sensible', r.qs, 2, 'kJ/kg'], ['q latente', r.ql, 2, 'kJ/kg'], ['SHR', r.shr, 3, '']]
+    .map(([n, v, d, u]) => `<div>${n}<b>${f(v, d)}${u ? `&nbsp;<small>${u}</small>` : ''}</b></div>`).join('');
+  q('psNote').textContent = t2 >= t1 ? 'La salida no está más fría que la entrada: no es un proceso de enfriamiento.'
+    : !r.condenses ? 'La salida no tiene menos humedad que la entrada: no hay condensación, solo calor sensible (o el estado no es físico).'
+    : `Fracción latente con estos valores: ${f(r.ql / r.qt * 100, 0)} %.`;
+}
+['psT1', 'psR1', 'psT2', 'psR2'].forEach(id => { q(id).oninput = syncPsy; });
+syncPsy();
 
 // Bucle
 let simT = 0, flowT = 0, last = performance.now();

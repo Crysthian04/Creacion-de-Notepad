@@ -469,6 +469,20 @@
   .card .ch[role=button] h4::after { content: " ▾"; font-size: 11px; color: #8E9AA5; }
   .card.fold .ch { margin-bottom: 0; } .card.fold .ch h4::after { content: " ▸"; } .card.fold .cb { display: none; }
   .card.fold:hover { border-color: rgba(214,224,232,.45); }
+  .psy { border: 1px solid rgba(214,224,232,.18); padding: 8px 10px; margin-top: 4px; }
+  .psy summary { cursor: pointer; font: 500 11px "IBM Plex Mono", monospace; color: #C4CCD3; text-transform: uppercase; letter-spacing: .06em; }
+  .psy summary .st { margin-left: 6px; vertical-align: 1px; }
+  .psy[open] summary { margin-bottom: 8px; }
+  .psy-ex { margin: 0 0 8px; font-size: 11.5px; color: #F2C14E; }
+  .psy-in { display: grid; grid-template-columns: 1fr 64px 56px; gap: 5px 6px; align-items: center; font-size: 12px; }
+  .psy-in b { font: 500 9.5px "IBM Plex Mono", monospace; color: #7D8994; text-transform: uppercase; letter-spacing: .04em; }
+  .psy input { width: 100%; background: #22272C; color: #E6EBEF; border: 1px solid rgba(214,224,232,.22); font: 500 12px "IBM Plex Mono", monospace; padding: 4px 5px; border-radius: 2px; }
+  .psy-out { display: grid; grid-template-columns: 1fr auto auto; gap: 3px 10px; margin: 10px 0 6px; font-size: 12px; color: #A9B4BE; }
+  .psy-out b { font: 500 12px "IBM Plex Mono", monospace; color: #F1F4F6; text-align: right; } .psy-out .hd2 { font: 500 9.5px "IBM Plex Mono", monospace; color: #7D8994; text-transform: uppercase; text-align: right; }
+  .psy-q { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-bottom: 6px; }
+  .psy-q div { background: rgba(214,224,232,.06); padding: 5px 7px; font-size: 11px; color: #A9B4BE; }
+  .psy-q div b { display: block; font: 500 15px "IBM Plex Mono", monospace; color: #F1F4F6; }
+  .psy-q small { font-size: 10px; color: #7D8994; }
   .insp { border: 1px solid #F2C14E; background: rgba(242,193,78,.06); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
   .insp h2 { margin: 0; color: #F2C14E; }
   .insp h3 { margin: 4px 0 0; font-size: 20px; font-weight: 600; color: #F1F4F6; line-height: 1.2; }
@@ -589,6 +603,19 @@
         <p id="skResp"></p>
       </div>
       <p class="skfn">Posición del sol calculada para 9.02° N, 79.53° O. La carga y la respuesta del sistema son cualitativas: no hay datos horarios de carga del Edificio 2.</p>
+      <details class="psy" id="psy">
+        <summary>Calor sensible y latente <span class="st ilus">Ilustrativo</span></summary>
+        <p class="psy-ex">Valores de ejemplo, no medidos en el Edificio 2.</p>
+        <div class="psy-in">
+          <span></span><b>T bulbo seco (°C)</b><b>HR (%)</b>
+          <span>Entrada al serpentín</span><input type="number" id="psT1" min="0" max="50" step="0.5" value="30" aria-label="Temperatura de entrada"><input type="number" id="psR1" min="1" max="100" step="1" value="75" aria-label="Humedad relativa de entrada">
+          <span>Salida del serpentín</span><input type="number" id="psT2" min="0" max="50" step="0.5" value="13" aria-label="Temperatura de salida"><input type="number" id="psR2" min="1" max="100" step="1" value="100" aria-label="Humedad relativa de salida">
+        </div>
+        <div class="psy-out" id="psOut"></div>
+        <div class="psy-q" id="psQ"></div>
+        <p class="skfn" id="psNote"></p>
+        <p class="skfn">Por kg de aire seco, a 101.325&nbsp;kPa. Ecuaciones: ASHRAE Handbook—Fundamentals, cap. 1 (Psicrometría); p<sub>ws</sub> de Hyland-Wexler (ASHRAE, 2021). Con aire 100&nbsp;% exterior la parte latente es grande; en una UMA que recircula aire es menor, y el estudio no da la fracción de aire exterior del Edificio 2. El cálculo no cambia el consumo ni la carga del modelo: no hay un modelo de carga del Edificio 2.</p>
+      </details>
     </section>
     <section id="donutSec">
       <h2>Consumo eléctrico del edificio <span class="st real" style="margin-left:6px;vertical-align:1px">Dato real – Edificio 2</span></h2>
