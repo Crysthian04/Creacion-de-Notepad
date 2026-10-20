@@ -41,6 +41,7 @@ export function buildFalla({ m, halos, haloMat, irCam }) {
   // Paso 1 y 5 · inspector con la cámara termográfica (la cámara es la de la 5.2)
   const insp = worker('inspector_termografia'); g.add(insp); at([0, 4], insp);
   const hR = reach(insp, 1, 0.42, 1.3, 0.12); reach(insp, 0, 0.36, 1.22, -0.05); hR.visible = true;
+  const INSP_AT = V(U[0].x - 1.0, 0, (U[0].z + U[1].z) / 2), irCone = irCam.group.getObjectByName('campo_vision_ir');
 
   // Pasos 2 y 6 · oficina del primer alto con el monitor CMMS (como en la Parada 2)
   const office = new THREE.Group(); office.name = 'oficina_cmms'; g.add(office); at([1, 5], office);
@@ -113,9 +114,15 @@ export function buildFalla({ m, halos, haloMat, irCam }) {
     ins.forEach(c => { c.visible = put > 0; c.scale.set(1, Math.max(0.001, put), 1); c.material.opacity = 1 - 0.75 * clear; c.material.depthWrite = clear < 0.5; });
     haloMat.opacity = 1 - repaired; halos.forEach(h => { h.visible = repaired < 1; });
     sparks.forEach(s => { if (s) s.visible = repaired < 1; });
-    if (k === 0 || k === 4) { // el inspector sostiene la cámara termográfica
-      const c = irCam.group.position, d = irCam.group.getWorldDirection(V()).setY(0).normalize();
-      insp.position.set(c.x - d.x * 0.45, 0, c.z - d.z * 0.45); insp.rotation.y = Math.atan2(-d.z, d.x);
+    if (k === 0 || k === 4) {
+      // El inspector se queda en un punto fijo del lado libre (oeste) de la tubería, a ≈ 1.4 m de las uniones,
+      // y solo gira el cuerpo y la cámara de una unión a la otra (no camina sobre los tubos).
+      const w = 0.5 - 0.5 * Math.cos(ts * 0.9), aim = U[0].clone().lerp(U[1], w);
+      insp.position.copy(INSP_AT); insp.rotation.y = Math.atan2(-(aim.z - INSP_AT.z), aim.x - INSP_AT.x);
+      insp.updateMatrixWorld(true);
+      const cam = irCam.group; hR.getWorldPosition(cam.position); cam.lookAt(aim);
+      const l = Math.max(0.2, (cam.position.distanceTo(aim) - 0.2) / 1.6);
+      irCone.scale.set(l * 0.34, l, l * 0.34); irCone.position.set(0, 0.008, 0.13 + l / 2);
     }
     if (k === 1 || k === 5) { drawCMMS(k === 5); typing.forEach((h, i) => { h.position.y = 0.97 + (k === 1 ? 0.015 * Math.max(0, Math.sin(t * 16 + i * 2.1)) : 0); }); }
     // candado: aparece en el paso 3, sigue en el 4 y se retira al empezar el 5

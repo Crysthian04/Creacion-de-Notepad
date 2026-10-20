@@ -81,6 +81,25 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     const fixed = () => { const s = document.querySelector('three-d-stage')._scene, h = s.getObjectByName('halo_termico_0');
       const sl = [0, 1].map(j => s.getObjectByName('aislamiento_reparado_' + j));
       return !!h && !h.visible && sl.every(c => c && c.visible && c.scale.y > 0.99); };
+    // pasos 1 y 5: la caja del inspector no se cruza con ningún tramo de circuito_agua_helada (tubos ni funda), durante varios instantes
+    if (i === 0 || i === 4) for (let n = 0; n < 4; n++) {
+      if (n) await pg.waitForTimeout(1500);
+      const hit = await pg.evaluate(() => {
+        const s = document.querySelector('three-d-stage')._scene, insp = s.getObjectByName('inspector_termografia');
+        const g0 = insp.children.find(c => c.isMesh).geometry; g0.computeBoundingBox(); const Box = g0.boundingBox.clone().makeEmpty(); // Box3 sin importar three
+        insp.updateMatrixWorld(true);
+        const bi = Box.clone().setFromObject(insp), out = [];
+        s.getObjectByName('circuito_agua_helada').traverse(o => {
+          if (!o.isMesh) return;
+          if (o.isInstancedMesh) {
+            o.geometry.computeBoundingBox(); const m = o.matrix.clone();
+            for (let j = 0; j < o.count; j++) { o.getMatrixAt(j, m); m.premultiply(o.matrixWorld); if (o.geometry.boundingBox.clone().applyMatrix4(m).intersectsBox(bi)) out.push(o.name + '#' + j); }
+          } else if (/_tramo|_codo/.test(o.name) && Box.clone().setFromObject(o).intersectsBox(bi)) out.push(o.name);
+        });
+        return out;
+      });
+      if (hit.length) { fails.push(`${W}x${H} i.1 paso ${i + 1}: el inspector se cruza con ${hit.slice(0, 4)}`); break; }
+    }
     if (i === 0) { if (await pg.evaluate(fixed)) fails.push(`${W}x${H} i.1 paso 1: la separación del aislamiento ya aparece cerrada`); await pg.screenshot({ path: join(shots, `${W}_integrada_i.1_aislamiento.png`) }); }
     if (i === 3) {
       const off = await pg.waitForFunction(fixed, null, { timeout: 40000 }).then(() => true, () => false);
