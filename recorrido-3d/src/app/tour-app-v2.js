@@ -106,8 +106,8 @@ labels[labels.length - 1].cond = () => abStage === 0;
 label(A.thermal, 'Uniones con deterioro', 'Detectadas en la auditoría energética', 'heat', 'all', { stops: ['i'], stamp: 'real', down: true, stem: 30, dx: 80, prio: 1 });
 labels[labels.length - 1].cond = () => fallaRep < 1 && falla.k !== 1 && falla.k !== 5;
 const atStep = (ks, ...args) => { label(...args); labels[labels.length - 1].cond = () => ks.includes(falla.k); };
-atStep([1], FS.A.cmms, 'CMMS · orden de trabajo', 'Estado: abierta', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 30, prio: 1 });
-atStep([5], FS.A.cmms, 'CMMS · orden de trabajo', 'Estado: cerrada', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 30, prio: 1 });
+atStep([1], FS.A.cmms, 'CMMS · orden de trabajo', 'AF-UNION-01 · Estado: programada', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 30, prio: 1 });
+atStep([5], FS.A.cmms, 'CMMS · orden de trabajo', 'AF-UNION-01 · Estado: cerrada', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 30, prio: 1 });
 atStep([2], FS.A.lock, 'Candado y tarjeta', 'Técnico eléctrico · NFPA 70E', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 40, dx: 60, prio: 1 });
 atStep([2], FS.A.valve, 'Válvula de corte cerrada', 'Purga de presiones', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 34, dx: -60, prio: 1 });
 atStep([0], FS.A.insul, 'Aislamiento térmico (translúcido para ver la tubería)', '', '', 'all', { stops: ['i'], stamp: 'ilus', stem: 40, dx: -140, prio: 2 });
@@ -579,6 +579,7 @@ function showStep(k, move = true) {
   const dots = document.getElementById('fDots');
   if (dots) dots.innerHTML = FALLA.map((x, i) => `<button class="fdot${i === falla.k ? ' on' : ''}" data-step="${i}" aria-label="Paso ${i + 1}">${i + 1}</button>`).join('');
   syncPlay();
+  const fc = box?.closest('.card'); if (fc) { dock.scrollTop = 0; const ot = box.querySelector('.ot'); if (ot) ot.scrollTop = 0; }
   [...document.getElementById('spB').children].forEach((li, i) => li.classList.toggle('cur', i === falla.k));
   FS.setStep(falla.k);
   TOOLS['5.2'].group.visible = stop === 'i' && (falla.k === 0 || falla.k === 4); // pasos 1 y 5: cámara termográfica sobre las uniones

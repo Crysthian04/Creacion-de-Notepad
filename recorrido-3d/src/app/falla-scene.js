@@ -62,10 +62,10 @@ export function buildFalla({ m, halos, haloMat, irCam }) {
     cx.fillStyle = '#0F1A22'; cx.fillRect(0, 0, 512, 316);
     cx.fillStyle = '#7FB4D6'; cx.font = '600 24px "IBM Plex Mono", monospace'; cx.fillText('CMMS · Orden de trabajo', 20, 40);
     cx.font = '500 19px "IBM Plex Mono", monospace';
-    [['Código', '—'], ['Síntoma', 'deterioro en uniones'], ['', 'de la tubería de agua fría'], ['Prioridad', 'según el planificador'], ['Ventana', 'coordinada con usuarios']]
+    [['Código', 'AF-UNION-01'], ['Tipo', 'Correctivo planificado'], ['Síntoma', 'deterioro en uniones'], ['Prioridad', 'Media'], ['Ventana', 'fuera de clases']]
       .forEach(([k, v], i) => { cx.fillStyle = '#8B949B'; cx.fillText(k, 20, 88 + i * 34); cx.fillStyle = '#E6EBEF'; cx.fillText(v, 150, 88 + i * 34); });
-    cx.fillStyle = closed ? '#4FAE5B' : '#F2C14E'; cx.fillRect(20, 262, 200, 38);
-    cx.fillStyle = '#0F1A22'; cx.font = '600 20px "IBM Plex Sans", sans-serif'; cx.fillText(closed ? 'Estado: Cerrada' : 'Estado: Abierta', 34, 288);
+    cx.fillStyle = closed ? '#4FAE5B' : '#F2C14E'; cx.fillRect(20, 262, 236, 38);
+    cx.fillStyle = '#0F1A22'; cx.font = '600 20px "IBM Plex Sans", sans-serif'; cx.fillText(closed ? 'Estado: Cerrada' : 'Estado: Programada', 34, 288);
     tex.needsUpdate = true;
   }
   document.fonts && document.fonts.ready.then(() => { screenState = ''; });

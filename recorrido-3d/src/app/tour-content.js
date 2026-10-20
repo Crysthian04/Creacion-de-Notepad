@@ -6,6 +6,7 @@ export const STAMP = {
   sup: '<span class="st ilus">Supuesto del grupo – horario general de la UTP</span>',
   obs: '<span class="st ilus">Observación del grupo – no medido</span>',
   resIlus: '<span class="st ilus">Resultado ilustrativo: así se vería una reparación efectiva</span>',
+  otEj: '<span class="st ilus">Ejemplo ilustrativo – formato de la INV2 (pp. 19–20, 30)</span>',
   split: '<span class="st ilus">Ilustrativo – plan de la INV2 (split de referencia de 12,000 BTU/h)</span>',
 };
 const tri = '<path d="M10 1.8 L19 17.2 H1 Z" fill="rgba(242,193,78,.12)" stroke="#F2C14E" stroke-width="1.6" stroke-linejoin="round"/>';
@@ -207,8 +208,8 @@ export const CARDS = {
     [head('Dron en ductos · caso hipotético', 'ilus') + `Un cuadricóptero dentro de una jaula esférica recorre un ducto rectangular: rueda por el piso, vuela para pasar el codo y barre las paredes con una cámara térmica.<p class="fn">(Khalil et al., 2024)</p>`, 'drone'],
   ],
   // i.1: la tarjeta se llena con FALLA[paso] desde tour-app (sin anclaje, para que siga visible en el modo «al pasar»)
-  i: [[`<div class="ch"><h4>Una falla de punta a punta</h4></div><div id="falla"></div>
-      <div class="fctl"><button class="btn" id="fPrev" aria-label="Paso anterior">◀</button><button class="btn pl" id="fPlay">Reproducir</button><button class="btn" id="fNext" aria-label="Paso siguiente">▶</button><span class="fdots" id="fDots"></span></div>`, null]],
+  i: [[`<div class="ch"><h4>Una falla de punta a punta</h4></div>
+      <div class="fctl"><button class="btn" id="fPrev" aria-label="Paso anterior">◀</button><button class="btn pl" id="fPlay">Reproducir</button><button class="btn" id="fNext" aria-label="Paso siguiente">▶</button><span class="fdots" id="fDots"></span></div><div id="falla"></div>`, null]],
   'i.2': [
     [`<div class="ch"><h4>Antes / después</h4></div><input type="range" id="abR" min="0" max="3" step="1" value="0" aria-label="Antes / después">
       <div class="abl"><span>Antes</span><span>Etapa 1</span><span>Etapa 2</span><span>Etapa 3</span></div><div id="abS"></div>
@@ -302,17 +303,35 @@ export const GLB_LABEL = 'Descargar GLB (con clases IFC como metadatos)';
 // ---------------------------------------------------------------- Vista integrada (Fase 2.6)
 // i.1 · Una falla de punta a punta: 6 pasos, cada uno con su investigación y su fuente (docs/FUENTES_COMPENDIO.md)
 const ol = items => `<ol class="fol">${items.map(t => `<li>${t}</li>`).join('')}</ol>`;
-const ot = rows => `<div class="ot">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}</div>`;
+// Orden de trabajo de ejemplo (ilustrativa), con el formato y los campos de la INV2 (pp. 19–20, 30). Sin cifras de duración, costo ni cantidades.
+export const OT = [
+  ['Código', 'AF-UNION-01 (formato ilustrativo, como «A/A-SPLIT-01» de la p. 30)'],
+  ['Tipo de trabajo', 'Correctivo planificado (INV2, p. 16)'],
+  ['Equipo / ubicación', 'Tubería de agua fría que alimenta el edificio · uniones del suministro'],
+  ['Síntoma', 'Deterioro en uniones de la tubería de agua fría, detectado por termografía'],
+  ['Prioridad', 'Media: puede incorporarse al programa ordinario (criterio INV2, p. 20)'],
+  ['Alcance', 'Rehacer la unión y reponer su aislamiento; verificar con termografía'],
+  ['Riesgos y controles', 'Eléctrico (tablero) y energía hidráulica/térmica (agua a presión) → LOTO con candado por técnico; EPP según la tarea (INV4)'],
+  ['Personal', '1 técnico eléctrico y 1 técnico mecánico'],
+  ['Herramientas', 'Cámara termográfica, candados y tarjetas LOTO, herramientas manuales'],
+  ['Materiales', 'Aislamiento térmico para tubería, juntas de la unión y sellador del aislamiento'],
+  ['Duración estimada', 'A estimar por el planificador'],
+  ['Ventana de parada', 'Fuera del horario de clases (después de las 11:30 p.&nbsp;m. o antes de las 7:00 a.&nbsp;m.), coordinada con los usuarios'],
+  ['Criterio de cierre', 'Unión sin fuga, aislamiento continuo y termografía sin anomalía en la unión'],
+];
+export const OT_CIERRE = [
+  ['Causa probable', 'Deterioro de la unión y de su aislamiento (ilustrativo)'],
+  ['Tiempo real', 'Se registra al cerrar'],
+  ['Recomendaciones', 'Incluir las uniones en la inspección termográfica del plan; programar mediciones posteriores (INV5, p. 61)'],
+];
+const ot = (rows, estado) => `<div class="ot">${rows.map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')}<span>Estado</span><b class="ote" id="otEstado">${estado}</b></div>`;
 export const FALLA = [
   { inv: 'INV3', t: 'Detectar', st: 'real', pose: { pos: [-6.5, 4.6, -13.5], tgt: [-10.8, 0.9, -6.2] },
     html: 'La termografía infrarroja de la auditoría energética detectó deterioro en las uniones de la tubería de agua fría, en una sola inspección y sin monitoreo permanente.',
     src: '(Henríquez Espinosa et al., 2021) · INV3, pp. 35–36' },
-  { inv: 'INV2', t: 'Registrar, planificar y programar', st: 'ilus', pose: { pos: [-15.4, 6.0, 6.6], tgt: [-18.3, 4.5, 2.3] },
-    html: 'Orden de trabajo en el CMMS (pasos 1–4: detectar → registrar → planificar → programar):' + ot([
-      ['Código', '—'], ['Síntoma', 'deterioro en uniones de la tubería de agua fría'], ['Ubicación', '—'],
-      ['Prioridad', 'crítica / alta / media / baja, según el criterio del planificador'], ['Alcance', '—'], ['Riesgos', '—'], ['Repuestos', '—'],
-      ['Ventana de parada', 'coordinada con los usuarios']]),
-    src: 'INV2, p. 20' },
+  { inv: 'INV2', t: 'Registrar, planificar y programar', st: 'otEj', pose: { pos: [-15.4, 6.0, 6.6], tgt: [-18.3, 4.5, 2.3] },
+    html: 'Orden de trabajo en el CMMS (pasos 1–4: detectar → registrar → planificar → programar):' + ot(OT, 'Programada'),
+    src: 'INV2, pp. 16, 19–20, 30 · INV4' },
   { inv: 'INV4', t: 'Bloquear energías (LOTO)', st: 'ilus', pose: { pos: [-9.2, 4.2, -15.2], tgt: [-15.0, 0.9, -8.9] },
     html: '<b>Técnico eléctrico</b>, en el tablero: coloca candado y tarjeta. EPP: guantes dieléctricos clase 00, gafas de seguridad, calzado dieléctrico y ropa ignífuga contra arco (NFPA 70E; INV4, p. 46).<br><b>Técnico mecánico</b>, en la válvula de corte del suministro: energía hidráulica y térmica: válvulas cerradas y purga de presiones (lista LOTO, p. 48).',
     src: 'LOTO: preparar → apagar → aislar → candado y tarjeta por técnico → disipar la energía residual → verificar (OSHA 1910.147; INV4, p. 47)' },
@@ -322,9 +341,10 @@ export const FALLA = [
   { inv: 'INV2 · INV3', t: 'Probar y verificar', st: 'resIlus', pose: { pos: [-6.5, 4.6, -13.5], tgt: [-10.8, 0.9, -6.2] },
     html: 'Se retiran candado y tarjeta, y la cámara termográfica vuelve a la unión: ya no hay anomalía. Probar el equipo y registrar mediciones.',
     src: 'INV2, paso 6, p. 20' },
-  { inv: 'INV2 · INV5', t: 'Cerrar y dar seguimiento', st: 'ilus', pose: { pos: [-15.4, 6.0, 6.6], tgt: [-18.3, 4.5, 2.3] },
-    html: 'La orden pasa a «Cerrada» en el CMMS: causa probable, materiales, tiempo real y recomendaciones; actualizar el historial (INV2, paso 7, p. 20). Programar mediciones posteriores para verificar el resultado (ASHRAE, 2023; INV5, p. 61).<div class="qs" style="margin-top:6px"><button class="btn" data-go="i.3">Plan de 2 años (i.3) →</button></div>',
-    src: 'INV2, p. 20 · INV5, p. 61' },
+  { inv: 'INV2 · INV5', t: 'Cerrar y dar seguimiento', st: 'otEj', pose: { pos: [-15.4, 6.0, 6.6], tgt: [-18.3, 4.5, 2.3] },
+    html: 'La misma orden pasa a «Cerrada» en el CMMS: causa probable, materiales, tiempo real y recomendaciones; actualizar el historial (INV2, paso 7, p. 20). Programar mediciones posteriores para verificar el resultado (ASHRAE, 2023; INV5, p. 61).' + ot([...OT, ...OT_CIERRE], 'Cerrada')
+      + '<div class="qs" style="margin-top:6px"><button class="btn" data-go="i.3">Plan de 2 años (i.3) →</button></div>',
+    src: 'INV2, pp. 19–20, 30 · INV5, p. 61' },
 ];
 
 // i.2 · Antes / después: el deslizador recorre el estado de 2021 y las 3 etapas del caso hipotético de la INV3 (p. 37)

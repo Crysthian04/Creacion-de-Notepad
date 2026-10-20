@@ -107,6 +107,13 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
       await pg.screenshot({ path: join(shots, `${W}_integrada_i.1_paso4.png`) });
     }
     if (i === 4 && !(await pg.evaluate(fixed))) fails.push(`${W}x${H} i.1 paso 5: vuelven el halo o la separación del aislamiento`);
+    if (i === 1 || i === 5) {
+      const want = i === 1 ? 'Programada' : 'Cerrada', ot = await pg.evaluate(() => [document.getElementById('otEstado')?.textContent, document.getElementById('falla').innerText]);
+      if (ot[0] !== want || !/AF-UNION-01/.test(ot[1]) || !/Ejemplo ilustrativo/i.test(ot[1])) fails.push(`${W}x${H} i.1 paso ${i + 1}: la OT no muestra el estado «${want}», el código o el sello`);
+      if (i === 5 && !/Causa probable/i.test(ot[1])) fails.push(`${W}x${H} i.1 paso 6: faltan los campos de cierre de la OT`);
+      const lblOk = await pg.waitForFunction(w => new RegExp('Estado: ' + w, 'i').test(document.getElementById('labels').innerText), want, { timeout: 20000 }).then(() => true, () => false);
+      if (!lblOk) fails.push(`${W}x${H} i.1 paso ${i + 1}: la etiqueta del monitor no dice «${want}»`);
+    }
     if (/soldadura|soplete/i.test(await shown())) fails.push(`${W}x${H} i.1 paso ${i + 1}: aparece «soldadura» o «soplete»`);
     prev = ps;
   }
