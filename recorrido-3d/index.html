@@ -338,7 +338,6 @@
   .btn { appearance: none; border: 1px solid transparent; background: transparent; color: #AEB8C1; font: 500 12px/1 "IBM Plex Mono", monospace; padding: 8px 11px; border-radius: 2px; cursor: pointer; }
   .btn:hover { color: #fff; background: rgba(214,224,232,.06); }
   .btn.on { color: #fff; background: #2A3036; border-color: rgba(214,224,232,.25); }
-  .seg.mode .btn.on[data-mode="prop"] { border-color: #29A9E0; color: #BFE7F8; background: rgba(41,169,224,.14); }
   .bottom { position: absolute; left: 18px; bottom: 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; max-width: calc(100% - 400px); }
   .ctrls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .ctrls .k { font: 400 10px "IBM Plex Mono", monospace; color: #7D8994; text-transform: uppercase; letter-spacing: .08em; margin-right: 2px; }
@@ -493,6 +492,12 @@
   .subbar .btn { padding: 7px 10px; font-size: 12px; }
   .subbar .btn.on { background: #F1F4F6; color: #16191C; border-color: #F1F4F6; }
   .card .arst { font: 500 12.5px/1.4 "IBM Plex Mono", monospace; color: #BFE7F8; background: rgba(41,169,224,.1); border: 1px solid rgba(41,169,224,.4); padding: 6px 8px; margin-bottom: 6px; }
+  .card.intro { width: clamp(260px, 22vw, 330px); }
+  .card .ib { border-top: 1px solid rgba(214,224,232,.12); padding-top: 7px; margin-top: 7px; }
+  .card .ib .st { display: inline-block; margin-bottom: 4px; }
+  .card .ib b { display: block; font-size: 12.5px; color: #F1F4F6; margin-bottom: 2px; }
+  .card .route { display: flex; flex-wrap: wrap; gap: 3px 8px; font: 500 11.5px "IBM Plex Mono", monospace; color: #C4CCD3; }
+  .card .route span b { display: inline; color: #F2C14E; font-size: 11.5px; margin-right: 3px; }
   .psy { border: 1px solid rgba(214,224,232,.18); padding: 8px 10px; margin-top: 4px; }
   .psy summary { cursor: pointer; font: 500 11px "IBM Plex Mono", monospace; color: #C4CCD3; text-transform: uppercase; letter-spacing: .06em; }
   .psy summary .st { margin-left: 6px; vertical-align: 1px; }
@@ -561,10 +566,6 @@
     <div class="top">
       <div class="row1">
         <div class="tr">
-          <div class="seg mode" role="group" aria-label="Modo">
-            <button class="btn on" data-mode="actual">Estado actual</button>
-            <button class="btn" data-mode="prop">Propuesta (caso hipotético)</button>
-          </div>
           <nav class="seg subbar" id="subbar" aria-label="Parada 5 · Innovación" hidden="">
             <button class="btn" data-stop="5">5.1 Monitoreo IoT</button>
             <button class="btn" data-stop="5.2">5.2 Termografía</button>
@@ -689,16 +690,6 @@
         <div class="row"><span class="sw ln" style="background:#C87533"></span><span>Retorno de agua helada</span></div>
         <div class="row"><span class="sw" style="background:#FF6A2B;border-radius:50%;width:12px"></span><span>Punto con deterioro (termografía)</span></div>
         <div class="row"><span class="sw" style="background:#E3A857;width:12px"></span><span>Mini-split añadido tras el diseño</span></div>
-        <div class="row" data-prop="" hidden=""><span class="sw" style="background:#29A9E0;width:12px;transform:rotate(45deg) scale(.75)"></span><span>Sensor IoT (hipotético)</span></div>
-        <div class="row" data-prop="" hidden=""><span class="sw ln" style="background:#29A9E0;opacity:.6"></span><span>Flujo de datos</span></div>
-      </div>
-    </section>
-    <section data-prop="" hidden="">
-      <h2>Propuesta · caso hipotético</h2>
-      <div class="pbox">
-        <strong>Sensores IoT</strong> en el chiller y en las 16 UMA: temperatura de suministro y retorno, presión diferencial en filtros y corriente del ventilador.<br><br>
-        Datos → <strong>Plataforma de integración / BMS</strong> (existente o a instalar) → <strong>IA: detección de anomalías</strong> y <strong>Modelo BIM</strong>.<br><br>
-        <strong>Piloto, etapa 1:</strong> UMA.
       </div>
     </section>
     <section>

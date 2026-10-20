@@ -191,8 +191,8 @@ const anchorOf = k => B[k] || A[k] || TA[k];
 function buildDock(s) {
   closePop();
   dock.innerHTML = ''; leaders.innerHTML = ''; docks = []; labels.forEach(l => { l.fb = null; });
-  (CARDS[s] || []).forEach(([html, k]) => {
-    const el = document.createElement('div'); el.className = 'card'; el.innerHTML = html; dock.appendChild(el);
+  (CARDS[s] || []).forEach(([html, k, cls]) => {
+    const el = document.createElement('div'); el.className = 'card' + (cls ? ' ' + cls : ''); el.innerHTML = html; dock.appendChild(el);
     const ch = el.querySelector('.ch'), cb = document.createElement('div'); cb.className = 'cb';
     if (ch) { while (ch.nextSibling) cb.appendChild(ch.nextSibling); el.appendChild(cb); }
     const ln = document.createElementNS(NS, 'line'), c = document.createElementNS(NS, 'circle');
@@ -386,11 +386,8 @@ function setMode(md) {
   mode = md;
   m.prop.visible = md === 'prop'; dataFlow.im.visible = md === 'prop';
   refreshLabels();
-  document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === md));
-  document.querySelectorAll('[data-prop]').forEach(e => e.hidden = md !== 'prop');
   if (md === 'prop' && currentView !== 'superior') goView(currentView);
 }
-document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => setMode(b.dataset.mode));
 
 // Cámara
 const VIEWS = {
@@ -595,7 +592,6 @@ function applyStop(s) {
   ctl.minDistance = s === '5.3' || s === '5.4' ? 1.2 : 6;
   document.getElementById('subbar').hidden = !isFive(s);
   arcFlow.im.visible = s === 'i';
-  vp.querySelector('.seg.mode').hidden = !g;
   vp.querySelectorAll('[data-gen]').forEach(e => e.hidden = !g);
   document.querySelectorAll('[data-stop]').forEach(b => b.classList.toggle('on', b.dataset.stop === s || (!!b.closest('.tourbar') && b.dataset.stop === '5' && isFive(s))));
   panel(s); navLabels(s);

@@ -119,6 +119,11 @@ export const STOPS = {
 const head = (t, st) => `<div class="ch"><h4>${t}</h4>${STAMP[st]}</div>`;
 // [html, anchorKey]
 export const CARDS = {
+  // Vista general = introducción (INV3, p. 36; contexto de Panamá, p. 33 y p. 9)
+  g: [[`<div class="ch"><h4>Introducción</h4></div>
+      <div class="ib" style="border:0;margin:0;padding:0">${STAMP.real}<b>El Edificio 2 (Postgrado)</b>Chiller enfriado por aire de 155&nbsp;TR · 16&nbsp;UMA en sus tres pisos · mini-splits inverter de 12,000 a 60,000&nbsp;BTU/h, instalados por modificaciones posteriores al diseño original.<p class="fn">(Henríquez Espinosa et al., 2021)</p></div>
+      <div class="ib">${STAMP.ilus}<b>Por qué importa</b>En Panamá, el aire acondicionado es el mayor consumidor de energía en muchas edificaciones, y el sector RAC representa el 42&nbsp;% del consumo eléctrico nacional.<p class="fn">(Chen Austin et al., 2021; Henríquez Espinosa et al., 2021; MINSA/UNO y PNUD, 2020)</p></div>
+      <div class="ib"><b>El recorrido</b><div class="route"><span><b>1</b>Seguridad</span><span><b>2</b>Planificación</span><span><b>3</b>Refrigerantes</span><span><b>4</b>Energía</span><span><b>5</b>Innovación</span></div></div>`, null, 'intro']],
   1: [[head('LOTO – OSHA 29 CFR 1910.147', 'ilus') + `<p class="fn" style="margin:0 0 6px">Candado y tarjeta en el tablero del chiller</p><ol>
       <li>Preparar</li><li>Apagar</li><li>Aislar</li><li>Bloquear y etiquetar</li><li>Disipar energía residual</li><li>Verificar</li></ol>`, 'lock'],
     [head('Riesgos', 'ilus') + `<div class="rk"><span>${ICON.elec}Eléctrico</span><span>${ICON.pres}Presión</span><span>${ICON.term}Térmico</span><span>${ICON.alt}Alturas</span></div>`, 'hot']],
