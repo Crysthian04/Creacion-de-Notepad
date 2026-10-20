@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edificio 2 (Postgrado) · Recorrido integrado v3 · Clima y hora</title>
+<style>/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-400-cyrillic-ext.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-400-cyrillic.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-400-vietnamese.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-400-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-400-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-500-cyrillic-ext.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-500-cyrillic.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-500-vietnamese.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-500-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-mono-500-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-400-cyrillic-ext.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-400-cyrillic.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-400-greek.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-400-vietnamese.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-400-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-400-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-500-cyrillic-ext.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-500-cyrillic.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-500-greek.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-500-vietnamese.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-500-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-500-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-600-cyrillic-ext.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-600-cyrillic.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-600-greek.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-600-vietnamese.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-600-latin-ext.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url("assets/fonts/ibm-plex-sans-600-latin.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- DEV: abrir con un servidor local (npm run dev). La versión de una sola pieza, offline, la genera npm run build. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three.module.js",
+    "three/core": "./vendor/three.core.js",
+    "three/addons/controls/OrbitControls.js": "./vendor/addons/controls/OrbitControls.js",
+    "three/addons/exporters/OBJExporter.js": "./vendor/addons/exporters/OBJExporter.js",
+    "three/addons/exporters/GLTFExporter.js": "./vendor/addons/exporters/GLTFExporter.js",
+    "app/": "./src/app/"
+  }
+}
+</script>
+<script src="./src/stage/three-d-stage.js"></script>
+<script type="module" src="./src/main.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #1C1F22; color: #D5DCE2; font-family: "IBM Plex Sans", system-ui, sans-serif; }
+  a { color: #29A9E0; } a:hover { color: #7FD1F5; }
+  .app { display: grid; grid-template-columns: minmax(0, 1fr) clamp(260px, 24vw, 320px); grid-template-rows: auto minmax(0, 1fr); height: 100vh; }
+  .hd { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap; padding: 9px 18px; border-bottom: 1px solid rgba(214,224,232,.12); background: #191C1F; }
+  .hd .title h1 { font-size: 17px; }
+  .vp { position: relative; overflow: hidden; min-height: 0; }
+  three-d-stage { height: 100%; --stage-bg:
+    linear-gradient(rgba(214,224,232,.055) 1px, transparent 1px) 0 0/120px 120px,
+    linear-gradient(90deg, rgba(214,224,232,.055) 1px, transparent 1px) 0 0/120px 120px,
+    linear-gradient(rgba(214,224,232,.025) 1px, transparent 1px) 0 0/24px 24px,
+    linear-gradient(90deg, rgba(214,224,232,.025) 1px, transparent 1px) 0 0/24px 24px,
+    #1C1F22; }
+  three-d-stage:not(:defined) { visibility: hidden; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  #labels.off { display: none; }
+  .lbl { position: absolute; left: 0; top: 0; will-change: transform; display: flex; flex-direction: column; align-items: center; }
+  .lbl .box { font: 500 10.5px/1.3 "IBM Plex Mono", monospace; color: #E6EBEF; background: rgba(22,25,28,.86); border: 1px solid rgba(214,224,232,.22); padding: 4px 7px; border-radius: 2px; white-space: nowrap; text-align: center; }
+  .lbl .box small { display: block; font-size: 10px; color: #9AA6B1; font-weight: 400; }
+  .lbl .stem { width: 1px; height: 16px; background: rgba(214,224,232,.4); }
+  .lbl .dot { width: 5px; height: 5px; border-radius: 50%; background: #E6EBEF; margin-top: -1px; }
+  .lbl.tag .box { border-color: #E3A857; } .lbl.tag .box small { color: #E3A857; }
+  .lbl.heat .box { border-color: #FF6A2B; } .lbl.heat .dot { background: #FF6A2B; }
+  .lbl.cyan .box { border-color: #29A9E0; color: #BFE7F8; background: rgba(10,30,42,.88); } .lbl.cyan .box small { color: #7FC9EA; } .lbl.cyan .stem { background: rgba(41,169,224,.6); } .lbl.cyan .dot { background: #29A9E0; }
+  .lbl.down { flex-direction: column-reverse; } .lbl.down .dot { margin: 0 0 -1px; }
+  .lbl.floor .box { background: transparent; border: none; color: #8E9AA5; letter-spacing: .08em; text-transform: uppercase; font-size: 10px; }
+  .lbl.floor .stem, .lbl.floor .dot { display: none; }
+  .top { position: absolute; top: 16px; left: 18px; right: 18px; display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; pointer-events: none; }
+  .top > * { pointer-events: auto; }
+  .title h1 { margin: 0; font-size: 19px; font-weight: 600; color: #F1F4F6; letter-spacing: -.005em; }
+  .title p { margin: 3px 0 0; font: 400 11px/1.4 "IBM Plex Mono", monospace; color: #8E9AA5; }
+  .seg { display: flex; border: 1px solid rgba(214,224,232,.22); border-radius: 3px; background: rgba(22,25,28,.85); padding: 2px; gap: 2px; }
+  .btn { appearance: none; border: 1px solid transparent; background: transparent; color: #AEB8C1; font: 500 12px/1 "IBM Plex Mono", monospace; padding: 8px 11px; border-radius: 2px; cursor: pointer; }
+  .btn:hover { color: #fff; background: rgba(214,224,232,.06); }
+  .btn.on { color: #fff; background: #2A3036; border-color: rgba(214,224,232,.25); }
+  .seg.mode .btn.on[data-mode="prop"] { border-color: #29A9E0; color: #BFE7F8; background: rgba(41,169,224,.14); }
+  .bottom { position: absolute; left: 18px; bottom: 16px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; max-width: calc(100% - 400px); }
+  .ctrls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .ctrls .k { font: 400 10px "IBM Plex Mono", monospace; color: #7D8994; text-transform: uppercase; letter-spacing: .08em; margin-right: 2px; }
+  .note { font: 500 11.5px/1.45 "IBM Plex Mono", monospace; color: #E6EBEF; background: rgba(22,25,28,.9); border: 1px solid rgba(214,224,232,.22); border-left: 3px solid #E3A857; padding: 7px 10px; text-wrap: pretty; }
+  .hint { font: 400 10.5px "IBM Plex Mono", monospace; color: #7D8994; }
+  aside { border-left: 1px solid rgba(214,224,232,.12); background: #191C1F; overflow-y: auto; padding: 22px 22px 28px; display: flex; flex-direction: column; gap: 26px; }
+  aside h2 { margin: 0 0 12px; font: 500 10.5px "IBM Plex Mono", monospace; color: #8E9AA5; text-transform: uppercase; letter-spacing: .1em; }
+  .donut { display: block; width: 100%; max-width: 230px; margin: 0 auto; }
+  .rows { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .row { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+  .row b { font: 500 13px "IBM Plex Mono", monospace; color: #F1F4F6; }
+  .sw { width: 12px; height: 12px; border-radius: 1px; }
+  .sw.ln { height: 4px; border-radius: 2px; }
+  .sub { font-size: 12px; color: #8E9AA5; line-height: 1.5; margin: 10px 0 0; text-wrap: pretty; }
+  .legend .row { font-size: 12.5px; grid-template-columns: 18px 1fr; }
+  .legend .row .sw { width: 18px; }
+  .pbox { border: 1px solid rgba(41,169,224,.45); background: rgba(41,169,224,.07); padding: 12px; font-size: 12.5px; line-height: 1.5; }
+  .pbox strong { color: #BFE7F8; font-weight: 500; }
+  .unk { font-size: 12px; line-height: 1.55; color: #A9B4BE; margin: 0; padding-left: 16px; }
+  .src { font: 400 10.5px/1.5 "IBM Plex Mono", monospace; color: #7D8994; }
+  [hidden] { display: none !important; }
+  .app.touring { grid-template-columns: minmax(0, 1fr) clamp(280px, 26vw, 400px); }
+  .top { flex-direction: column; align-items: stretch; gap: 10px; right: 290px; }
+  .row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .row1 > * { pointer-events: auto; }
+  .tr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .stlegend { display: flex; gap: 6px; align-items: center; font: 400 10px "IBM Plex Mono", monospace; color: #8E9AA5; background: rgba(22,25,28,.85); border: 1px solid rgba(214,224,232,.16); padding: 5px 7px; border-radius: 3px; }
+  .stlegend .st { margin: 0; }
+  .tourbar { flex-wrap: wrap; }
+  .tourbar .btn { display: flex; align-items: baseline; gap: 5px; padding: 8px 10px; font-size: 12.5px; }
+  .tourbar .btn small { font-size: 10px; color: #7D8994; }
+  .tourbar .btn .n { font-weight: 600; color: #F1F4F6; }
+  .tourbar .btn.on { background: #F1F4F6; color: #16191C; border-color: #F1F4F6; }
+  .tourbar .btn.on small, .tourbar .btn.on .n { color: #16191C; }
+  .tourbar .kh { font: 400 10px "IBM Plex Mono", monospace; color: #6E7A85; align-self: center; padding: 0 8px; }
+  .st { display: inline-block; font: 600 9px/1 "IBM Plex Mono", monospace; letter-spacing: .06em; text-transform: uppercase; padding: 3px 5px 2px; border-radius: 2px; white-space: nowrap; }
+  .st.real { color: #C4F1C6; background: #1D3A23; border: 1px solid #4FAE5B; }
+  .st.ilus { color: #D3D9DE; background: #31363B; border: 1px solid #7D8792; }
+  .lbl .box .st { display: block; width: max-content; margin: 0 auto 4px; }
+  .lbl.tour .box { font-size: 12px; } .lbl.tour .box small { font-size: 11px; }
+  .lbl.wrap .box { white-space: normal; width: max-content; max-width: 240px; text-wrap: pretty; }
+  .lbl .ic { display: inline-flex; align-items: center; gap: 6px; } .lbl .ic svg { flex: none; }
+  .lbl.risk .box { border-color: rgba(242,193,78,.6); padding: 5px 8px; }
+  .card.mini .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #FFF4D6; color: #16191C; font-size: 11px; font-weight: 600; margin-right: 7px; vertical-align: middle; }
+  .card.mini { padding: 7px 10px; font: 500 12px/1.35 "IBM Plex Mono", monospace; } .card.mini .st { display: block; width: max-content; margin-bottom: 4px; } .card.mini small { display: block; color: #9AA6B1; font-size: 11px; }
+  .card .rk { display: grid; grid-template-columns: auto auto; gap: 6px 14px; } .card .rk > span { display: inline-flex; align-items: center; gap: 6px; }
+  .lbl .rk { display: grid; grid-template-columns: auto auto; gap: 4px 12px; text-align: left; }
+  .lbl .rk > span { display: inline-flex; align-items: center; gap: 5px; }
+  .lbl.icon .box { display: flex; align-items: center; gap: 9px; text-align: left; font: 500 13px/1.25 "IBM Plex Sans", sans-serif; border-color: #F1E3C0; padding: 6px 10px 6px 6px; }
+  .lbl.icon .box small { font: 400 10.5px "IBM Plex Mono", monospace; color: #A9B4BE; }
+  .lbl.icon .num { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #FFF4D6; color: #16191C; display: grid; place-items: center; font: 600 13px "IBM Plex Mono", monospace; }
+  .lbl.icon .stem { background: rgba(241,227,192,.6); } .lbl.icon .dot { background: #FFF4D6; }
+  .sw3 { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 4px 0 8px; vertical-align: -1px; }
+  .sw3:first-child { margin-left: 0; }
+  #leaders { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #dock { position: absolute; left: 18px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; scrollbar-width: thin; padding-right: 2px; }
+  #dock:empty { display: none; }
+  .card { flex: none; width: clamp(240px, 21vw, 300px); pointer-events: auto; background: rgba(22,25,28,.94); border: 1px solid rgba(214,224,232,.24); padding: 10px 12px 11px; font-size: 13px; line-height: 1.4; color: #E6EBEF; }
+  .card .ch { display: flex; flex-direction: column-reverse; align-items: flex-start; gap: 5px; margin-bottom: 7px; }
+  .card h4 { margin: 0; font-size: 14px; font-weight: 600; color: #F1F4F6; line-height: 1.3; text-wrap: pretty; }
+  .card .ch .st { flex: none; margin-top: 1px; }
+  .card ol, .card ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; }
+  .card .mono, .card .kv b { font-family: "IBM Plex Mono", monospace; }
+  .card .tl { display: grid; grid-template-columns: 92px 1fr; gap: 4px 10px; }
+  .card .tl b { font: 500 11.5px/1.4 "IBM Plex Mono", monospace; color: #F2C14E; }
+  .card .flow { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font: 500 12px "IBM Plex Mono", monospace; }
+  .card .flow span { border: 1px solid rgba(214,224,232,.3); padding: 4px 6px; border-radius: 2px; }
+  .card .flow i { font-style: normal; color: #8E9AA5; }
+  .card .cmp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .card .cmp div { border-top: 2px solid #7D8792; padding-top: 4px; font-size: 12px; line-height: 1.35; }
+  .card .cmp div:nth-child(2) { border-color: #C4CCD3; } .card .cmp div:nth-child(3) { border-color: #F2C14E; }
+  .card .cmp b { display: block; font-size: 12.5px; color: #F1F4F6; }
+  .card .kpi { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 6px; }
+  .card .kpi div { background: rgba(214,224,232,.06); padding: 5px 7px; font-size: 11px; color: #A9B4BE; }
+  .card .kpi b { display: block; font: 500 17px "IBM Plex Mono", monospace; color: #F1F4F6; }
+  .card .big { font: 500 22px "IBM Plex Mono", monospace; color: #F1F4F6; }
+  .card .fn { margin: 7px 0 0; font-size: 11.5px; color: #A9B4BE; line-height: 1.4; text-wrap: pretty; }
+  .card .bars { display: grid; grid-template-columns: 52px 1fr 44px; gap: 5px 8px; align-items: center; font: 500 12px "IBM Plex Mono", monospace; }
+  .card .bars .bar { height: 10px; background: #E9B8DA; min-width: 2px; }
+  .card .bars .v { text-align: right; color: #F1F4F6; }
+  .card .vt { display: flex; flex-direction: column; gap: 0; }
+  .card .vt div { display: grid; grid-template-columns: 12px 1fr; gap: 8px; position: relative; padding-bottom: 6px; }
+  .card .vt div::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #F1F4F6; margin-top: 5px; }
+  .card .vt div:not(:last-child)::after { content: ""; position: absolute; left: 4px; top: 15px; bottom: -2px; width: 1px; background: rgba(214,224,232,.35); }
+  .card .vt b { font: 500 12px "IBM Plex Mono", monospace; color: #F2C14E; margin-right: 4px; }
+  .card .kv { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 3px 0; border-bottom: 1px solid rgba(214,224,232,.08); }
+  .card .kv span { color: #A9B4BE; } .card .kv b { color: #F1F4F6; font-weight: 500; font-size: 13px; white-space: nowrap; }
+  .card .sl { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: #A9B4BE; }
+  .card .sl output { font: 500 20px "IBM Plex Mono", monospace; color: #F2C14E; }
+  .card input[type=range] { width: 100%; accent-color: #F2C14E; margin: 4px 0 6px; }
+  .card .qs { display: flex; gap: 4px; margin-bottom: 6px; } .card .qs .btn { padding: 5px 8px; font-size: 11px; border: 1px solid rgba(214,224,232,.2); }
+  .banner { position: absolute; left: 50%; transform: translateX(-50%); max-width: min(620px, calc(100% - 36px)); background: rgba(22,25,28,.94); border: 1px solid #F1E3C0; padding: 10px 16px; text-align: center; pointer-events: none; }
+  .banner .chain { font: 500 11.5px/1.5 "IBM Plex Mono", monospace; color: #F1E3C0; text-wrap: balance; }
+  .banner .big { font-size: 18px; font-weight: 600; color: #F1F4F6; margin-top: 4px; }
+  .sp-k { font: 500 12px "IBM Plex Mono", monospace; color: #8E9AA5; text-transform: uppercase; letter-spacing: .08em; }
+  .sp h3 { margin: 8px 0 4px; font-size: 32px; font-weight: 600; color: #F1F4F6; letter-spacing: -.01em; line-height: 1.1; }
+  .sp-loc { margin: 0 0 18px; font-size: 15px; color: #A9B4BE; line-height: 1.4; }
+  .sp ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 13px; }
+  .sp li { display: grid; grid-template-columns: 12px 1fr; gap: 12px; font-size: 18px; line-height: 1.38; color: #E6EBEF; text-wrap: pretty; }
+  .sp li::before { content: ""; width: 11px; height: 11px; margin-top: 7px; border-radius: 2px; background: #7D8792; }
+  .sp li.real::before { background: #4FAE5B; } .sp li.flow::before { background: #F1E3C0; border-radius: 50%; }
+  .skp { display: flex; flex-direction: column; gap: 8px; }
+  .skp h2 { margin-bottom: 4px; }
+  .skt { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .skt output { font: 500 26px "IBM Plex Mono", monospace; color: #F1F4F6; } .skt span { font: 400 11.5px "IBM Plex Mono", monospace; color: #A9B4BE; }
+  .skp input[type=range] { width: 100%; accent-color: #F2C14E; margin: 0; }
+  .sks { display: flex; justify-content: space-between; font: 400 9.5px "IBM Plex Mono", monospace; color: #6E7A85; margin-top: -4px; }
+  .skr { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .skp .btn.pl { border: 1px solid rgba(242,193,78,.6); color: #F2C14E; }
+  .skp .seg .btn { padding: 7px 8px; } .skp .seg.wx .btn { flex: 1; }
+  .skl { font: 500 10px "IBM Plex Mono", monospace; color: #7D8994; text-transform: uppercase; letter-spacing: .08em; margin-top: 4px; }
+  .skp select { background: #22272C; color: #E6EBEF; border: 1px solid rgba(214,224,232,.22); font: 500 12px "IBM Plex Mono", monospace; padding: 6px 8px; border-radius: 2px; }
+  .sse { font-size: 12px; color: #A9B4BE; }
+  .skload { border: 1px solid rgba(214,224,232,.18); padding: 10px; margin-top: 4px; font-size: 12.5px; }
+  .skload b { font: 600 15px "IBM Plex Mono", monospace; color: #F2C14E; } .skload b[data-l="Media"] { color: #E6D8BA; } .skload b[data-l="Baja"] { color: #8FC3F0; }
+  .skbar { height: 6px; background: rgba(214,224,232,.1); margin: 7px 0; } .skbar div { height: 100%; background: #F2C14E; transition: width .4s; }
+  .skload p { margin: 0; color: #C4CCD3; line-height: 1.4; text-wrap: pretty; }
+  .skfn { margin: 0; font-size: 11px; color: #7D8994; line-height: 1.45; }
+  .lbl.sun .box { border-color: #F2C14E; } .lbl.sun .dot { background: #F2C14E; }
+  .lbl.night .box { border-color: #8FC3F0; } .lbl.night .dot { background: #8FC3F0; }
+  .tnav { position: absolute; right: 18px; bottom: 16px; display: flex; align-items: center; gap: 2px; background: rgba(22,25,28,.92); border: 1px solid rgba(214,224,232,.22); border-radius: 3px; padding: 3px; z-index: 2; }
+  .tnav .btn { padding: 10px 13px; font-size: 13px; }
+  .tnav .btn.nx { background: #F1F4F6; color: #16191C; } .tnav .btn.nx:hover { background: #fff; }
+  .tnav .pos { font: 500 11px "IBM Plex Mono", monospace; color: #8E9AA5; padding: 0 10px; text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+  .sp-nav { display: flex; justify-content: space-between; gap: 8px; margin-top: 22px; }
+  .sp-nav .btn { border: 1px solid rgba(214,224,232,.22); padding: 9px 12px; }
+  @media (max-width: 1280px) { .tourbar small, .tourbar .kh, .hd .title p { display: none; } .hd { padding: 7px 14px; } .hd .title h1 { font-size: 15px; } }
+  @media (max-width: 900px) {
+    .app, .app.touring { grid-template-columns: 1fr; height: auto; }
+    .vp { height: 78vh; }
+    aside { border-left: none; border-top: 1px solid rgba(214,224,232,.12); }
+    .bottom { max-width: calc(100% - 36px); bottom: 60px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="hd">
+    <div class="title">
+      <h1>Edificio 2 (Postgrado) · Recorrido integrado</h1>
+      <p>Sistema de climatización · Campus Víctor Levi Sasso · Universidad Tecnológica de Panamá</p>
+    </div>
+    <nav class="seg tourbar" aria-label="Recorrido">
+      <button class="btn on" data-stop="g">Vista general</button>
+      <button class="btn" data-stop="1"><span class="n">1</span>Seguridad<small>INV4</small></button>
+      <button class="btn" data-stop="2"><span class="n">2</span>Planificación<small>INV2</small></button>
+      <button class="btn" data-stop="3"><span class="n">3</span>Refrigerantes<small>INV1</small></button>
+      <button class="btn" data-stop="4"><span class="n">4</span>Energía<small>INV5</small></button>
+      <button class="btn" data-stop="5"><span class="n">5</span>Innovación<small>INV3</small></button>
+      <button class="btn" data-stop="i">Vista integrada</button>
+      <span class="kh">Teclas 0–6</span>
+    </nav>
+  </header>
+  <main class="vp" data-screen-label="Modelo 3D">
+    <three-d-stage name="edificio2_postgrado_hvac"></three-d-stage>
+    <svg id="leaders"></svg>
+    <div id="labels"></div>
+    <div id="dock"></div>
+    <div class="top">
+      <div class="row1">
+        <div class="tr">
+          <div class="seg mode" role="group" aria-label="Modo">
+            <button class="btn on" data-mode="actual">Estado actual</button>
+            <button class="btn" data-mode="prop">Propuesta (caso hipotético)</button>
+          </div>
+          <div class="stlegend"><span>Sellos:</span><span class="st real">Dato real – Edificio 2</span><span class="st ilus">Ilustrativo</span></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="tnav" role="group" aria-label="Navegación del recorrido">
+      <button class="btn" id="spPrev">← Anterior</button>
+      <span class="pos" id="navPos">General</span>
+      <button class="btn nx" id="spNext">Siguiente →</button>
+    </div>
+    <div class="bottom">
+      <div class="ctrls">
+        <span class="k" data-gen="">Vista</span>
+        <div class="seg" role="group" aria-label="Vista" data-gen="">
+          <button class="btn" data-view="frontal">Frontal</button>
+          <button class="btn" data-view="superior">Superior</button>
+          <button class="btn on" data-view="corte">Corte</button>
+        </div>
+        <div class="seg" role="group" aria-label="Edificio" data-gen="">
+          <button class="btn" data-shell="facade">Fachada</button>
+          <button class="btn on" data-shell="xray">Rayos X</button>
+        </div>
+        <div class="seg">
+          <button class="btn on" id="tLabels">Etiquetas: sí</button>
+          <button class="btn" id="tPause">Pausar animación</button>
+        </div>
+      </div>
+      <div class="note">Modelo conceptual, no a escala. La distribución de los equipos es ilustrativa. Datos: Henríquez Espinosa et al. (2021)</div>
+      <div class="hint" data-gen="">Arrastrar: rotar · Rueda: zoom · Clic derecho: desplazar</div>
+    </div>
+  </main>
+  <aside>
+    <section id="stopPanel" class="sp" hidden="">
+      <div class="sp-k" id="spK"></div>
+      <h3 id="spT"></h3>
+      <p class="sp-loc" id="spL"></p>
+      <ul id="spB"></ul>
+    </section>
+    <section id="skyPanel" class="skp">
+      <h2>Clima y hora <span class="st ilus" style="margin-left:6px;vertical-align:1px">Ilustrativo</span></h2>
+      <div class="skt"><output id="skTime">10:00</output><span id="skSun"></span></div>
+      <input type="range" id="skHour" min="0" max="23.99" step="0.05" aria-label="Hora del día">
+      <div class="sks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
+      <div class="skr"><button class="btn pl" id="skPlay">Reproducir ciclo</button>
+        <div class="seg" role="group" aria-label="Velocidad"><button class="btn" data-spd="0.5">½×</button><button class="btn" data-spd="1">1×</button><button class="btn" data-spd="2">2×</button><button class="btn" data-spd="4">4×</button></div></div>
+      <div class="skl">Clima</div>
+      <div class="seg wx" role="group" aria-label="Clima"><button class="btn" data-wx="soleado">Soleado</button><button class="btn" data-wx="nublado">Nublado</button><button class="btn" data-wx="lluvioso">Lluvioso</button></div>
+      <div class="skl">Mes</div>
+      <div class="skr"><select id="skMonth" aria-label="Mes"></select><span id="skSeason" class="sse"></span></div>
+      <div class="skl">Orientación de la fachada principal</div>
+      <div class="skr"><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15" fill="none" stroke="rgba(214,224,232,.3)"></circle><g id="skNeedle" style="transform-origin:17px 17px"><path d="M17 5 L20 17 L14 17 Z" fill="#E6EBEF"></path><path d="M17 29 L20 17 L14 17 Z" fill="#59636D"></path></g><text x="17" y="4" text-anchor="middle" font-size="5" fill="#8E9AA5" font-family="IBM Plex Mono">fachada ↑</text></svg>
+        <input type="range" id="skOri" min="0" max="359" step="1" aria-label="Orientación" style="flex:1"><output id="skOriV" class="mono"></output></div>
+      <div class="skload">
+        <div class="skr" style="justify-content:space-between"><span>Carga de climatización</span><b id="skLoad">Alta</b></div>
+        <div class="skbar"><div id="skBar"></div></div>
+        <p id="skResp"></p>
+      </div>
+      <p class="skfn">Posición del sol calculada para 9.02° N, 79.53° O. La carga y la respuesta del sistema son cualitativas: no hay datos horarios de carga del Edificio 2.</p>
+    </section>
+    <section id="donutSec">
+      <h2>Consumo eléctrico del edificio <span class="st real" style="margin-left:6px;vertical-align:1px">Dato real – Edificio 2</span></h2>
+      <svg class="donut" viewBox="0 0 200 200" aria-label="Gráfico de dona del consumo">
+        <circle cx="100" cy="100" r="86" fill="none" stroke="#2C3238" stroke-width="8"></circle>
+        <circle cx="100" cy="100" r="86" fill="none" stroke="#DDE3E8" stroke-width="8" pathLength="100" stroke-dasharray="69 31" transform="rotate(-90 100 100)"></circle>
+        <circle cx="100" cy="100" r="64" fill="none" stroke="#7FD1B9" stroke-width="20" pathLength="100" stroke-dasharray="37.4 62.6" stroke-dashoffset="0" transform="rotate(-90 100 100)"></circle>
+        <circle cx="100" cy="100" r="64" fill="none" stroke="#C4CCD3" stroke-width="20" pathLength="100" stroke-dasharray="37.4 62.6" stroke-dashoffset="-38" transform="rotate(-90 100 100)"></circle>
+        <circle cx="100" cy="100" r="64" fill="none" stroke="#E3A857" stroke-width="20" pathLength="100" stroke-dasharray="23.4 76.6" stroke-dashoffset="-76" transform="rotate(-90 100 100)"></circle>
+        <text x="100" y="102" text-anchor="middle" fill="#F1F4F6" font-family="IBM Plex Mono, monospace" font-size="30" font-weight="500">69 %</text>
+        <text x="100" y="122" text-anchor="middle" fill="#8E9AA5" font-family="IBM Plex Mono, monospace" font-size="10">climatización</text>
+      </svg>
+      <div class="rows">
+        <div class="row"><span class="sw" style="background:#DDE3E8"></span><span>Climatización (anillo exterior)</span><b>69 %</b></div>
+      </div>
+      <p class="sub">Reparto dentro de la climatización (anillo interior):</p>
+      <div class="rows">
+        <div class="row"><span class="sw" style="background:#7FD1B9"></span><span>Chiller</span><b>38 %</b></div>
+        <div class="row"><span class="sw" style="background:#C4CCD3"></span><span>UMA (16)</span><b>38 %</b></div>
+        <div class="row"><span class="sw" style="background:#E3A857"></span><span>Mini-splits</span><b>24 %</b></div>
+      </div>
+    </section>
+    <div id="genAside" style="display:contents">
+    <section class="legend">
+      <h2>Leyenda</h2>
+      <div class="rows">
+        <div class="row"><span class="sw ln" style="background:#7FD1B9"></span><span>Suministro de agua helada</span></div>
+        <div class="row"><span class="sw ln" style="background:#C87533"></span><span>Retorno de agua helada</span></div>
+        <div class="row"><span class="sw" style="background:#FF6A2B;border-radius:50%;width:12px"></span><span>Punto con deterioro (termografía)</span></div>
+        <div class="row"><span class="sw" style="background:#E3A857;width:12px"></span><span>Mini-split añadido tras el diseño</span></div>
+        <div class="row" data-prop="" hidden=""><span class="sw" style="background:#29A9E0;width:12px;transform:rotate(45deg) scale(.75)"></span><span>Sensor IoT (hipotético)</span></div>
+        <div class="row" data-prop="" hidden=""><span class="sw ln" style="background:#29A9E0;opacity:.6"></span><span>Flujo de datos</span></div>
+      </div>
+    </section>
+    <section data-prop="" hidden="">
+      <h2>Propuesta · caso hipotético</h2>
+      <div class="pbox">
+        <strong>Sensores IoT</strong> en el chiller y en las 16 UMA: temperatura de suministro y retorno, presión diferencial en filtros y corriente del ventilador.<br><br>
+        Datos → <strong>Plataforma de integración / BMS</strong> (existente o a instalar) → <strong>IA: detección de anomalías</strong> y <strong>Modelo BIM</strong>.<br><br>
+        <strong>Piloto, etapa 1:</strong> UMA.
+      </div>
+    </section>
+    <section>
+      <h2>Lo que no se conoce</h2>
+      <ul class="unk">
+        <li>Cantidad exacta de UMA por piso</li>
+        <li>Número de mini-splits</li>
+        <li>Ubicación interior exacta de los equipos</li>
+        <li>Si el edificio cuenta con BMS</li>
+      </ul>
+    </section>
+    <p class="src">Fuente: Henríquez Espinosa et al. (2021). Edificio de 3 plantas (planta baja, primer alto, segundo alto): salones, laboratorios y oficinas.</p>
+    </div>
+  </aside>
+</div>
+
+
+
+</body></html>

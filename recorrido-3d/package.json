@@ -1,0 +1,16 @@
+{
+  "name": "recorrido-3d-edificio2",
+  "version": "3.0.0",
+  "private": true,
+  "description": "Recorrido integrado 3D del sistema de climatización del Edificio 2 (Postgrado, UTP) — Grupo A, Mant. de Sist. de Refrigeración y A/A",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build-offline.mjs",
+    "check": "node scripts/build-offline.mjs && node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "playwright": "1.56.0"
+  }
+}
