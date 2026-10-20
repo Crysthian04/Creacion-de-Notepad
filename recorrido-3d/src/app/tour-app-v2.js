@@ -5,6 +5,7 @@ import { STAMP, ICON, STOPS, CARDS, inspectorHTML, THERMO, GLB_LABEL } from 'app
 import { enrichSite } from 'app/site-v2.js';
 import { createSky } from 'app/sky-v2.js';
 import { coilProcess } from 'app/psychro.js';
+import { buildDrone, buildAR, buildIRCamera } from 'app/tools-v25.js';
 
 const stage = document.querySelector('three-d-stage');
 await stage.ready;
@@ -28,6 +29,14 @@ grid.position.y = 0.05; grid.material.transparent = true; grid.material.opacity 
 const fx = new THREE.Group(); fx.name = 'efectos'; scene.add(fx);
 const sky = createSky({ scene, stage, m, lamps });
 const T = buildTour(); Object.values(T.groups).forEach(g => { g.visible = false; scene.add(g); });
+// Herramientas de las subventanas 5.2–5.4 (ubicaciones ilustrativas dentro del edificio)
+const TOOLS = {
+  '5.2': buildIRCamera(m.thermalPts),
+  '5.3': buildAR(new THREE.Vector3(13.75, H + 0.26, 1.425), Math.PI / 2),
+  '5.4': buildDrone(new THREE.Vector3(-10.5, H + 3.0, 2.0)),
+};
+Object.values(TOOLS).forEach(t => { t.group.visible = false; scene.add(t.group); });
+const TA = { irCam: TOOLS['5.2'].A.cam, arTablet: TOOLS['5.3'].A.tablet, arAc: TOOLS['5.3'].A.ac, drone: TOOLS['5.4'].A.drone, droneLeak: TOOLS['5.4'].A.leak };
 
 // Resplandor térmico
 const cv = document.createElement('canvas'); cv.width = cv.height = 128;
@@ -114,6 +123,20 @@ label(A.bms, 'Pantalla BMS', '', 'cyan', 'all', S('5', { stem: 12, prio: 1 }));
 label(A.ia, 'Detección de anomalías', '(aprendizaje automático)', 'cyan', 'all', S('5', { down: true, stem: 12, prio: 1 }));
 label(A.bim, 'Gemelo digital / BIM', '', 'cyan', 'all', S('5', { down: true, stem: 12, prio: 1 }));
 label(A.pump, 'Bombeo de agua helada', 'Configuración ilustrativa: el estudio no la detalla', 'wrap', 'all', S('5', { stem: 30, dx: -40, prio: 3 }));
+// 5.2 · Termografía
+label(TOOLS['5.2'].A.cam, 'Cámara termográfica portátil', '', '', 'all', S('5.2', { stem: 26, dx: -60, prio: 2 }));
+label(A.thermal, 'Deterioro en uniones de la tubería de agua fría', 'Detectado en una sola inspección termográfica', 'heat wrap', 'all', S('5.2', { stamp: 'real', down: true, stem: 30, dx: 70, prio: 1 }));
+label(A.chiller, 'Chiller enfriado por aire · 155 TR', '', '', 'all', S('5.2', { stamp: 'real', stem: 30, prio: 3 }));
+// 5.3 · Realidad aumentada (zonas con texto cualitativo que cambia con el ajuste)
+const arZones = TOOLS['5.3'].ZONES.map(([nm], i) => { label(TOOLS['5.3'].A.zones[i], nm, '—', 'cyan', 'all', S('5.3', { stem: 18, prio: 1 })); return labels[labels.length - 1]; });
+label(TOOLS['5.3'].A.sensors, 'Sensores IoT', '', 'cyan', 'all', S('5.3', { stem: 30, prio: 2 }));
+label(TOOLS['5.3'].A.overlay, 'Datos superpuestos al espacio real', '', 'cyan', 'all', S('5.3', { stem: 22, prio: 3, down: true }));
+label(TOOLS['5.3'].A.tablet, 'Control del sistema desde la tableta', '', '', 'all', S('5.3', { stem: 40, dx: 60, prio: 2 }));
+// 5.4 · Dron en ductos
+label(TOOLS['5.4'].A.drone, 'Rueda y vuela dentro del ducto', '', '', 'all', S('5.4', { stem: 30, prio: 1 }));
+label(TOOLS['5.4'].A.lens, 'Cámara térmica', '', 'cyan', 'all', S('5.4', { stem: 40, dx: -70, prio: 2, down: true }));
+label(TOOLS['5.4'].A.leak, 'Fuga detectada', 'Caso hipotético', 'heat', 'all', S('5.4', { stem: 34, dx: 70, prio: 1 }));
+labels[labels.length - 1].cond = () => TOOLS['5.4'].S.detected;
 // Vista integrada
 [['Seguridad para intervenir', 'INV4'], ['Plan para programar', 'INV2'], ['Refrigerante bien manejado', 'INV1'], ['Energía optimizada', 'INV5'], ['Tecnología que lo monitorea', 'INV3']]
   .forEach(([t, inv], i) => label(B.icons[i], `<span class="num">${i + 1}</span><span>${t}<small>${inv}</small></span>`, '', 'icon', 'all', { stops: ['i'], stem: 22, prio: 1, down: i === 3 }));
@@ -163,7 +186,7 @@ addEventListener('resize', remeasure);
 // Tarjetas acopladas + líneas guía
 const dock = document.getElementById('dock'), leaders = document.getElementById('leaders'), NS = 'http://www.w3.org/2000/svg';
 let docks = [];
-const anchorOf = k => B[k] || A[k];
+const anchorOf = k => B[k] || A[k] || TA[k];
 function buildDock(s) {
   closePop();
   dock.innerHTML = ''; leaders.innerHTML = ''; docks = []; labels.forEach(l => { l.fb = null; });
@@ -210,8 +233,11 @@ function fallback(l) {
     c.setAttribute('r', '3.5'); c.setAttribute('fill', '#F1F4F6'); leaders.append(ln, c);
     l.fb = { el, a: l.pos, ln, c, fbl: l }; docks.push(l.fb);
   }
+  if (l.fb.on) return;
   l.fb.el.style.display = ''; l.fb.on = true;
   if (dock.scrollHeight - dock.clientHeight > 8 && !dock.querySelector('.card.fold')) fitDock(0);
+  // Si aun así no cabe, la etiqueta se queda oculta en lugar de desbordar el panel de tarjetas
+  if (dock.scrollHeight - dock.clientHeight > 8) { l.fb.el.style.display = 'none'; l.fb.on = false; }
 }
 function placeDock() {
   if (!docks.length) return;
@@ -332,6 +358,9 @@ const FOCUS = {
   3: o => /^minisplit_1_/.test(o.name),
   4: o => under(o, uma3) || under(o, chG),
   5: o => under(o, chG) || under(o, umaG) || under(o, pipeG) || under(o, pumpG) || under(o, m.prop),
+  '5.2': o => under(o, chG) || under(o, pipeG) || under(o, pumpG),
+  '5.3': () => false,
+  '5.4': () => false,
   i: () => false,
 };
 function dimFor(s) {
@@ -411,6 +440,7 @@ function applyVfd() {
   $('vfdB').textContent = 'B/. ' + (saved * 0.18).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' /mes';
 }
 [dock, pop].forEach(el => {
+  el.addEventListener('click', e => { if (e.target.closest('#arCtl')) { const S = TOOLS['5.3'].S; S.target = S.target ? 0 : 1; e.target.textContent = S.target ? 'Restablecer' : 'Aplicar ajuste'; } });
   el.addEventListener('input', e => { if (e.target.id === 'vfdR') { vfdPct = +e.target.value; applyVfd(); } });
   el.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { vfdPct = +b.dataset.v; applyVfd(); } });
 });
@@ -448,13 +478,14 @@ function thermoMat(t, shellMesh) {
     transparent: x, opacity: x ? 0.1 : 1, depthWrite: !x, side: shellMesh ? THREE.DoubleSide : THREE.FrontSide }));
   return thermoCache.get(key);
 }
-let thermo = false;
+let thermo = false, autoThermo = false;
+const THERMO_OK = ['g', '5', '5.2'];
 m.root.updateMatrixWorld(true);
 const thermoBase = base.map(b => ({ ...b, temp: b.o.isMesh && !under(b.o, m.prop) ? thermoTemp(b.o, b.site, b.mat) : null, shellMesh: shellSetMesh.has(b.o) }));
 function applyThermo() {
   if (!thermo) return;
   thermoBase.forEach(b => {
-    if (stop === '5' && (b.site || !FOCUS[5](b.o))) return; // en la Parada 5 el resto sigue atenuado
+    if (stop !== 'g' && (b.site || !FOCUS[stop](b.o))) return; // en las paradas el resto sigue atenuado
     if (b.site) { b.o.material = dimMat(b.mat, true); return; }
     if (b.temp === null) return;
     if (b.shellMesh) b.temp = thermoTemp(b.o, false, b.mat);
@@ -463,7 +494,7 @@ function applyThermo() {
   radFaces.forEach(f => { f.visible = false; });
 }
 function setThermo(on) {
-  thermo = on && (stop === 'g' || stop === '5');
+  thermo = on && THERMO_OK.includes(stop);
   $t('tThermo').classList.toggle('on', thermo);
   $t('thermoLegend').hidden = !thermo;
   if (thermo) { applyThermo(); $t('thermoLegend').parentElement.scrollTop = 0; return; }
@@ -507,7 +538,7 @@ stage.addEventListener('pointerdown', ev => { downAt = fromCanvas(ev) ? [ev.clie
 stage.addEventListener('pointerup', ev => {
   if (!downAt || !fromCanvas(ev) || Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 5) return;
   downAt = null;
-  if (stop !== 'g' && stop !== '5') return;
+  if (!THERMO_OK.includes(stop)) return; // misma regla: vista general, 5.1 y 5.2
   const r = ev.composedPath()[0].getBoundingClientRect();
   ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1);
   ray.setFromCamera(ndc, cam);
@@ -519,45 +550,53 @@ stage.addEventListener('pointerup', ev => {
 addEventListener('keydown', ev => { if (ev.key === 'Escape' && inspKey) closeInspector(); });
 
 // Recorrido
-const ORDER = ['g', '1', '2', '3', '4', '5', 'i'], app = document.querySelector('.app');
+const ORDER = ['g', '1', '2', '3', '4', '5', '5.2', '5.3', '5.4', 'i'], KEYS = ['g', '1', '2', '3', '4', '5', 'i'], app = document.querySelector('.app');
+const isFive = s => s === '5' || s.startsWith('5.'), subN = s => s === '5' ? '5.1' : s;
 const spPanel = document.getElementById('stopPanel'), donut = document.getElementById('donutSec'), genAside = document.getElementById('genAside');
 function panel(s) {
   spPanel.hidden = s === 'g'; genAside.hidden = s !== 'g'; donut.hidden = !['g', '4', '5'].includes(s);
   if (s === 'g') return;
-  const d = STOPS[s], n = ORDER.indexOf(s);
-  document.getElementById('spK').textContent = s === 'i' ? 'Cierre del recorrido' : `Parada ${n} de 5 · ${d.inv}`;
-  document.getElementById('spT').textContent = s === 'i' ? d.name : `${n} · ${d.name}`;
+  const d = STOPS[s], n = KEYS.indexOf(isFive(s) ? '5' : s);
+  document.getElementById('spK').textContent = s === 'i' ? 'Cierre del recorrido' : isFive(s) ? `Parada 5 de 5 · ${d.inv} · ${d.name}` : `Parada ${n} de 5 · ${d.inv}`;
+  document.getElementById('spT').textContent = s === 'i' ? d.name : isFive(s) ? `${subN(s)} · ${d.sub}` : `${n} · ${d.name}`;
   document.getElementById('spL').textContent = d.loc;
   document.getElementById('spB').innerHTML = d.bullets.map(([t, st]) => `<li class="${st}">${t}</li>`).join('');
 }
 function navLabels(s) {
-  const n = ORDER.indexOf(s), nm = k => k === 'g' ? 'Vista general' : k === 'i' ? 'Vista integrada' : STOPS[k].name;
+  const n = ORDER.indexOf(s), nm = k => k === 'g' ? 'Vista general' : k === 'i' ? 'Vista integrada' : isFive(k) ? `${subN(k)} ${STOPS[k].short}` : STOPS[k].name;
   const pv = document.getElementById('spPrev'), nx = document.getElementById('spNext');
   pv.hidden = n === 0; pv.textContent = '← ' + (n > 0 ? nm(ORDER[n - 1]) : '');
-  nx.textContent = (n === 6 ? 'Vista general' : (n === 0 ? 'Iniciar recorrido: ' : '') + nm(ORDER[n + 1])) + ' →';
-  document.getElementById('navPos').textContent = s === 'g' ? 'General' : s === 'i' ? 'Integrada' : `Parada ${n} / 5`;
+  nx.textContent = (s === 'i' ? 'Vista general' : (n === 0 ? 'Iniciar recorrido: ' : '') + nm(ORDER[n + 1])) + ' →';
+  document.getElementById('navPos').textContent = s === 'g' ? 'General' : s === 'i' ? 'Integrada' : isFive(s) ? `Parada ${subN(s)} / 5` : `Parada ${n} / 5`;
+  fitBottom();
 }
 document.getElementById('spPrev').onclick = () => step(-1);
 document.getElementById('spNext').onclick = () => { if (stop === 'i') applyStop('g'); else step(1); };
+// La nota y los controles de abajo a la izquierda no deben quedar debajo de la navegación de abajo a la derecha
+function fitBottom() { const nav = vp.querySelector('.tnav'); vp.querySelector('.bottom').style.maxWidth = Math.max(260, vp.clientWidth - nav.offsetWidth - 54) + 'px'; }
+addEventListener('resize', fitBottom);
 function step(d) { const i = ORDER.indexOf(stop) + d; if (i >= 0 && i < ORDER.length) applyStop(ORDER[i]); }
 // La cámara se corre a la derecha lo que ocupan las tarjetas visibles a la izquierda
 // (en modo "al pasar" las tarjetas quedan invisibles pero ocupan su lugar, así el encuadre no cambia)
 function dockOffset() { return dock.children.length ? (dock.getBoundingClientRect().right - vp.getBoundingClientRect().left) / 2 : 0; }
 function applyStop(s) {
   if (s !== stop) closeInspector();
-  const keepThermo = thermo && (s === 'g' || s === '5');
-  if (thermo && !keepThermo) setThermo(false);
+  const keepThermo = thermo && THERMO_OK.includes(s) && !(autoThermo && s !== '5.2');
+  if (thermo && !keepThermo) { setThermo(false); autoThermo = false; }
   stop = s; const g = s === 'g';
   app.classList.toggle('touring', !g);
   Object.entries(T.groups).forEach(([k, grp]) => grp.visible = k === s);
   if (g) { restoreMats(); setShell(shell); }
   else { dimFor(s); m.prop.visible = s === '5'; dataFlow.im.visible = s === '5'; }
-  flows.forEach(f => f.im.visible = g || s === '5' || s === 'i');
-  halos.forEach(h => h.visible = g || s === '5');
+  flows.forEach(f => f.im.visible = g || s === '5' || s === '5.2' || s === 'i');
+  halos.forEach(h => h.visible = g || s === '5' || s === '5.2');
+  Object.entries(TOOLS).forEach(([k, t]) => { t.group.visible = k === s; });
+  ctl.minDistance = s === '5.3' || s === '5.4' ? 1.2 : 6;
+  document.getElementById('subbar').hidden = !isFive(s);
   arcFlow.im.visible = s === 'i';
   vp.querySelector('.seg.mode').hidden = !g;
   vp.querySelectorAll('[data-gen]').forEach(e => e.hidden = !g);
-  document.querySelectorAll('[data-stop]').forEach(b => b.classList.toggle('on', b.dataset.stop === s));
+  document.querySelectorAll('[data-stop]').forEach(b => b.classList.toggle('on', b.dataset.stop === s || (!!b.closest('.tourbar') && b.dataset.stop === '5' && isFive(s))));
   panel(s); navLabels(s);
   sky.setActive(g || s === 'i'); document.getElementById('skyPanel').hidden = !(g || s === 'i');
   buildDock(s);
@@ -566,14 +605,15 @@ function applyStop(s) {
   if (g) goView(currentView); else goPose(STOPS[s].pose, 1300, true);
   stage._toolbar.style.display = g ? '' : 'none'; Object.assign(stage._toolbar.style, { top: 'auto', bottom: '70px' });
   if (s === '4') applyVfd(); else vfdFan.speed = vfdBase;
-  document.getElementById('thermoSeg').hidden = !(g || s === '5');
+  document.getElementById('thermoSeg').hidden = !THERMO_OK.includes(s);
   if (keepThermo) applyThermo();
+  if (s === '5.2' && !thermo) { setThermo(true); autoThermo = thermo; } // la 5.2 abre con la vista termográfica
 }
 document.querySelectorAll('[data-stop]').forEach(b => b.onclick = () => applyStop(b.dataset.stop));
 addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const inField = e.target.closest && e.target.closest('input, textarea, select');
-  if (/^[0-6]$/.test(e.key) && !(inField && e.target.type !== 'range')) { applyStop(ORDER[+e.key]); e.preventDefault(); }
+  if (/^[0-6]$/.test(e.key) && !(inField && e.target.type !== 'range')) { applyStop(KEYS[+e.key]); e.preventDefault(); }
 });
 new ResizeObserver(() => { layoutDock(); fitDock(Math.max(0, [...dock.querySelectorAll('.card:not(.mini)')].findIndex(c => c.querySelector('.ch[aria-expanded=true]')))); offT = dockOffset(); }).observe(vp);
 
@@ -635,6 +675,16 @@ function syncPsy() {
 ['psT1', 'psR1', 'psT2', 'psR2'].forEach(id => { q(id).oninput = syncPsy; });
 syncPsy();
 
+// Textos en vivo de las subventanas 5.3 y 5.4
+function syncTools() {
+  const set = (id, t) => { const e = document.getElementById(id); if (e && e.textContent !== t) e.textContent = t; };
+  if (stop === '5.4') set('droneSt', TOOLS['5.4'].S.text);
+  if (stop === '5.3') {
+    const S = TOOLS['5.3'].S; set('arSt', S.text);
+    arZones.forEach((l, i) => { const h = `${STAMP.ilus}${TOOLS['5.3'].ZONES[i][0]}<small>${S.zones[i]}</small>`; if (l.bx.innerHTML !== h) { l.bx.innerHTML = h; l.bw = 0; } });
+  }
+}
+
 // Bucle
 let simT = 0, flowT = 0, last = performance.now();
 stage.onFrame = () => {
@@ -667,9 +717,12 @@ stage.onFrame = () => {
     if (dataFlow.im.visible) { stepFlow(dataFlow, simT); m.ia.rotation.y += 0.4 * dt; m.M.sensor.emissiveIntensity = 0.9 + 0.6 * Math.sin(simT * 4); }
     if (arcFlow.im.visible) stepFlow(arcFlow, simT);
     T.tick(simT);
+    const tool = TOOLS[stop];
+    if (tool) tool.tick(simT, dt);
     const pulse = 0.82 + 0.18 * Math.sin(simT * 3.2);
     halos.forEach(s => s.scale.setScalar(s.userData.base * pulse));
   }
+  syncTools();
   placeLabels();
   placeDock();
   placeHots();

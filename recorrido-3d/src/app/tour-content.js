@@ -60,7 +60,7 @@ export const STOPS = {
     ],
   },
   5: {
-    name: 'Innovación', inv: 'INV3', loc: 'Chiller, UMA y tubería de agua fría',
+    name: 'Innovación', sub: 'Monitoreo IoT y BMS', short: 'Monitoreo IoT', inv: 'INV3', loc: 'Chiller, UMA y tubería de agua fría',
     pose: { pos: [-36, 22, 38], tgt: [-2, 9, -3] },
     bullets: [
       ['Chiller enfriado por aire de 155 TR y 16 UMA', 'real'],
@@ -68,6 +68,37 @@ export const STOPS = {
       ['Deterioro en uniones de agua fría (termografía)', 'real'],
       ['Propuesta: sensores IoT → pantalla BMS', 'ilus'],
       ['Detección de anomalías y gemelo digital / BIM', 'ilus'],
+    ],
+  },
+  // Subventanas de la Parada 5 (herramientas del modelo "Herramientas HVAC 3D" del grupo)
+  '5.2': {
+    name: 'Innovación', sub: 'Termografía infrarroja', short: 'Termografía', inv: 'INV3', loc: 'Tubería de agua helada entre el chiller y el edificio',
+    pose: { pos: [-5.6, 5.4, -18.5], tgt: [-13.4, 0.9, -7.6] },
+    bullets: [
+      ['Deterioro en uniones de la tubería de agua fría', 'real'],
+      ['Detectado en una sola inspección termográfica', 'real'],
+      ['Vista termográfica cualitativa: sin temperaturas medidas', 'ilus'],
+      ['Sin monitoreo permanente: los sensores IoT (5.1) le darían seguimiento', 'ilus'],
+    ],
+  },
+  '5.3': {
+    name: 'Innovación', sub: 'Realidad aumentada', short: 'Realidad aumentada', inv: 'INV3', loc: 'Un salón del primer alto (caso hipotético)',
+    pose: { pos: [19.6, 6.5, -4.1], tgt: [13.4, 4.8, 2.0] },
+    bullets: [
+      ['El técnico ve los datos de los sensores IoT sobre el espacio real', 'ilus'],
+      ['Temperatura y humedad por zona, en la tableta', 'ilus'],
+      ['Ajusta el sistema desde la misma interfaz', 'ilus'],
+      ['Campo simulado y cualitativo: no son lecturas del Edificio 2', 'ilus'],
+    ],
+  },
+  '5.4': {
+    name: 'Innovación', sub: 'Dron en ductos', short: 'Dron en ductos', inv: 'INV3', loc: 'Ducto de suministro sobre el cielo raso (caso hipotético)',
+    pose: { pos: [-7.6, 8.3, 4.6], tgt: [-10.9, 6.75, 0.7] },
+    bullets: [
+      ['Cuadricóptero en una jaula esférica: rueda por el piso del ducto', 'ilus'],
+      ['Vuela para pasar el codo', 'ilus'],
+      ['Una cámara térmica barre las paredes', 'ilus'],
+      ['Detecta fugas en las uniones sin desmontar el ducto', 'ilus'],
     ],
   },
   i: {
@@ -125,6 +156,19 @@ export const CARDS = {
   5: [
     [head('Consumo del edificio', 'real') + `<div class="big">69 %</div>climatización · de ella: chiller 38&nbsp;% · UMA&nbsp;38&nbsp;%`, 'chiller'],
     [head('Propuesta (caso hipotético)', 'ilus') + `<div class="flow"><span>Sensores IoT</span><i>→</i><span>Pantalla BMS</span><i>→</i><span>Detección de anomalías</span><i>→</i><span>Gemelo digital / BIM</span></div>`, 'bms'],
+  ],
+  '5.2': [
+    [head('Termografía infrarroja', 'real') + `Deterioro en uniones de la tubería de agua fría, detectado en una sola inspección termográfica.<p class="fn">Henríquez Espinosa et al. (2021)</p>`, 'thermal'],
+    [head('Cómo se inspecciona', 'ilus') + `Una cámara termográfica portátil recorre la tubería de agua helada, del chiller al edificio, y apunta a cada unión. La vista termográfica de este modelo es cualitativa.<p class="fn">Escena tomada del modelo «Herramientas HVAC 3D» del grupo.</p>`, 'irCam'],
+    [head('Limitación', 'ilus') + `Una sola inspección: no hay monitoreo permanente. Los sensores IoT de la 5.1 darían seguimiento continuo a estas uniones.`, null],
+  ],
+  '5.3': [
+    [head('Control desde la tableta', 'ilus') + `<div class="arst" id="arSt">—</div><div class="qs"><button class="btn" id="arCtl">Aplicar ajuste</button></div><p class="fn">Campo simulado y cualitativo (más cálido / más fresco): no son lecturas del Edificio 2, por eso no se muestran °C ni % de humedad.</p>`, 'arAc'],
+    [head('Realidad aumentada · caso hipotético', 'ilus') + `En un salón, el técnico ve sobre el espacio real los datos de los sensores IoT por zona y ajusta el sistema desde la tableta.<p class="fn">(Mohammadi et al., 2024)</p>`, 'arTablet'],
+  ],
+  '5.4': [
+    [head('Estado del recorrido', 'ilus') + `<div class="arst" id="droneSt">—</div><p class="fn">La fuga es un caso hipotético para mostrar la detección; no es un hallazgo del Edificio 2.</p>`, 'droneLeak'],
+    [head('Dron en ductos · caso hipotético', 'ilus') + `Un cuadricóptero dentro de una jaula esférica recorre un ducto rectangular: rueda por el piso, vuela para pasar el codo y barre las paredes con una cámara térmica.<p class="fn">(Khalil et al., 2024)</p>`, 'drone'],
   ],
   i: [[`<div class="ch"><h4>Recorrido</h4></div><div class="vt">
       <div><span><b>1</b>Seguridad para intervenir</span></div><div><span><b>2</b>Plan para programar</span></div>

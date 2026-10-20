@@ -31,9 +31,30 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     if (ov > 8) fails.push(`${W}x${H} parada ${k}: tarjetas desbordan ${ov}px`);
     await pg.screenshot({ path: join(shots, `${W}_parada_${k}.png`) });
   }
+  // Subventanas 5.1–5.4: navegación con «Siguiente», sin desborde, sin cifras simuladas en la realidad aumentada
+  await pg.keyboard.press('5'); await pg.waitForTimeout(2500);
+  for (const sub of ['5.2', '5.3', '5.4']) {
+    await pg.click('#spNext'); await pg.waitForTimeout(3500);
+    const [t, ov] = await pg.evaluate(() => [document.getElementById('spT').textContent, document.getElementById('dock').scrollHeight - document.getElementById('dock').clientHeight]);
+    if (!t.startsWith(sub)) fails.push(`${W}x${H} «Siguiente» desde la parada anterior llevó a «${t}», no a ${sub}`);
+    if (ov > 8) fails.push(`${W}x${H} ${sub}: tarjetas desbordan ${ov}px`);
+    if (sub === '5.3') {
+      const txt = await pg.evaluate(() => document.getElementById('labels').innerText + document.getElementById('dock').innerText);
+      if (/\d\s*°C|HR \d/.test(txt)) fails.push(`${W}x${H} 5.3 muestra lecturas simuladas con números`);
+      await pg.click('#arCtl');
+      const ok = await pg.waitForFunction(() => /Ajuste aplicado|Aplicando/.test(document.getElementById('arSt').textContent), null, { timeout: 30000 }).then(() => true, () => false);
+      if (!ok) fails.push(`${W}x${H} 5.3: el botón de ajuste no cambia el estado («${await pg.evaluate(() => document.getElementById('arSt').textContent)}»)`);
+    }
+    if (sub === '5.4' && !/Rodando|Volando|Fuga/.test(await pg.evaluate(() => document.getElementById('droneSt').textContent))) fails.push(`${W}x${H} 5.4: sin estado del dron`);
+    await pg.screenshot({ path: join(shots, `${W}_parada_${sub}.png`) });
+  }
+  await pg.click('#spNext'); await pg.waitForTimeout(500);
+  if (!(await pg.evaluate(() => document.querySelector('[data-stop="i"]').classList.contains('on')))) fails.push(`${W}x${H} después de 5.4 «Siguiente» no lleva a la vista integrada`);
   if (!(await pg.evaluate(() => /no a escala/i.test(document.body.innerText)))) fails.push('Falta la nota "Modelo conceptual, no a escala"');
   // Inspector: clic sobre la proyección de UMA_03 en la vista general, luego Esc
   await pg.keyboard.press('0'); await pg.waitForTimeout(2500);
+  // esperar a que la cámara se detenga (con render por software los cuadros son lentos)
+  for (let i = 0, prev = ''; i < 40; i++) { const c = await pg.evaluate(() => document.querySelector('three-d-stage')._camera.position.toArray().map(x => x.toFixed(3)).join()); if (c === prev) break; prev = c; await pg.waitForTimeout(700); }
   const pt = await pg.evaluate(() => {
     const s = document.querySelector('three-d-stage'), o = s._scene.getObjectByName('UMA_03_carcasa');
     const p = o.getWorldPosition(o.position.clone()).project(s._camera), r = s.shadowRoot.querySelector('canvas').getBoundingClientRect();

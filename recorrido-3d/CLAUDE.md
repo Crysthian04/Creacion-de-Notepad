@@ -9,7 +9,7 @@ Modelo 3D en el navegador (three.js r184, sin framework) del sistema de climatiz
 | 2 | Planificación | INV2 |
 | 3 | Refrigerantes | INV1 |
 | 4 | Energía | INV5 |
-| 5 | Innovación | INV3 |
+| 5 | Innovación (subventanas 5.1 Monitoreo IoT · 5.2 Termografía · 5.3 Realidad aumentada · 5.4 Dron en ductos) | INV3 |
 | 6 | Vista integrada | todas |
 
 El plan de trabajo está en `docs/PLAN_MEJORAS.md`. Léelo antes de cambiar nada.
@@ -21,7 +21,7 @@ npm install          # esbuild + playwright
 npm run dev          # http://localhost:5173 (el import map necesita http://, no file://)
 npm run build        # dist/Recorrido_integrado_Edificio2_offline.html (UN archivo, sin internet)
 npm test             # prueba numérica de la psicrometría (node --test)
-npm run check        # npm test + build + prueba de humo (paradas 0–6, VFD, inspector, termografía, psicrometría, GLB, sin red)
+npm run check        # npm test + build + prueba de humo (paradas 0–6, subventanas 5.x, modo al pasar, VFD, inspector, termografía, psicrometría, GLB, sin red)
 ```
 
 Si Playwright no encuentra navegador: `npx playwright install chromium`, o exporta `CHROMIUM_PATH` con la ruta a un Chromium ya instalado.
@@ -34,6 +34,7 @@ Si Playwright no encuentra navegador: `npx playwright install chromium`, o expor
 - `src/app/tour-app-v2.js`: escena, cámara, etiquetas, tarjetas, atenuación por parada, VFD, bucle de animación y atajos 0–6.
 - `src/app/tour-layers.js`: objetos propios de cada parada (técnicos, LOTO, cilindros, recuperadora, fuga, VFD, BMS) y su animación (`tick`).
 - `src/app/tour-content.js`: TODO el texto (viñetas, tarjetas, sellos). Los cambios de contenido van aquí.
+- `src/app/tools-v25.js`: escenas de las subventanas 5.2–5.4 (cámara termográfica portátil, salón con realidad aumentada, dron en ducto), adaptadas del modelo «Herramientas HVAC 3D» del grupo y colocadas dentro del edificio. Internamente son las paradas `'5.2'`, `'5.3'` y `'5.4'`; la `'5'` es la 5.1.
 - `src/app/psychro.js`: psicrometría a 101.325 kPa (Hyland-Wexler, W, h, punto de rocío, proceso de serpentín). Funciones puras, probadas en `tests/psychro.test.mjs`.
 - `src/app/sky-v2.js`: sol astronómico (9.0247° N, 79.5299° O, UTC−5), clima y respuesta cualitativa.
 - `src/app/site-v2.js`: entorno ilustrativo (loma, Edificio 1, kiosco, autos, postes).
@@ -55,6 +56,7 @@ Si Playwright no encuentra navegador: `npx playwright install chromium`, o expor
 5. **Nunca asignes un refrigerante concreto al chiller ni a los mini-splits**: la fuente no lo dice. Los cilindros R-410A/R-32/R-290 de la Parada 1 solo ilustran las clases ASHRAE 34.
 6. **Física correcta.** El vapor de refrigerante es más denso que el aire: cae y se extiende a ras de piso (Honeywell, 2014). Ya está corregido en la Parada 3; no lo reviertas.
 7. Mantén la nota "Modelo conceptual, no a escala…".
+8. La realidad aumentada (5.3) muestra el campo simulado solo de forma cualitativa (más cálida / intermedia / más fresca): sin °C ni % de humedad.
 
 ## Datos verificados (compendio final del grupo)
 
