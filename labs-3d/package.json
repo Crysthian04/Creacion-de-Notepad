@@ -1,0 +1,16 @@
+{
+  "name": "labs-3d-m6-m14",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Modelo 3D de los laboratorios M6 y M14 — Cristian Batista, Grupo A, Mant. de Sist. de Refrigeración y A/A (UTP)",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build-offline.mjs",
+    "check": "node scripts/build-offline.mjs && node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "playwright": "1.56.0"
+  }
+}
