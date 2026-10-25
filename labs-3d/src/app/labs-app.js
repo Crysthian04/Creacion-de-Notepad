@@ -22,15 +22,18 @@ function label(anchor, html, { cls = '', down = false, onClick = null, id = '' }
   labels.push(L); return L;
 }
 function placeLabels() {
-  const r = host.getBoundingClientRect();
+  const r = host.getBoundingClientRect(), dk = document.getElementById('dock');
+  const dockRight = dk && dk.childElementCount ? dk.offsetLeft + dk.offsetWidth + 6 : 0;
   for (const L of labels) {
     if (!L.on) continue;
     const p = L.anchor.isVector3 ? v.copy(L.anchor) : L.anchor.getWorldPosition(v);
     p.project(cam);
-    const vis = p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
+    let vis = p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
+    if (vis && dockRight && (p.x + 1) / 2 * r.width < dockRight) vis = false; // detrás de la columna de tarjetas
     L.el.hidden = !vis;
     if (vis) {
-      const x = (p.x + 1) / 2 * r.width, y = (1 - p.y) / 2 * r.height;
+      let x = (p.x + 1) / 2 * r.width; const y = (1 - p.y) / 2 * r.height;
+      const hw = (L.el.offsetWidth || 0) / 2; x = Math.max(hw + 4, Math.min(r.width - hw - 4, x)); // dentro de la vista
       const down = L.el.firstElementChild.classList.contains('dot');
       L.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, ${down ? '0' : '-100%'})`;
     }
@@ -48,20 +51,27 @@ ctl.maxPolarAngle = Math.PI * 0.495; ctl.minDistance = 2; ctl.maxDistance = 400;
 if (stage._toolbar) stage._toolbar.style.display = 'none';
 
 // ---------- Tarjetas ----------
-const STAMP = { df: 'Dato de fuente', il: 'Ilustrativo' };
+const STAMP = { df: 'Dato de fuente', il: 'Ilustrativo' }, POPS = [];
 export function cardHTML(c) {
   const stamp = c.stamp ? `<span class="st ${c.stamp}">${STAMP[c.stamp]}</span>${c.cite ? `<span class="cite">(${c.cite})</span>` : ''}` : '';
   const ref = c.ref ? `<span class="ref">${c.ref}</span>` : '';
-  const fig = c.fig ? `<div class="fig"><div class="ft">${c.fig.title}</div><img src="${c.fig.src}" alt="${c.fig.alt || ''}" data-fig><div class="cr">${c.fig.credit}</div></div>` : '';
+  const fig = !c.fig ? '' : c.fig.link
+    ? `<div class="fig link"><button class="btn figbtn" data-figsrc="${c.fig.src}">Ver figura</button><div class="ft">${c.fig.title}</div><div class="cr">${c.fig.credit}</div></div>`
+    : `<div class="fig"><div class="ft">${c.fig.title}</div><img src="${c.fig.src}" alt="${c.fig.alt || ''}" data-fig><div class="cr">${c.fig.credit}</div></div>`;
+  const pop = c.popup ? `<button class="btn popbtn" data-pop="${POPS.push(c.popup.html) - 1}">${c.popup.label}</button>` : '';
   if (c.fold) return `<details class="card" data-card><summary>${c.title}</summary>${c.body}</details>`;
-  return `<div class="card${c.wide ? ' wide' : ''}" data-card>${(ref || stamp) ? `<div class="ch">${ref}${stamp}</div>` : ''}${c.title ? `<h4>${c.title}</h4>` : ''}${c.body || ''}${fig}</div>`;
+  return `<div class="card${c.wide ? ' wide' : ''}" data-card>${(ref || stamp) ? `<div class="ch">${ref}${stamp}</div>` : ''}${c.title ? `<h4>${c.title}</h4>` : ''}${c.body || ''}${pop}${fig}</div>`;
 }
 const dock = document.getElementById('dock');
-dock.addEventListener('click', e => {
-  const img = e.target.closest('img[data-fig]'); if (!img) return;
-  const f = img.closest('.fig');
-  document.getElementById('figbody').innerHTML = `<div class="ft" style="font-weight:600;margin-bottom:8px">${f.querySelector('.ft').innerHTML}</div><img src="${img.src}" alt=""><div class="cr" style="margin-top:8px;font-size:12px;color:#9AA6B1;font-style:italic">${f.querySelector('.cr').innerHTML}</div>`;
+function openFig(f, src) {
+  document.getElementById('figbody').innerHTML = `<div class="ft" style="font-weight:600;margin-bottom:8px">${f.querySelector('.ft').innerHTML}</div><img src="${src}" alt=""><div class="cr" style="margin-top:8px;font-size:12px;color:#9AA6B1">${f.querySelector('.cr').innerHTML}</div>`;
   document.getElementById('figbox').hidden = false;
+}
+dock.addEventListener('click', e => {
+  const img = e.target.closest('img[data-fig]'); if (img) return openFig(img.closest('.fig'), img.src);
+  const fb = e.target.closest('[data-figsrc]'); if (fb) return openFig(fb.closest('.fig'), fb.dataset.figsrc);
+  const pb = e.target.closest('[data-pop]');
+  if (pb) { document.getElementById('figbody').innerHTML = POPS[+pb.dataset.pop]; document.getElementById('figbox').hidden = false; }
 });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeOverlays));
 document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) closeOverlays(); }));
@@ -78,6 +88,7 @@ function go(si, idx = 0) {
   const st = s.steps[step];
   labels.forEach(L => { L.on = false; L.el.hidden = true; });
   (st.labels || []).forEach(L => { L.on = true; });
+  POPS.length = 0;
   dock.innerHTML = (st.cards || []).map(cardHTML).join('');
   dock.scrollTop = 0;
   $('start').hidden = !st.start; if (st.start) $('start').innerHTML = st.start;
@@ -150,9 +161,14 @@ stage.onFrame = () => {
     cam.position.lerpVectors(fly.a, fly.b, e); ctl.target.lerpVectors(fly.at, fly.bt, e);
     if (fly.t >= 1) fly = null;
   }
+  // Encuadre: el centro de la vista se corre a la derecha de la columna de tarjetas
+  const w = stage.clientWidth, h = stage.clientHeight, dw = dock.childElementCount ? dock.offsetWidth + 18 : 0;
+  if (w && h && (cam.view?.fullWidth !== w + dw || cam.view?.height !== h || !cam.view?.enabled)) { cam.setViewOffset(w + dw, h, 0, 0, w, h); cam.aspect = (w + dw) / h; cam.updateProjectionMatrix(); }
+  else if (w && h && Math.abs(cam.aspect - (w + dw) / h) > 1e-3) { cam.aspect = (w + dw) / h; cam.updateProjectionMatrix(); }
   const s = STOPS[cur];
   if (s && s.tick) s.tick(dt, (now - t0) / 1000, s.steps[step]);
   placeLabels();
 };
+STOPS.forEach(s => s.setRestart && s.setRestart(() => { t0 = performance.now(); }));
 window.__labs = { go, move, setDeep, get cur() { return cur; }, get step() { return step; }, STOPS };
 go(0, 0);
