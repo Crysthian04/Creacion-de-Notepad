@@ -1,6 +1,6 @@
 # Matriz de trazabilidad — Modelo 3D M6 + M14
 
-Estado: **aprobada** por Cristian el 24/10/2026 (hora de Panamá, UTC−5), con las correcciones de la revisión 3 incorporadas.
+Estado actual: **aprobada en la ronda 5, 25/10/2026** (hora de Panamá, UTC−5). Modelo congelado en la versión `labs-3d-v1.0`. La primera aprobación de la matriz fue el 24/10/2026, con las correcciones de la revisión 3 incorporadas.
 
 Fuentes: Word final del M6 (`M06_Mantenimiento_Ventiladores_Distribucion.docx`, 17 págs.), Word final del M14 (`M14_Digitalizacion_BIM_Gestion_MEP.docx`), las dos fichas de `docs/` y el PDF del Proyecto Final Integrador de REFRESH S.A. (33 págs.).
 
@@ -18,6 +18,8 @@ Fuentes: Word final del M6 (`M06_Mantenimiento_Ventiladores_Distribucion.docx`, 
 | — | Portadas (p. 1 de cada Word) | Pantalla de inicio: título de los dos módulos, asignatura, Grupo A, autor. Botones 1 y 2. Nota "Modelo conceptual, no a escala" | RP | — | Sin cifras |
 
 ## Parada 1 · M6 — Mantenimiento de Ventiladores y Sistemas de Distribución (tecla 1)
+
+> **Nota (desde la ronda 4).** La ruta principal de esta parada son las escenas E1–E4 (ver «Ronda 4» y «Ronda 5»). La numeración 1.0–1.8 (y P1–P9) que sigue corresponde a la profundización: todos esos pasos se conservan en la pestaña «Profundización».
 
 **Numeración en pantalla** (programada el 24/10/2026). Ruta principal: 1.0 Ventilador y red (escena 1.0) · 1.1 Quién hace el TAB y cuándo se acepta (tarjeta 1.1 y ±5 %) · 1.2 Antes del TAB (escena 1.2) · 1.3 Método de proporción y 1.4 Flujo progresivo (escena 1.3, tarjetas 1.3b y 1.3c, Figura 5) · 1.5 Compuertas abiertas y velocidad (escena 1.4a) · 1.6 Leyes de los ventiladores (escena 1.4b, Figura 7) · 1.7 Panamá (escena 1.6, Figura 11) · 1.8 Conclusiones. Profundización: P1 NEBB, reporte y verificación (1.1 detalle) · P2 Hermeticidad (1.2a) · P3 Correas (1.2b, Figura 3) · P4 Presión (1.2c, Figura 4) · P5 Medir el caudal (1.3a; la **Figura 6** va aquí, donde el Word la introduce, y no en Bogotá) · P6 Efecto de sistema (1.4c, Figura 8) · P7 Kleberg (1.5a, Figura 10) · P8 Bogotá (1.5b, Figura 9; sin barras por rejilla) · P9 Marco panameño (1.6a). Las figuras se abren con «Ver figura»; el crédito exacto del Word queda debajo de la imagen. La Tabla 1 completa se abre con «Ver Tabla 1 completa» desde el paso 1.4.
 
@@ -57,6 +59,8 @@ Fuentes: Word final del M6 (`M06_Mantenimiento_Ventiladores_Distribucion.docx`, 
 | M6 | Referencias | **Vista "Referencias" (M6)**: la lista de referencias del Word copiada tal cual (10 obras, APA 7). Toda obra citada en pantalla está en ella. Los créditos de las figuras usan el texto exacto del Word ("Tomado de…, por…" / "Elaboración propia…") | PR | — | Lista de referencias del Word del M6 |
 
 ## Parada 2 · M14 — Digitalización, BIM y Gestión Inteligente de Instalaciones (MEP) (tecla 2)
+
+> **Nota (desde la ronda 4).** La ruta principal de esta parada son las escenas E1–E4 (ver «Ronda 4» y «Ronda 5»). La numeración 2.0–2.7 (y P1–P7) que sigue corresponde a la profundización: todos esos pasos se conservan en la pestaña «Profundización».
 
 **Numeración en pantalla** (programada el 24/10/2026). Ruta principal: 2.0 La planta REFRESH S.A. (apertura y escena base) · 2.1 Coordinación (escena 2.1) · 2.2 LOD (escena 2.2, tarjeta 2.2a, Figura 1 y Tabla 1) · 2.3 Ventajas (Tabla 2; las filas aparecen una a una, sin contadores que muestren cifras intermedias) · 2.4 Gemelo digital (escena 2.4, Figura 2 y rótulo «Marco general (Hu et al., 2026); en REFRESH es una propuesta») · 2.5 Sistema MEP (escena 2.5, Figura 3, rótulos «medidor propuesto» en los tableros de D y E) · 2.6 Propuesta · 2.7 Conclusiones. Profundización: P1 Inspector de puntos (2.5a) · P2 Condición de integración (2.5b) · P3 Límites de la evidencia (2.4a) · P4 Mantenimiento del VRF (2.6a) · P5 Riesgos (2.6b) · P6 Panamá (2.7) · P7 Recomendaciones (2.8). Los niveles 2–4 de la Figura 3 y las capas del marco de Hu et al. se dibujan como esquema flotante, con el rótulo «no es una ubicación física».
 
@@ -175,7 +179,7 @@ La ruta principal muestra el mecanismo con rótulos breves, y el texto completo 
 **Simulación E2 (M6, ilustrativa).** La red es serie-paralelo:
 - Tiene resistencias en los tramos del ducto principal, en los ramales, en los terminales y en las compuertas (abierta, media, cerrada), con ΔP = R·Q² en cada uno.
 - La curva del ventilador es P = P0·(1 − (Q/Qmax)²) y el punto de operación se resuelve por iteración.
-- El caudal de «diseño» es el de todas las compuertas abiertas.
+- ~~El caudal de «diseño» es el de todas las compuertas abiertas.~~ **Superado en la ronda 5:** el caudal de diseño es igual en los 8 terminales (el de una combinación balanceada de referencia, ilustrativo) y con todo abierto la red no lo entrega.
 - No muestra valores.
 
 **Otros cambios de la ronda 4:**

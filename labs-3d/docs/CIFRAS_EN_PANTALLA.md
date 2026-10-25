@@ -1,6 +1,6 @@
 # Cifras en pantalla — Modelo 3D M6 + M14
 
-Generado el 24/10/2026 (hora de Panamá) a partir de `src/app/content-*.js` y de las etiquetas de `src/app/scene-*.js`.
+Generado el 25/10/2026 (hora de Panamá), ronda 5, a partir de `src/app/content-*.js` y de las etiquetas de `src/app/scene-*.js`.
 
 Criterio (ronda 4): la columna «Escena» indica desde qué escena de la ruta principal se llega al paso (chips «Detalle»). La referencia al informe va por sección, figura o tabla, sin páginas del informe (decisión del 24/10). La página corresponde a la **fuente original**. Si la página dice "—", ni el Word ni la ficha la indican. No se listan los números de navegación (pasos, teclas, "1 de 9") ni los números de figura o tabla.
 
