@@ -34,9 +34,11 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
       banned(await pg.evaluate(() => document.body.innerText), where);
       const ov = await pg.evaluate(() => {
         const d = el => el ? el.scrollHeight - el.clientHeight : 0;
-        return { card: Math.max(0, ...[...document.querySelectorAll('[data-card]')].map(d)), dock: d(document.getElementById('dock')), aside: d(document.querySelector('aside')) };
+        const dk = document.getElementById('dock'), dr = dk.getBoundingClientRect(), bt = [...document.querySelectorAll('.bottom > *')].map(e => e.getBoundingClientRect());
+        const hitBottom = dk.childElementCount ? Math.max(0, ...bt.filter(b => b.left < dr.right && b.right > dr.left).map(b => dr.bottom - b.top)) : 0;
+        return { card: Math.max(0, ...[...document.querySelectorAll('[data-card]')].map(d)), dock: d(dk), aside: d(document.querySelector('aside')), nota: hitBottom };
       });
-      for (const [kk, px] of Object.entries(ov)) if (px > 8) fails.push(`${where}: ${kk === 'aside' ? 'panel derecho' : kk === 'dock' ? 'columna de tarjetas' : 'tarjeta'} desborda ${px}px`);
+      for (const [kk, px] of Object.entries(ov)) if (px > 8) fails.push(`${where}: ${{ aside: 'panel derecho', dock: 'columna de tarjetas', card: 'tarjeta', nota: 'columna de tarjetas sobre la nota o la barra ← →' }[kk]} ${kk === 'nota' ? 'se cruza' : 'desborda'} ${px}px`);
       // Etiquetas 3D encimadas (cajas visibles que se cruzan más de 2 px)
       await pg.waitForTimeout(300);
       const ovl = await pg.evaluate(() => {
@@ -88,6 +90,26 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     if (c !== want) fails.push(`${W}x${H} ${id}: el contador llega a ${c}, no a ${want}`);
     if (W === 1366) await pg.screenshot({ path: join(shots, `${W}_p1_${id}_final.png`) });
   }
+  // Parada 2 (M14)
+  const step2 = id => pg.evaluate(id => window.__labs.go(2, window.__labs.STOPS[2].steps.findIndex(s => s.id === id)), id);
+  const txt = sel => pg.evaluate(sel => [...document.querySelectorAll(sel)].map(e => e.offsetParent || e.closest('#labels') ? e.innerText : '').join(' | ').replace(/\u00a0/g, ' '), sel);
+  const visLabels = () => pg.evaluate(() => [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => b.innerText.replace(/\s+/g, ' ')).join(' | ').replace(/\u00a0/g, ' '));
+  await pg.keyboard.press('2'); await pg.waitForTimeout(400); await pg.keyboard.press('r'); await pg.waitForTimeout(300);
+  const r14 = await pg.evaluate(() => ({ h: document.querySelector('#refbody h3')?.textContent, n: document.querySelectorAll('#refbody p').length, t: document.getElementById('refbody').innerText }));
+  if (!/M14/.test(r14.h || '') || r14.n !== 9 || !/Khanzode/.test(r14.t)) fails.push(`${W}x${H} parada 2: no abre las 9 referencias del M14 (${r14.n})`);
+  await pg.keyboard.press('Escape');
+  await step2('mep'); await pg.waitForTimeout(1800);
+  if (!/medidor propuesto/.test(await visLabels())) fails.push(`${W}x${H} 2.5: el rótulo «medidor propuesto» no se ve en la escena`);
+  await step2('gemelo'); await pg.waitForTimeout(1800);
+  if (!(await visLabels()).includes('Marco general (Hu et al., 2026); en REFRESH es una propuesta')) fails.push(`${W}x${H} 2.4: falta el rótulo del marco general en la escena`);
+  await step2('lod'); await pg.waitForTimeout(600);
+  if (!(await txt('[data-lodf="e"]')).includes('Espacio reservado para la unidad exterior junto a los Edificios D y E')) fails.push(`${W}x${H} 2.2: el LOD 100 no usa el texto de la Tabla 1`);
+  await step2('ventajas'); await pg.waitForTimeout(5500);
+  const t2 = await txt('.t2');
+  for (const v of ['2 de 233', '40 de 25,000 h', 'USD 15,824 millones', 'USD 10,648 millones', 'USD 9,093 millones', 'Gallaher et al. (2004, p. ES-7)']) if (!t2.includes(v)) fails.push(`${W}x${H} 2.3: Tabla 2 sin «${v}»`);
+  await step2('inspector'); await pg.waitForTimeout(800); await pg.click('[data-pt="M5"]'); await pg.waitForTimeout(200);
+  if (!/medidor/.test(await txt('#ptinfo'))) fails.push(`${W}x${H} P1: el inspector no muestra la ficha de M5`);
+  if (/\d+(\.\d+)?\s*(kW|TR|BTU|°C|%)/.test(await txt('#ptinfo'))) fails.push(`${W}x${H} P1: el inspector muestra una lectura`);
   if (errs.length) fails.push(...errs.map(e => `${W}x${H} ${e}`));
   await pg.close();
 }
