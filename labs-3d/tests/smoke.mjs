@@ -10,7 +10,7 @@ const file = resolve(process.argv[2] || join(root, 'dist/Modelo3D_Labs_M6_M14_of
 const shots = join(root, 'tests/shots'); await mkdir(shots, { recursive: true });
 const fails = [];
 // Términos prohibidos (contenido del recorrido del Edificio 2 / Investigación 3). Búsqueda sin mayúsculas ni tildes.
-const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ');
+const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
 const BANNED = ['Edificio 2', '155 TR', 'Henríquez Espinosa', 'Hosamo']; // F. Henríquez (Gollini-Mihalopoulos et al., 2023) sí puede aparecer en el M6
 const banned = (txt, where) => { const t = norm(txt); for (const b of BANNED) if (t.includes(norm(b))) fails.push(`${where}: aparece «${b}»`); };
 banned((await readFile(file, 'utf8')).replace(/&nbsp;/g, ' '), 'HTML');
