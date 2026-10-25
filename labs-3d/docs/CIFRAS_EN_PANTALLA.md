@@ -55,7 +55,7 @@ Criterio: la referencia al informe va por sección, figura o tabla, sin páginas
 | Zona de la torre · 22 m | 2.0 y vistas de conjunto (etiqueta) | Ídem | Batista et al. (2026), p. 22 |
 | 4 silos Ø 2.50 m | 2.0 (etiqueta) | Escena base | Batista et al. (2026), p. 22 |
 | Área de expansión futura · 3,000 m² (30 %) | 2.0 (etiqueta) | Escena base | Batista et al. (2026), p. 22 |
-| USD 96.9 millones (edificio médico) | 2.1 | M14 · La metodología BIM aplicada a sistemas HVAC-R | Khanzode et al. (2008), — (ver nota 1) |
+| USD 96.9 millones (edificio médico) | 2.1 | M14 · La metodología BIM aplicada a sistemas HVAC-R | Khanzode et al. (2008), p. 324 |
 | LOD 100, 200, 300, 350, 400, 500 | 2.2, 2.6, P7 | M14 · Niveles de desarrollo (LOD) · Tabla 1 | BIMForum (2024), pp. 12–13 |
 | LOD 500 no es superior al 400 (etiqueta) | 2.2 | Ídem | BIMForum (2024), p. 13 |
 | «modelo LOD 300» | 2.2 | Ídem | BIMForum (2024), p. 195 |
@@ -86,5 +86,5 @@ Criterio: la referencia al informe va por sección, figura o tabla, sin páginas
 
 ## Notas
 
-1. **USD 96.9 millones (paso 2.1):** está en el Word del M14 pero no en la ficha, que no da su página en Khanzode et al. (2008). La tarjeta cita "pp. 328–329", que respaldan el resto del párrafo (el contratista de HVAC lideró la coordinación y el nivel de detalle se decidió entre todos). Conviene confirmar la página de la cifra.
+1. **USD 96.9 millones (paso 2.1):** página confirmada por Cristian el 24/10/2026: Khanzode et al. (2008), p. 324. La tarjeta cita (Khanzode et al., 2008, pp. 324, 328–329): p. 324 para la cifra y pp. 328–329 para la coordinación liderada por el contratista de HVAC.
 2. **Claridge et al. (2003) y Lu et al. (2020):** el Word no indica páginas de sus cifras, así que en pantalla se citan sin página, como en el informe.

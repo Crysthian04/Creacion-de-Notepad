@@ -35,6 +35,9 @@ function placeLabels() {
     if (ok) vis.push({ L, x: (p.x + 1) / 2 * r.width, y: (1 - p.y) / 2 * r.height });
   }
   // Separación de etiquetas encimadas: la caja se aleja de su punto alargando el tallo
+  // Las tarjetas también cuentan como zonas ocupadas: ninguna etiqueta queda bajo una tarjeta
+  const hr = host.getBoundingClientRect();
+  const cards = dk && dk.childElementCount ? [...dk.children].map(c => { const q = c.getBoundingClientRect(); return { l: q.left - hr.left - 4, r: q.right - hr.left + 4, t: q.top - hr.top - 4, b: q.bottom - hr.top + 4 }; }) : [];
   const placed = [];
   vis.sort((a, b) => b.y - a.y);
   for (const o of vis) {
@@ -44,11 +47,12 @@ function placeLabels() {
     let stem = 16, rect;
     for (let k = 0; k < 40; k++) {
       const top = down ? o.y + 5 + stem : o.y - 5 - stem - h;
-      rect = { l: x - w / 2 - 3, r: x + w / 2 + 3, t: top - 3, b: top + h + 3 };
+      rect = { l: x - w / 2 - 5, r: x + w / 2 + 5, t: top - 5, b: top + h + 5 };
       const hit = placed.find(q => rect.l < q.r && rect.r > q.l && rect.t < q.b && rect.b > q.t);
       if (!hit) break;
       stem += down ? hit.b - rect.t + 1 : rect.b - hit.t + 1;
     }
+    if (cards.some(q => rect.l < q.r && rect.r > q.l && rect.t < q.b && rect.b > q.t)) { o.L.el.hidden = true; continue; }
     placed.push(rect);
     const st = o.L.el.querySelector('.stem'); if (st.style.height !== stem + 'px') st.style.height = stem + 'px';
     o.L.el.style.transform = `translate(${x}px, ${o.y}px) translate(-50%, ${down ? '0' : '-100%'})`;
@@ -74,7 +78,7 @@ export function cardHTML(c) {
     ? `<div class="fig link"><button class="btn figbtn" data-figsrc="${c.fig.src}">Ver figura</button><div class="ft">${c.fig.title}</div><div class="cr">${c.fig.credit}</div></div>`
     : `<div class="fig"><div class="ft">${c.fig.title}</div><img src="${c.fig.src}" alt="${c.fig.alt || ''}" data-fig><div class="cr">${c.fig.credit}</div></div>`;
   const pop = c.popup ? `<button class="btn popbtn" data-pop="${POPS.push(c.popup.html) - 1}">${c.popup.label}</button>` : '';
-  if (c.fold) return `<details class="card" data-card><summary>${c.title}</summary>${c.body}</details>`;
+  if (c.fold) return `<details class="card" data-card${c.open ? ' open' : ''}><summary>${c.ref || c.stamp ? `<span class="ch">${c.ref ? `<span class="ref">${c.ref}</span>` : ''}${c.stamp ? `<span class="st ${c.stamp}">${STAMP[c.stamp]}</span>${c.cite ? `<span class="cite">(${c.cite})</span>` : ''}` : ''}</span>` : ''}<b class="sm">${c.title}</b></summary>${c.body}${c.fig ? '' : ''}</details>`;
   return `<div class="card${c.wide ? ' wide' : ''}" data-card>${(ref || stamp) ? `<div class="ch">${ref}${stamp}</div>` : ''}${c.title ? `<h4>${c.title}</h4>` : ''}${c.body || ''}${pop}${fig}</div>`;
 }
 const dock = document.getElementById('dock');

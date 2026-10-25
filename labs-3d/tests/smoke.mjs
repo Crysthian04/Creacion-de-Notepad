@@ -14,6 +14,8 @@ const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase
 const BANNED = ['Edificio 2', '155 TR', 'Henríquez Espinosa', 'Hosamo']; // F. Henríquez (Gollini-Mihalopoulos et al., 2023) sí puede aparecer en el M6
 const banned = (txt, where) => { const t = norm(txt); for (const b of BANNED) if (t.includes(norm(b))) fails.push(`${where}: aparece «${b}»`); };
 banned((await readFile(file, 'utf8')).replace(/&nbsp;/g, ' '), 'HTML');
+// En los informes no se usa la palabra «según» en ningún sentido
+if (/seg[uú]n\b/i.test(norm(await readFile(join(root, 'src/app/content-m14.js'), 'utf8') + await readFile(join(root, 'src/app/content-m6.js'), 'utf8') + await readFile(join(root, 'src/app/content-inicio.js'), 'utf8') + await readFile(join(root, 'src/app/scene-m14.js'), 'utf8') + await readFile(join(root, 'src/app/scene-m6.js'), 'utf8')))) fails.push('src: aparece la palabra «según»');
 const exe = process.env.CHROMIUM_PATH; // opcional: ruta a un Chromium ya instalado
 const browser = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 for (const [W, H] of [[1920, 1080], [1366, 768]]) {
@@ -46,11 +48,16 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
         const out = [];
         for (let a = 0; a < bx.length; a++) for (let b = a + 1; b < bx.length; b++) {
           const A = bx[a].r, B = bx[b].r, ox = Math.min(A.right, B.right) - Math.max(A.left, B.left), oy = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top);
-          if (ox > 2 && oy > 2) out.push(`«${bx[a].t}» / «${bx[b].t}»`);
+          if (ox > 0 && oy > 0) out.push(`«${bx[a].t}» / «${bx[b].t}»`);
         }
         return out;
       });
       if (ovl.length) fails.push(`${where}: etiquetas encimadas ${ovl.join('; ')}`);
+      const under = await pg.evaluate(() => {
+        const cs = [...document.querySelectorAll('#dock > *')].map(c => c.getBoundingClientRect());
+        return [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && cs.some(q => r.left < q.right && r.right > q.left && r.top < q.bottom && r.bottom > q.top); }).map(b => b.innerText.replace(/\s+/g, ' ').slice(0, 40));
+      });
+      if (under.length) fails.push(`${where}: etiquetas bajo una tarjeta ${under.join('; ')}`);
       await pg.screenshot({ path: join(shots, `${W}_p${k}_${String(i).padStart(2, '0')}.png`) });
     }
   }
@@ -99,7 +106,9 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   if (!/M14/.test(r14.h || '') || r14.n !== 9 || !/Khanzode/.test(r14.t)) fails.push(`${W}x${H} parada 2: no abre las 9 referencias del M14 (${r14.n})`);
   await pg.keyboard.press('Escape');
   await step2('mep'); await pg.waitForTimeout(1800);
-  if (!/medidor propuesto/.test(await visLabels())) fails.push(`${W}x${H} 2.5: el rótulo «medidor propuesto» no se ve en la escena`);
+  { const vl = await visLabels(); if (!/medidor de energía propuesto/i.test(vl) || !/Propuesta · M14 · Figura 3/i.test(vl)) fails.push(`${W}x${H} 2.5: el rótulo del medidor propuesto (con su sello de propuesta) no se ve en la escena`); }
+  { const dup = await pg.evaluate(() => [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => b.innerText.replace(/\s+/g, ' ').toLowerCase()).filter(t => t.includes('controlador central vrf')).length);
+    if (dup > 1) fails.push(`${W}x${H} 2.5: «Controlador central VRF» aparece ${dup} veces`); }
   await step2('gemelo'); await pg.waitForTimeout(1800);
   if (!(await visLabels()).includes('Marco general (Hu et al., 2026); en REFRESH es una propuesta')) fails.push(`${W}x${H} 2.4: falta el rótulo del marco general en la escena`);
   await step2('lod'); await pg.waitForTimeout(600);

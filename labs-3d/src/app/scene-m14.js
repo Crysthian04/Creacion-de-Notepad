@@ -30,7 +30,7 @@ export function buildM14({ THREE, label, go }) {
   const torre = vol(46, 26, 12, 14, 22, C.tower, 'zona_torre_22m', site); // huella ~12 × 14 m (PDF p. 13); altura 22 m (p. 22)
   vol(50.5, 43, 3, 7, 4, C.naveB, 'pasarela_3m', site, 4);
   const naveB = vol(37, 50, 30, 18, 9, C.naveB, 'nave_B_30x18', site);
-  const edC = vol(9, 41, 12, 24, 6, C.edC, 'edificio_C_24x12', site);
+  const edC = vol(9, 41, 12, 24, 6, C.edC, 'edificio_C_24x12', site), edCGlass = glass(0x9AA6B1, 0.3);
   vol(34, 8, 15, 6, 0.3, C.slab, 'zona_descarga_15x6', site);
   vol(54, 8, 15, 10, 0.3, C.slab, 'patio_silos_15x10', site);
   const siloG = new THREE.CylinderGeometry(1.25, 1.25, 12, 20);
@@ -71,7 +71,7 @@ export function buildM14({ THREE, label, go }) {
   const unitDetail = grp => { const b = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.9, 1.1), C.ou); b.position.y = 0.95; grp.add(b); [-0.6, 0.6].forEach(dx => { const f = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.06, 20), M(0x3A424A)); f.rotation.x = Math.PI / 2; f.position.set(dx, 1.05, 0.56); grp.add(f); }); };
   const pipeRun = (grp, sup, branch) => { const p = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 7), C.pipe); p.position.set(-1.6, 2.6, -3.0); grp.add(p); if (sup) for (let i = 0; i < 4; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.6, 0.08), support); s.position.set(-1.6, 1.3, -0.4 - i * 1.8); grp.add(s); } if (branch) { const b = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.18, 0.18), C.pipe); b.position.set(-2.2, 2.6, -5.5); grp.add(b); const j = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), M(0xE3A857)); j.position.set(-1.6, 2.6, -5.5); grp.add(j); } };
   LOD.forEach(l => { const grp = new THREE.Group(); grp.name = 'LOD_' + l.n; grp.visible = false; lodG.add(grp); LV[l.n] = grp; });
-  { const r = new THREE.Mesh(new THREE.BoxGeometry(4, 2.6, 3), reserve); r.position.y = 1.3; LV['100'].add(r); }
+  { const r = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.4, 1.8), reserve); r.position.y = 1.2; LV['100'].add(r); } // algo mayor que la unidad (2.6 × 1.9 × 1.1)
   { const r = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.9, 1.1), generic); r.position.y = 0.95; LV['200'].add(r); }
   ['300', '350', '400', '500'].forEach(n => { unitDetail(LV[n]); const a = new THREE.Mesh(new THREE.BoxGeometry(3.6, 2.2, 1.0), access); a.position.set(0, 1.1, 1.1); LV[n].add(a); });
   pipeRun(LV['350'], true, false); pipeRun(LV['400'], true, true); pipeRun(LV['500'], true, true);
@@ -117,6 +117,8 @@ export function buildM14({ THREE, label, go }) {
   const SH = [0xE6EBEF, 0xBFE7F8, 0xF1E3C0].map((col, i) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(26, 18), sheetMat(col)); m.name = ['plano_isometrico', 'plano_PID', 'plano_unifilar'][i]; m.userData.a = P(5 + i * 32, 30, 34); sheets.add(m); return m; });
 
   // ---------- Etiquetas ----------
+  // Tablero: dato de fuente; medidor: propuesta del informe (dos sellos)
+  const MED = e => `<span class="st df">Dato de fuente</span>Tablero de ${e}<small>(Batista et al., 2026)</small><span class="st pr" style="margin-top:5px">Propuesta · M14 · Figura 3</span>medidor de energía propuesto`;
   const df = c => `<span class="st df">Dato de fuente</span>`, il = '<span class="st il">Ilustrativo</span>', B = '<small>(Batista et al., 2026, p. 22)</small>';
   const L = {
     naveA: label(P(36, 33, 12.5), `${df()}Nave A · Proceso<small>40 × 20 m</small>${B}`), torre: label(P(52, 33, 22.5), `${df()}Zona de la torre · 22 m${B}`, { cls: 'amber' }),
@@ -127,16 +129,18 @@ export function buildM14({ THREE, label, go }) {
     silos: label(P(61, 13, 12.5), `${df()}Patio de silos · 4 silos Ø 2.50 m${B}`),
     salas: label(P(15, 23, 5), `${df()}Orden de las salas: plano general<small>(Batista et al., 2026, p. 21) · tamaños ilustrativos</small>`, { cls: 'green' }),
     ou: label(OU.clone().setY(2.6), `${il}Unidad exterior VRF`), oa: label(OA.clone().setY(2.4), `${il}Unidad de aire exterior`, { down: true }),
-    medD: label(c(tabD).setY(2.6), '<span class="st df">Dato de fuente</span>Tablero de D · medidor propuesto', { cls: 'amber' }),
-    medE: label(c(tabE).setY(2.6), '<span class="st df">Dato de fuente</span>Tablero de E · medidor propuesto', { cls: 'amber' }),
+    medD: label(c(tabD).setY(2.6), MED('D'), { cls: 'amber' }),
+    medE: label(c(tabE).setY(2.6), MED('E'), { cls: 'amber' }),
     salaElec: label(c(sensC).setY(3.7), `${df()}Sala eléctrica / UPS<small>(Batista et al., 2026, p. 22)</small>`),
-    n2: label(P(85, 30, 11.5), 'Nivel 2 · Automatización del VRF', { cls: 'cyan' }), n3: label(P(85, 30, 18.5), 'Nivel 3 · Supervisión', { cls: 'cyan' }), n4: label(P(85, 30, 25.5), 'Nivel 4 · Gestión de la información', { cls: 'cyan' }),
+    n2: label(P(94, 30, 11.5), 'Nivel 2 · Automatización del VRF', { cls: 'cyan' }), n3: label(P(94, 30, 18.5), 'Nivel 3 · Supervisión', { cls: 'cyan' }), n4: label(P(94, 30, 25.5), 'Nivel 4 · Gestión de la información', { cls: 'cyan' }),
     ctrl: label(c(N.ctrl).setY(13), 'Controlador central VRF'), gw: label(c(N.gw).setY(13), 'Pasarela BACnet/IP'), scada: label(c(N.scada).setY(20), 'SCADA central de REFRESH'),
     bim: label(c(N.bim).setY(27), 'Modelo BIM as-built (LOD 500) + COBie'), cmms: label(c(N.cmms).setY(27), 'CMMS · órdenes de trabajo'), tab: label(c(N.tab).setY(27), 'Tablero / gemelo digital'),
     esquema: label(P(85, 74, 11), `${il}Esquema de la Figura 3<small>no es una ubicación física</small>`, { down: true }),
     flujo: label(P(60, 50, 30), '', { cls: 'amber' }),
     gwConf: label(c(N.gw).setY(9.5), '<span class="st df">Dato de fuente</span>Integración con el SCADA: por confirmar<small>(Batista et al., 2026, p. 13)</small>', { cls: 'red', down: true }),
     lod: label(OU.clone().setY(4.2), '', { cls: 'amber' }),
+    nD: label(P(15, 33, 4.8), `${df()}Edificio D<small>(Batista et al., 2026, p. 21)</small>`), nC: label(P(15, 52, 6.3), `${df()}Edificio C<small>(Batista et al., 2026, p. 21)</small>`),
+    nE: label(P(16, 78, 4.8), `${df()}Edificio E<small>(Batista et al., 2026, p. 21)</small>`),
     twinRot: label(P(45, 25, 64), '<span class="st df">Dato de fuente</span>Marco general (Hu et al., 2026); en REFRESH es una propuesta', { cls: 'amber' }),
     coSt: label(v3(-110, 6, 0), '', { cls: 'amber' }),
     coD: label(v3(-111.5, 2.4, -3.5), 'HVAC · lidera la coordinación', { down: true }), coB: label(v3(-104, 4.4, 0), 'Estructura'), coT: label(v3(-108, 3.8, -3.6), 'Eléctrico'), coP: label(v3(-115, 3.3, 2.5), 'Plomería', { down: true }),
@@ -154,11 +158,11 @@ export function buildM14({ THREE, label, go }) {
   let selPt = 'M3';
 
   // ---------- Cámaras y etiquetas por paso ----------
-  const W0 = [-78, 112, 128, 4, 0, 2]; // vista de conjunto desde el suroeste
+  const W0 = [-96, 112, 128, -14, 0, 2]; // vista de conjunto desde el suroeste; la planta queda a la derecha de las tarjetas
   const CAM = {
-    planta: W0, coord: [-124, 8.5, 13, -110, 3, 0], lod: [OU.x + 6, 5.5, OU.z + 8, OU.x - 0.8, 1.6, OU.z - 2], ventajas: W0,
-    gemelo: [-80, 92, 128, 2, 22, 0], mep: [-62, 78, 96, 12, 8, 4], propuesta: W0, cierre: W0,
-    inspector: [-62, 78, 96, 12, 8, 4], integracion: [2, 30, 52, 35, 13, 6], limites: [-80, 92, 128, 2, 22, 0], mantto: [-52, 34, 58, -33, 2, 8],
+    planta: W0, coord: [-124, 8.5, 13, -110, 3, 0], lod: [OU.x + 8, 37, OU.z + 40, OU.x - 4, 0, OU.z + 1], ventajas: W0,
+    gemelo: [-80, 92, 128, 2, 22, 0], mep: [-90, 84, 104, -8, 13, 4], propuesta: W0, cierre: W0,
+    inspector: [-90, 84, 104, -8, 13, 4], integracion: [2, 30, 52, 35, 13, 6], limites: [-80, 92, 128, 2, 22, 0], mantto: [-52, 34, 58, -33, 2, 8],
     riesgos: [-56, 46, 66, -26, 2, 10], panama: W0, recom: [-62, 78, 96, 12, 8, 4],
   };
 
@@ -166,7 +170,7 @@ export function buildM14({ THREE, label, go }) {
   const mepL = [L.ou, L.medD, L.medE, L.salaElec, L.n2, L.n3, L.n4, L.ctrl, L.gw, L.scada, L.bim, L.cmms, L.tab, L.flujo, PL.M3];
   const mepAll = [...mepL.filter(l => l !== L.flujo), L.oa, L.esquema, PL.iuD, PL.iuE, PL.ou, PL.M5, PL.M6, PL.C3, PL.C4, L.salas];
   const LBL = {
-    planta: [...base, L.terreno, L.expan, L.silos], coord: [L.coSt, L.coD, L.coB, L.coT, L.coP], lod: [L.lod], ventajas: base, gemelo: [L.twinRot, ...LAY.map((_, i) => L['lay' + i])],
+    planta: [...base, L.terreno, L.expan, L.silos], coord: [L.coSt, L.coD, L.coB, L.coT, L.coP], lod: [L.lod, L.nD, L.nC, L.nE], ventajas: base, gemelo: [L.twinRot, ...LAY.map((_, i) => L['lay' + i])],
     mep: mepL, propuesta: [L.sheet, L.ou], cierre: base, inspector: mepAll, integracion: [L.gwConf, L.gw, L.scada, L.ctrl, L.n2, L.n3],
     limites: [L.twinRot, ...LAY.map((_, i) => L['lay' + i])], mantto: [PL.iuD, PL.iuE], riesgos: [L.fuga, L.ou], panama: base, recom: [L.ou, L.n2],
   };
@@ -196,6 +200,8 @@ export function buildM14({ THREE, label, go }) {
     vrf.visible = mepish; lv.visible = ['mep', 'inspector', 'integracion', 'recom'].includes(id); lodG.visible = mepish || id === 'lod';
     DE.children.forEach(o => { if (o.name.startsWith('edificio_')) o.material = mepish || id === 'lod' ? C.shell : glass(0xD5DCE2, 0.55); });
     sheets.visible = id === 'propuesta'; pulse.visible = false;
+    // En 2.2, C y las naves translúcidos para que no tapen la unidad exterior
+    edC.material = id === 'lod' ? edCGlass : C.edC; naveA.material = id === 'lod' ? edCGlass : C.naveA; naveB.material = id === 'lod' ? edCGlass : C.naveB; torre.material = id === 'lod' ? edCGlass : C.tower;
     IU.forEach(u => u.material = C.iu); Object.values(N).forEach(n => n.material.color.setHex(nodeBase)); pipeMat.color.setHex(0x2E6E8E); pipeMat.emissive.setHex(0);
     if (id === 'lod') { lodAuto = true; fillLOD('100'); document.querySelectorAll('[data-lod]').forEach(b => b.onclick = () => { lodAuto = false; fillLOD(b.dataset.lod); }); }
     else showLOD(id === 'propuesta' ? '100' : '400');
@@ -203,6 +209,8 @@ export function buildM14({ THREE, label, go }) {
     if (id === 'inspector') { document.querySelectorAll('[data-pt]').forEach(b => b.onclick = () => fillPt(b.dataset.pt)); fillPt(selPt); }
     if (id === 'integracion') N.gw.material.color.setHex(0xE5534B);
   }
+  // En 2.5, la etiqueta normal del nodo resaltado se oculta para que no salga dos veces
+  function dedup(lbl) { [PL.M3, L.ctrl, L.gw, L.scada, L.tab, L.cmms].forEach(l => { const on = l !== lbl; if (l.on !== on) { l.on = on; if (!on) l.el.hidden = true; } }); }
   function along(path, t, seg) { const k = Math.min(path.length - 2, Math.floor(t / seg)), u = Math.min(1, (t - k * seg) / seg); return { k, p: path[k][0].clone().lerp(path[k + 1][0], u), u }; }
   function tick(dt, t, st) {
     const id = st.id;
@@ -227,10 +235,12 @@ export function buildM14({ THREE, label, go }) {
         const a = along(FLOW, Math.min(cyc, T1), 1.3); pulse.position.copy(a.p); pulse.material.color.setHex(0xF2C14E);
         const k = cyc >= T1 ? FLOW.length - 1 : (a.u > 0.98 ? a.k + 1 : a.k);
         const nodeAt = [null, N.ctrl, N.gw, N.scada, N.tab, N.cmms][k]; if (nodeAt) nodeAt.material.color.setHex(hot);
+        dedup([PL.M3, L.ctrl, L.gw, L.scada, L.tab, L.cmms][k]);
         L.flujo.set(`<span class="st df">Dato de fuente</span>${FLOW[k][1]}<small>(M14 · Figura 3)</small>`); L.flujo.anchor.copy(FLOW[k][0]).add(v3(0, 4, 0));
       } else {
         const t2 = cyc - T1 - 1.5, a = along(STOPF, Math.min(t2, T2), 1.1); pulse.position.copy(a.p); pulse.material.color.setHex(0xE5534B);
         const k = t2 >= T2 ? STOPF.length - 1 : a.k; if (k === STOPF.length - 1) IU.forEach(u => u.material = C.off);
+        dedup([L.scada, L.gw, L.ctrl, null][k]);
         L.flujo.set(`<span class="st df">Dato de fuente</span>${STOPF[k][1]}<small>(Daikin Comfort Technologies North America, 2019, p. 24)</small>`); L.flujo.anchor.copy(STOPF[k][0]).add(v3(0, 4, 0));
       }
     }

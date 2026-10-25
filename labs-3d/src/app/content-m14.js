@@ -57,10 +57,10 @@ export const M14 = {
     { id: 'coord', n: '2.1', level: 'RP', title: 'Metodología BIM: coordinación', ref: 'M14 · La metodología BIM aplicada a sistemas HVAC-R', cards: [
       { ref: 'M14 · La metodología BIM aplicada a sistemas HVAC-R', stamp: 'df', cite: 'BIMForum, 2024', title: 'Elementos con información',
         body: '<p>Cada elemento (una puerta, una viga, una bomba) se representa en 3D y puede asociarse con información; como el gráfico puede aparentar más precisión de la que tiene, el LOD comunica cuánto confiar en cada uno.</p>' },
-      { ref: 'M14 · La metodología BIM aplicada a sistemas HVAC-R', stamp: 'df', cite: 'Khanzode et al., 2008, pp. 328–329', title: 'Edificio médico de USD&nbsp;96.9 millones, California',
+      { ref: 'M14 · La metodología BIM aplicada a sistemas HVAC-R', stamp: 'df', cite: 'Khanzode et al., 2008, pp. 324, 328–329', title: 'Edificio médico de USD&nbsp;96.9 millones, California',
         body: '<p>Cada subcontratista modeló su sistema en 3D y el contratista de HVAC lideró la coordinación sobre el cielo raso, porque sus ductos ocupan la mayor parte de ese espacio. Los modelos se integraron y las interferencias se detectaron de forma automática, en un proceso que se repitió hasta resolverlas antes de construir.</p>' },
       { ref: 'M14 · La metodología BIM aplicada a sistemas HVAC-R', stamp: 'df', cite: 'Khanzode et al., 2008, pp. 339–340', title: 'Lo que no se modela, choca',
-        body: '<p>Acabados, mobiliario y soportes misceláneos de acero sin modelar provocaron reubicaciones de tomacorrientes y conflictos en obra: el nivel de detalle se decide entre todos, según su uso. <span class="st il">Ilustrativo</span> cielo raso genérico, no es REFRESH ni el edificio médico.</p>' },
+        body: '<p>Acabados, mobiliario y soportes misceláneos de acero sin modelar provocaron reubicaciones de tomacorrientes y conflictos en obra: el nivel de detalle se decide entre todos, en función del uso. <span class="st il">Ilustrativo</span> cielo raso genérico, no es REFRESH ni el edificio médico.</p>' },
     ] },
     { id: 'lod', n: '2.2', level: 'RP', title: 'Niveles de desarrollo (LOD)', ref: 'M14 · Niveles de desarrollo (LOD) · Figura 1 · Tabla 1', cards: [
       { ref: 'M14 · Tabla 1', stamp: 'df', cite: 'BIMForum, 2024, pp. 12–13', title: 'LOD <span data-lodn>100</span> · unidad exterior y tubería del VRF',
@@ -85,11 +85,11 @@ export const M14 = {
         body: '<p>Recolección de datos → procesamiento → modelos inteligentes → plataforma de visualización → soporte en la nube. El BIM as-built es el repositorio central; la integración usa formatos como IFC, COBie y JSON.</p><p class="rot hot">Marco general (Hu et al., 2026); en REFRESH es una propuesta.</p>', fig: FIG14[2] },
     ] },
     { id: 'mep', n: '2.5', level: 'RP', title: 'Sistema MEP integrado para REFRESH', ref: 'M14 · Sistema MEP integrado · Figura 3', cards: [
-      { ref: 'M14 · Sistema MEP integrado para la planta REFRESH S.A.', stamp: 'df', cite: 'Thornton y Wagner, 2012, pp. 4–5, 19', title: 'VRF para los Edificios D y E',
+      { fold: true, ref: 'M14 · Sistema MEP integrado para la planta REFRESH S.A.', stamp: 'df', cite: 'Thornton y Wagner, 2012, pp. 4–5, 19', title: 'VRF para los Edificios D y E',
         body: '<p>Unidad exterior con compresor de velocidad variable y tubería de refrigerante hacia unidades interiores tipo fan coil; el aire exterior llega por una unidad separada. Autodiagnóstico, puntos de monitoreo y protocolos abiertos como BACnet y LonWorks.</p>' },
       { ref: 'M14 · Figura 3', stamp: 'df', cite: `${DAIKIN}, pp. 8, 24`, title: 'Cuatro niveles y una alerta',
         body: '<p>Campo → automatización del VRF → supervisión (SCADA) → información (BIM as-built + COBie, CMMS y tablero). <b>Animación:</b> aviso de filtro (M3) → controlador → pasarela BACnet/IP → SCADA → tablero → orden de trabajo en el CMMS; luego, <b>paro forzado (C3)</b>: se apagan todas las unidades interiores.</p><p><span class="st il">Ilustrativo</span> ubicación de equipos y tamaño de salas; orden de las salas del plano general (Batista et al., 2026, p. 21).</p>' },
-      { ref: 'M14 · Sistema MEP integrado', stamp: 'df', cite: `${DAIKIN}, pp. 30–31`, title: 'Medidor propuesto (M5)',
+      { fold: true, ref: 'M14 · Sistema MEP integrado', stamp: 'df', cite: `${DAIKIN}, pp. 30–31`, title: 'Medidor propuesto (M5)',
         body: '<p>La potencia que reporta el VRF es calculada y no reemplaza a un medidor de energía en el tablero: el esquema propone un medidor en los tableros de D y E.</p>' },
     ] },
     { id: 'propuesta', n: '2.6', level: 'RP', title: 'Propuesta para REFRESH', ref: 'M14 · Propuesta de aplicación al proyecto REFRESH S.A.', cards: [
