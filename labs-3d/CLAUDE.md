@@ -39,10 +39,11 @@ Si una ficha y su Word no coinciden, manda el Word. Si el simulador de REFRESH y
 4. **Cero cifras sin respaldo.** Sin capacidades (TR, kW, BTU/h), caudales ni lecturas que no estén en los informes. Un número en pantalla es un dato para la audiencia.
 5. **Español de Panamá**, con tildes. Decimal: punto; miles: coma. Unidades con espacio y `&nbsp;`.
 6. **Imágenes.** M6: cualquier figura del Word con su crédito debajo (uso didáctico). M14: solo la Figura 1 (BIMForum, CC BY-NC-ND, sin modificar) y la Figura 2 (Hu et al., CC BY), con su crédito; ninguna otra figura de terceros.
-7. **REFRESH.** Dimensiones de los edificios: del PDF. Distribución interior de D y E: ilustrativa (ver matriz). Alturas, salvo Nave A (22 m en zona de torre): ilustrativas.
+7. **REFRESH.** Dimensiones (PDF p. 22) y ubicación (plano, PDF p. 21) de los edificios: "Dato de fuente" (Batista et al., 2026). Salas de D y E: orden = "Dato de fuente" (p. 21); tamaños = "Ilustrativo". Unidades interiores solo donde las pone la Figura 3 del M14 (E: recepción, oficinas, sala de juntas; D: laboratorio QC, comedor); baños y taller sin equipos. Alturas: los 22 m son solo de la zona de la torre de la Nave A; todo lo demás, "Ilustrativo".
 8. El caso IfM (Lu et al., 2020) va como tarjeta o esquema; no se modela ese edificio.
 9. Nota visible: "Modelo conceptual, no a escala", salvo las dimensiones de REFRESH.
-10. Del recorrido se reutiliza solo lo visual y técnico. **Nada** del Edificio 2 de la UTP ni de las investigaciones (evita autoplagio con la Investigación 3). La prueba de humo falla si aparecen "Edificio 2", "155 TR", "Henríquez" o "Hosamo" (sin distinguir mayúsculas ni tildes).
+10. Del recorrido se reutiliza solo lo visual y técnico. **Nada** del Edificio 2 de la UTP ni de las investigaciones (evita autoplagio con la Investigación 3). La prueba de humo falla si aparecen "Edificio 2", "155 TR", "Henríquez Espinosa" o "Hosamo" (sin distinguir mayúsculas ni tildes). El crédito de F. Henríquez (coautor de Gollini-Mihalopoulos et al., 2023) en la Figura 11 del M6 es correcto y se mantiene.
+11. **Referencias al informe por sección, figura o tabla** ("M6 · Tabla 1"), nunca por página del informe. Las páginas solo se citan para las fuentes originales.
 
 ## Restricciones técnicas
 

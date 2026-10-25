@@ -26,7 +26,7 @@ Contenido tomado solo de `M6_Ficha_Fuentes_BORRADOR.md` y del Word final del M6 
 - **Ruta principal**
   - Ventilador y red de ductos con compuertas y terminales (ilustrativo, inspirado en el banco de 8 terminales de Pedranzini et al., 2013, p. 325).
   - Antes del TAB: filtros limpios y prueba de fugas de ductos (DALT) antes del balanceo (Yale Facilities, 2025).
-  - Animación del **balanceo proporcional**, terminal por terminal, hasta quedar en ±5 % del diseño (Pedranzini et al., 2013, p. 323; Yale Facilities, 2025, §4.3A); comparación de 10 contra 14 pasos (Pedranzini et al., 2013, p. 328).
+  - Animación de los **dos métodos de balanceo** (corregido el 25/10 con el texto del Word): el **método de proporción** iguala por pares las relaciones caudal medido/caudal de diseño, empezando por los dos terminales más desfavorecidos, y ajusta al final la velocidad del ventilador (iterativo); el **método de flujo progresivo** ajusta un terminal a la vez, desde el último hacia el ventilador, con variador y lazo de control. Meta: dentro de ±5 % de los caudales de diseño (Pedranzini et al., 2013, p. 323; Yale Facilities, 2025, §4.3A). Contador de pasos: "10 pasos frente a 14 del método de proporción" (Pedranzini et al., 2013, p. 328).
   - **Leyes de ventiladores**: control interactivo de velocidad; −20 % de velocidad = −50 % de potencia (U.S. DOE y AMCA, 2003, pp. 4, 18).
   - **Aplicación a Panamá**: Edificio N.° 1 de la UTP: 72.90 % del consumo; −35 % en el motor de la UMA; −14.10 %; 352,224 kWh; B/. 53,777.56 (Gollini-Mihalopoulos et al., 2023, pp. 143–148).
 - **Profundización**
