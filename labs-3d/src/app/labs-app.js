@@ -86,7 +86,7 @@ function rotHTML(r, chips) {
   const st = (k, txt) => `<span class="st ${k}">${txt || STAMP[k]}</span>`;
   return `<div class="card rot" data-card><div class="ch"><span class="ref">${r.ref}</span>${st(r.stamp, r.stampText)}</div>
 <p class="frase">${r.f} <span class="cite">(${r.fc})</span></p>${r.c ? `<p class="cifra">${r.cs ? st(r.cs) + ' ' : ''}${r.c}${r.cc ? ` <span class="cite">(${r.cc})</span>` : ''}</p>` : ''}
-${r.extra ? `<p class="small">${r.extra}</p>` : ''}${r.ui || ''}
+${r.extra ? `<p class="small">${r.extra}</p>` : ''}${r.ui || ''}${r.replay ? '<button class="btn replay" data-replay>↺ Repetir</button>' : ''}
 <div class="chips"><span>Detalle:</span>${chips.map(c => `<button class="btn chip" data-chip="${c.i}" title="${c.t}">${c.n}</button>`).join('')}</div></div>`;
 }
 export function cardHTML(c) {
@@ -107,6 +107,7 @@ function openFig(f, src) {
 dock.addEventListener('click', e => {
   const img = e.target.closest('img[data-fig]'); if (img) return openFig(img.closest('.fig'), img.src);
   const fb = e.target.closest('[data-figsrc]'); if (fb) return openFig(fb.closest('.fig'), fb.dataset.figsrc);
+  if (e.target.closest('[data-replay]')) return go(cur, step); // la animación narrativa vuelve a empezar
   const ch = e.target.closest('[data-chip]'); if (ch) return go(cur, +ch.dataset.chip, { back: step });
   const pb = e.target.closest('[data-pop]');
   if (pb) { document.getElementById('figbody').innerHTML = POPS[+pb.dataset.pop]; document.getElementById('figbox').hidden = false; }

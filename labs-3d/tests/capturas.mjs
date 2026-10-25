@@ -26,6 +26,14 @@ for (const [W, H] of [[1366, 768], [1920, 1080]]) {
   await go(2, 'E3', 3500); await shot('M14_E3_falla');
   await pg.evaluate(() => window.__labs.STOPS[2].openFicha(3)); await pg.waitForTimeout(500); await shot('M14_E3_ficha_de_activo');
   await go(2, 'E4', 9000); await shot('M14_E4_hoy_y_propuesta');
+  if (W === 1366) { // ronda 5: simulación sin balancear / ajustada / balanceada; escenas que se quedan en su estado final
+    await go(1, 'E2'); await shot('r5_M6_E2_todo_abierto');
+    await pg.evaluate(() => window.__labs.STOPS[1].sim.set(0, 4)); await pg.waitForTimeout(1500); await shot('r5_M6_E2_una_compuerta_ajustada');
+    await pg.evaluate(() => { const s = window.__labs.STOPS[1].sim; s.apply(s.balanced); }); await pg.waitForTimeout(1800); await shot('r5_M6_E2_balanceada');
+    await go(2, 'E1', 10000); await shot('r5_M14_E1_10s'); await pg.waitForTimeout(50000); await shot('r5_M14_E1_60s');
+    await go(2, 'E2'); await pg.click('[data-lod="500"]'); await pg.waitForTimeout(600); await shot('r5_M14_E2_LOD500');
+    await go(2, 'E4', 2500); await shot('r5_M14_E4_hoy'); await pg.waitForTimeout(9000); await shot('r5_M14_E4_as-built');
+  }
   if (W === 1366) { // verificación de las correcciones de la ronda 3
     for (const [s, id, n, w] of [[1, 'marco', '1.1'], [1, 'proporcion', '1.3', 6000], [1, 'progresivo', '1.4', 6000], [1, 'panama', '1.7'], [2, 'planta', '2.0'], [2, 'zona', '2.0b', 3500], [2, 'mep', '2.5', 3500], [2, 'inspector', 'P1']]) { await go(s, id, w || 2200); await shot(`detalle_${n}`); }
   }

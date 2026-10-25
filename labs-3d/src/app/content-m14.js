@@ -45,16 +45,16 @@ const T2 = [
 // Ruta principal: 4 escenas con rótulo breve; los pasos de siempre quedan en la profundización (chips «Detalle»)
 export const SC14 = [
   { id: 'E1', n: 'E1', level: 'RP', title: 'De la planta a la zona de estudio', chips: ['planta', 'zona'],
-    rot: { ref: 'M14 · Introducción · Sistema MEP integrado', stamp: 'df', f: 'La falta de interoperabilidad costó USD&nbsp;15,824 millones en 2002; cerca de dos terceras partes recayeron en propietarios y operadores', fc: 'Gallaher et al., 2004, p. ES-6',
+    rot: { replay: true, ref: 'M14 · Introducción · Sistema MEP integrado', stamp: 'df', f: 'La falta de interoperabilidad costó USD&nbsp;15,824 millones en 2002; cerca de dos terceras partes recayeron en propietarios y operadores', fc: 'Gallaher et al., 2004, p. ES-6',
       c: 'Zona de estudio: Edificios D y E de REFRESH S.A.', cc: 'Batista et al., 2026' } },
   { id: 'E2', n: 'E2', level: 'RP', title: 'Cuánto confiar en el modelo: LOD', chips: ['lod'],
-    rot: { ref: 'M14 · Niveles de desarrollo (LOD) · Tabla 1', stamp: 'df', f: 'El LOD indica cuánto confiar en la geometría; el LOD 500 no es un nivel superior: es lo verificado en obra', fc: 'BIMForum, 2024, pp. 12–13',
+    rot: { ref: 'M14 · Niveles de desarrollo (LOD) · Tabla 1', stamp: 'df', f: 'El LOD indica cuánto confiar en la geometría; el LOD 500 no es un nivel superior: es lo verificado en campo', fc: 'BIMForum, 2024, pp. 12–13',
       ui: `<div class="lodbtns">${LOD.map(l => `<button class="btn" data-lod="${l.n}">${l.n}</button>`).join('')}</div><p class="lodu"><b>LOD <span data-lodn>100</span></b> · <span data-lodf="u"></span></p><p class="small">Utilidad para mantenimiento (Tabla 1; BIMForum, 2024). <span class="st il">Ilustrativo</span> geometría de cada nivel.</p>` } },
   { id: 'E3', n: 'E3', level: 'RP', title: 'Una falla de punta a punta', chips: ['gemelo', 'mep', 'inspector', 'integracion', 'limites', 'mantto'],
-    rot: { ref: 'M14 · Sistema MEP integrado · Figura 3', stamp: 'pr', stampText: 'Propuesta · M14 · Figura 3', f: 'Con el aviso de filtro y las alarmas en el SCADA, el mantenimiento pasa de un calendario fijo a la condición del equipo', fc: 'Daikin Comfort Technologies North America, 2019; Hu et al., 2026',
+    rot: { ref: 'M14 · Sistema MEP integrado · Figura 3', stamp: 'pr', stampText: 'Propuesta · M14 · Figura 3', f: 'Con el aviso de filtro y las alarmas en el SCADA, el mantenimiento puede pasar de un calendario fijo a la condición del equipo', fc: 'Daikin Comfort Technologies North America, 2019; Hu et al., 2026',
       extra: 'Clic en una unidad interior: ficha de activo.' } },
   { id: 'E4', n: 'E4', level: 'RP', title: 'Hoy frente a la propuesta', chips: ['coord', 'ventajas', 'propuesta', 'cierre', 'riesgos', 'panama', 'recom'],
-    rot: { ref: 'M14 · Propuesta de aplicación · Tabla 2', stamp: 'pr', stampText: 'Propuesta · M14 · Propuesta de aplicación', f: 'REFRESH hoy se documenta con planos independientes; la propuesta es un modelo coordinado de D y E, entregado con COBie', fc: 'Batista et al., 2026; BIMForum, 2024',
+    rot: { replay: true, ref: 'M14 · Propuesta de aplicación · Tabla 2', stamp: 'pr', stampText: 'Propuesta · M14 · Propuesta de aplicación', f: 'REFRESH hoy se documenta con planos independientes; la propuesta es un modelo coordinado de D y E, entregado con COBie', fc: 'Batista et al., 2026; BIMForum, 2024',
       c: 'Caso real: 2 de 233 RFI y 0 órdenes de cambio', cs: 'df', cc: 'Khanzode et al., 2008, p. 336' } },
 ];
 // Ficha de activo (E3): campos vacíos a propósito; muestran la información que hoy falta

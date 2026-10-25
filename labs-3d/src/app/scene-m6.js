@@ -248,7 +248,8 @@ export function buildM6({ THREE, label }) {
   // ---------- E2 · simulación ilustrativa de la red (sin valores en pantalla) ----------
   // Tramos del ducto principal (Rm), ramales (Rb), terminales (Rt) y compuertas (Rd) con ΔP = R·Q²;
   // ventilador con curva P = P0·(1 − (Q/Qmax)²). En serie las R se suman; en paralelo se suman las conductancias 1/√R.
-  const SIM = { Rm: 0.06, Rb: 0.12, Rt: 1, Rd: [0, 3, 40], P0: 1, Qmax: 2.6, st: new Array(8).fill(0) };
+  // 6 posiciones de compuerta: abierta, cuatro intermedias y cerrada (resistencias ilustrativas en serie geométrica)
+  const SIM = { Rm: 0.06, Rb: 0.12, Rt: 1, Rd: [0, 0.15, 0.42, 1.18, 3.29, 40], P0: 1, Qmax: 2.6, st: new Array(8).fill(0) };
   const cond = R => 1 / Math.sqrt(R), par = (...R) => 1 / Math.pow(R.reduce((a, r) => a + cond(r), 0), 2);
   const byB = [0, 1, 2, 3].map(b => T.map((t, i) => t.b === b ? i : -1).filter(i => i >= 0));
   function solve(st = SIM.st) {
@@ -265,32 +266,35 @@ export function buildM6({ THREE, label }) {
     }
     return q;
   }
-  const QD = solve(new Array(8).fill(0)); // caudal de «diseño»: todas las compuertas abiertas (ilustrativo)
-  const simApply = () => { const q = solve(); T.forEach((t, i) => { t.rt = q[i] / QD[i]; t.angT = [0, 0.5, 0.95][SIM.st[i]]; }); };
-  const sim = { flows: () => solve().map((v, i) => v / QD[i]), set(i, k) { SIM.st[i] = k; simApply(); }, reset() { SIM.st.fill(0); simApply(); } };
+  // Caudal de diseño igual en los 8 terminales (ilustrativo): el de una combinación balanceada de referencia.
+  // Con todo abierto, los terminales cercanos al ventilador quedan sobre la franja y los lejanos debajo: la red recién instalada no entrega el diseño.
+  const BAL = [4, 4, 3, 3, 1, 1, 0, 0], QD = (q => q.reduce((a, b) => a + b) / 8)(solve(BAL));
+  const simApply = () => { const q = solve(); T.forEach((t, i) => { t.rt = q[i] / QD; t.angT = SIM.st[i] / 5 * 0.95; }); };
+  const sim = { flows: (st = SIM.st) => solve(st).map(v => v / QD), set(i, k) { SIM.st[i] = k; simApply(); }, reset() { SIM.st.fill(0); simApply(); }, apply(st) { st.forEach((k, i) => { SIM.st[i] = k; }); simApply(); }, balanced: BAL, positions: SIM.Rd.length,
+    search() { let n = 0; for (let c = 0; c < 1296; c++) { const p = [c % 6, (c / 6 | 0) % 6, (c / 36 | 0) % 6, (c / 216 | 0) % 6]; if (solve([p[0], p[0], p[1], p[1], p[2], p[2], p[3], p[3]]).every(v => Math.abs(v / QD - 1) <= 0.05)) n++; } return n; } };
   let cmp = null; // comparación de métodos (contador doble)
   function onClick(ray, st) {
     if (st.id !== 'E2' || cmp) return;
     const hit = ray.intersectObjects(T.flatMap(t => [t.neck, t.diff]), true).find(h => h.object.userData.term !== undefined);
-    if (hit) { const i = hit.object.userData.term; sim.set(i, (SIM.st[i] + 1) % 3); }
+    if (hit) { const i = hit.object.userData.term; sim.set(i, (SIM.st[i] + 1) % SIM.Rd.length); } // cada clic cierra un paso; después de «cerrada» vuelve a abierta
   }
   // Etiquetas de las escenas (pocas, para que quepan a 1366)
   const LS = {
     filtroE: label(v3(-14.4, Y + 1.1, 0), 'Filtro'), fase1: label(v3(-12.6, Y + 2.6, 0), '', { cls: 'amber' }),
-    clic: label(v3(BX[2], TY + 0.9, Z), `${il}Clic: compuerta abierta / media / cerrada`, { cls: 'amber' }),
+    clic: label(v3(BX[2], TY + 0.9, Z), `${il}Clic: cierra la compuerta un paso<small>6 posiciones: abierta → cerrada</small>`, { cls: 'amber' }),
     simS: label(v3(BX[1], 2.4, -Z), `${il}Simulación ilustrativa · sin valores`, { cls: 'amber' }),
   };
   Object.assign(CAM, { E1: [-10, 16, 24, -4, 1.2, 0], E2: [-15, 13, 17, 3, 1.0, 0], E3: [-14, 11, 15, 3, 2.5, 0], E4: [-11, 14, 22, -5, 1.5, 0] });
   Object.assign(LBL, { E1: [LS.filtroE, LS.fase1, L.vent, L.banda, L.barra], E2: [L.banda, L.barra, LS.clic, LS.simS], E3: [L.estado, L.comp, L.vent], E4: [L.vfd, L.vav, L.ducto] });
   const scEnter = st => {
-    if (st.id === 'E2') { cmp = null; sim.reset(); T.forEach(t => { t.r = t.rt; }); const b = document.getElementById('cmpBtn'); if (b) b.onclick = () => { cmp = { t0: performance.now() }; document.querySelectorAll('.cmprow').forEach(r => r.hidden = false); }; }
+    if (st.id === 'E2') { cmp = null; sim.reset(); T.forEach(t => { t.r = t.rt; }); const b = document.getElementById('cmpBtn'); if (b) b.onclick = () => { cmp = { t0: performance.now() }; document.querySelectorAll('.cmprow').forEach(r => r.hidden = false); }; const rs = document.getElementById('simReset'); if (rs) rs.onclick = () => { cmp = null; sim.reset(); }; }
     if (st.id === 'E1') { filt.material = mat.filterDirty; T.forEach((t, i) => { t.r = t.rt = R0[i]; }); }
     if (st.id === 'E3') { userSpd = false; const sp = document.getElementById('spd'), b = document.getElementById('spd80'); if (sp) { sp.oninput = () => { userSpd = true; laws(); }; b.onclick = () => { userSpd = true; sp.value = 80; laws(); }; laws(); } }
   };
   let userSpd = false;
   const scTick = (dt, t, st) => {
-    if (st.id === 'E1') { // filtro sucio → limpio; luego barras medido/diseño y franja de ±5 %; se balancean; bucle de 48 s
-      const u = t % 48; filt.material = u < 7 ? mat.filterDirty : mat.filterClean;
+    if (st.id === 'E1') { // filtro sucio → limpio; luego barras medido/diseño y franja de ±5 %; se balancean; una sola vez (↺ Repetir)
+      const u = Math.min(t, 30); filt.material = u < 7 ? mat.filterDirty : mat.filterClean;
       const showB = u > 10; T.forEach((tt, i) => { tt.bar.visible = tt.band.visible = showB; tt.rt = u < 22 ? R0[i] : 1 + [0.01, -0.02, 0.015, -0.01, 0.02, -0.015, 0.01, 0][i]; });
       LS.fase1.set(`<span class="st il">Ilustrativo</span>${u < 7 ? 'Filtro sucio' : u < 10 ? 'Filtro limpio' : u < 22 ? 'Antes del balanceo' : 'Balanceada: todas en la franja'}`);
     }
@@ -306,7 +310,7 @@ export function buildM6({ THREE, label }) {
       if (!userSpd) { const sp = document.getElementById('spd'); if (sp) { const v = open ? 80 : 100; if (+sp.value !== v) { sp.value = v; laws(); } } }
       L.estado.set(`<span class="st il">Ilustrativo</span>${open ? 'Compuertas abiertas · menor velocidad' : 'Compuertas casi cerradas · ventilador rápido'}<small>mismo caudal en los terminales</small>`);
     }
-    if (st.id === 'E4') { const on = (t % 40) > 3; vfd.visible = on; vavs.forEach(v => v.visible = on); fanT = on ? 0.85 + 0.08 * Math.sin(t * 0.6) : 1; }
+    if (st.id === 'E4') { const on = t > 3; vfd.visible = on; vavs.forEach(v => v.visible = on); fanT = on ? 0.85 : 1; } // volumen constante → variable, una sola vez
   };
   const steps = [...SC6.map(s => ({ ...s, cam: CAM[s.id], labels: LBL[s.id] || [] })), ...M6.steps.map(s => ({ ...s, level: 'PR', cam: CAM[s.id], labels: LBL[s.id] || [] }))];
   // Miniatura para el inicio: la misma geometría (correa corregida incluida), sin piso, barras ni objetos de pasos específicos

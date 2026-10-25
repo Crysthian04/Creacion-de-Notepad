@@ -17,7 +17,7 @@ Criterio (ronda 4): la columna «Escena» indica desde qué escena de la ruta pr
 | LOD 100, 200, 300, 350, 400, 500 (botones y nombre del nivel) | M14 · E2 | M14 · Niveles de desarrollo (LOD) · Tabla 1 | BIMForum (2024), pp. 12–13 |
 | Caso real: 2 de 233 RFI y 0 órdenes de cambio | M14 · E4 | M14 · Tabla 2 | Khanzode et al. (2008), p. 336 |
 
-La simulación de la E2 del M6 no muestra valores ni unidades (sello «Simulación ilustrativa · ΔP = R·Q² (Pedranzini et al., 2013, p. 323) · sin valores»). La ficha de activo de la E3 del M14 muestra los campos vacíos («—») a propósito.
+La simulación de la E2 del M6 no muestra valores ni unidades (sello «Simulación ilustrativa · sin valores»; en texto, «ΔP = R·Q² (Pedranzini et al., 2013, p. 323)»). Sus 6 posiciones de compuerta y el caudal de diseño son ilustrativos y no se muestran como cifras. La ficha de activo de la E3 del M14 muestra los campos vacíos («—») a propósito.
 
 ## Parada 0 · Inicio
 

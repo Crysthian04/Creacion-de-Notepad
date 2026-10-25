@@ -157,7 +157,7 @@ No se copia `lib/three.min.js` (r128) ni ningún código que dependa de él. Las
 
 ---
 
-## Ronda 4 (24/10/2026) · Ruta principal de 4 escenas por parada
+## Ronda 4 (25/10/2026) · Ruta principal de 4 escenas por parada
 
 La ruta principal muestra el mecanismo con rótulos breves, y el texto completo queda en la profundización. No se borró ningún contenido: todos los pasos anteriores conservan su numeración en la pestaña «Profundización».
 
@@ -183,3 +183,25 @@ La ruta principal muestra el mecanismo con rótulos breves, y el texto completo 
 - Los niveles de la Figura 3 se rotulan uno por franja (4 → 3 → 2).
 - En P1, el rótulo «Orden de las salas» se quitó; ese dato está en 2.0b.
 - En el inicio, las miniaturas llevan los títulos de las escenas y D y E van en cian.
+
+
+---
+
+## Ronda 5 (25/10/2026)
+
+- **Rótulos fieles al Word:**
+  - M6 E2: «…de los demás terminales…».
+  - M14 E2: «…verificado en campo».
+  - M14 E3: «…puede pasar…».
+- **M6 E2, simulación:**
+  - Caudal de diseño igual en los 8 terminales. Es ilustrativo: el de una combinación balanceada de referencia.
+  - Con todo abierto la red no entrega el diseño (M6 · Introducción; Pedranzini et al., 2013): los terminales cercanos quedan sobre la franja (152 %) y los lejanos debajo (78 %).
+  - Cada compuerta tiene 6 posiciones (abierta → cerrada) y hay un botón «Reiniciar».
+  - La búsqueda exhaustiva sobre las 6⁸ = 1,679,616 combinaciones encuentra 7 con los 8 terminales dentro de ±5 %.
+  - El sello dice «Simulación ilustrativa · sin valores»; «ΔP = R·Q² (Pedranzini et al., 2013, p. 323)» va en texto normal.
+- **Escenas narrativas** (M6 E1, M6 E4, M14 E1, M14 E4 y el paso 2.6): se reproducen una vez, quedan en su estado final y tienen el botón «↺ Repetir». Solo el aire y el giro del ventilador siguen en bucle.
+- **M14 E4 / 2.6:**
+  - La fase «Hoy» lleva «Dato de fuente» (Batista et al., 2026), sin VRF («Hoy: sin climatización de los espacios ocupados»).
+  - Las fases «Modelo coordinado de D y E» y «Modelo as-built + COBie» llevan el sello de propuesta.
+- **Unidad de aire exterior:** junto a la unidad exterior, al sur del Edificio E, lejos de C (ATEX). Aparece en el recuadro de planta (■).
+- **P1:** se quitaron dos etiquetas repetidas: «M3 · aviso de filtro» (M3 ya está en «M1 M2 M3 C1 C2 · en cada unidad interior») y la segunda copia de esa etiqueta en el Edificio E. El inspector conserva los 10 puntos.

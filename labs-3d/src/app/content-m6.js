@@ -30,18 +30,18 @@ const TABLA1 = `<div class="ft" style="font-weight:600;margin-bottom:8px">Tabla 
 // Ruta principal: 4 escenas con rótulo breve; los pasos de siempre quedan en la profundización (chips «Detalle»)
 export const SC6 = [
   { id: 'E1', n: 'E1', level: 'RP', title: 'La red y su criterio', chips: ['red', 'marco', 'previas', 'nebb', 'fugas', 'correas', 'presion'],
-    rot: { ref: 'M6 · El TAB y su marco normativo', stamp: 'df', f: 'Un balanceo se acepta cuando el caudal de cada terminal queda dentro de ±5&nbsp;% del caudal de diseño', fc: 'Yale Facilities, 2025, §4.3A, p. 23' } },
+    rot: { replay: true, ref: 'M6 · El TAB y su marco normativo', stamp: 'df', f: 'Un balanceo se acepta cuando el caudal de cada terminal queda dentro de ±5&nbsp;% del caudal de diseño', fc: 'Yale Facilities, 2025, §4.3A, p. 23' } },
   { id: 'E2', n: 'E2', level: 'RP', title: 'Cerrar una compuerta mueve a todas', chips: ['proporcion', 'progresivo', 'medir'],
-    rot: { ref: 'M6 · Métodos de balanceo · Tabla 1', stamp: 'df', f: 'Cada ajuste de una compuerta cambia el caudal de los demás ramales; por eso el método de proporción es iterativo', fc: 'Pedranzini et al., 2013, p. 323',
+    rot: { ref: 'M6 · Métodos de balanceo · Tabla 1', stamp: 'df', f: 'Cada ajuste de una compuerta cambia el caudal de los demás terminales; por eso el método de proporción es iterativo', fc: 'Pedranzini et al., 2013, p. 323',
       c: 'Banco de 8 terminales: 14 pasos por proporción, 10 por flujo progresivo', cc: 'Pedranzini et al., 2013, p. 328',
-      extra: '<span class="st il">Simulación ilustrativa · ΔP = R·Q² (Pedranzini et al., 2013, p. 323) · sin valores</span> Clic en una compuerta: abierta → media → cerrada.',
-      ui: '<div class="cmp"><button class="btn" id="cmpBtn">Comparar métodos</button><div class="cmprow" hidden><span>Proporción</span><i data-cmp="p"></i><b data-cmpn="p">0 de 14</b></div><div class="cmprow" hidden><span>Flujo progresivo</span><i data-cmp="f"></i><b data-cmpn="f">0 de 10</b></div></div>' } },
+      extra: '<span class="st il">Simulación ilustrativa · sin valores</span> ΔP = R·Q² (Pedranzini et al., 2013, p. 323). Diseño igual en los 8 terminales: con todo abierto, los cercanos quedan arriba y los lejanos abajo. Cada clic cierra una compuerta un paso.',
+      ui: '<div class="cmp"><div class="cmpbtns"><button class="btn" id="simReset">Reiniciar</button><button class="btn" id="cmpBtn">Comparar métodos</button></div><div class="cmprow" hidden><span>Proporción</span><i data-cmp="p"></i><b data-cmpn="p">0 de 14</b></div><div class="cmprow" hidden><span>Flujo progresivo</span><i data-cmp="f"></i><b data-cmpn="f">0 de 10</b></div></div>' } },
   { id: 'E3', n: 'E3', level: 'RP', title: 'Abrir compuertas y bajar el ventilador', chips: ['apertura', 'leyes', 'efecto'],
     rot: { ref: 'M6 · Del balanceo al consumo de energía · Figura 7', stamp: 'df', f: 'Después del balanceo, el último ajuste es el ventilador: compuertas abiertas y menor velocidad para el mismo caudal', fc: 'Pedranzini et al., 2013',
       c: '−20&nbsp;% de velocidad = −50&nbsp;% de potencia', cc: 'DOE y AMCA, 2003, p. 18',
       ui: '<div class="laws"><label class="lw">Velocidad del ventilador<input type="range" id="spd" min="50" max="100" value="100" step="1"><span class="mk"></span></label><div class="bar"><span>Caudal ∝ N</span><i data-law="1"></i></div><div class="bar"><span>Presión ∝ N²</span><i data-law="2"></i></div><div class="bar"><span>Potencia ∝ N³</span><i data-law="3"></i></div><button class="btn" id="spd80">−20&nbsp;% de velocidad</button></div><p class="small"><span class="st il">Ilustrativo</span> barras sin escala.</p>' } },
   { id: 'E4', n: 'E4', level: 'RP', title: 'Panamá', chips: ['panama', 'cierre', 'kleberg', 'bogota', 'normas'],
-    rot: { ref: 'M6 · Aplicación al contexto panameño · Figura 11', stamp: 'df', f: 'En el Edificio N.° 1 de la UTP, la climatización es el 72.90&nbsp;% del consumo eléctrico teórico', fc: 'Gollini-Mihalopoulos et al., 2023, p. 143',
+    rot: { replay: true, ref: 'M6 · Aplicación al contexto panameño · Figura 11', stamp: 'df', f: 'En el Edificio N.° 1 de la UTP, la climatización es el 72.90&nbsp;% del consumo eléctrico teórico', fc: 'Gollini-Mihalopoulos et al., 2023, p. 143',
       c: 'Volumen variable: −14.10&nbsp;% en la simulación', cc: 'Gollini-Mihalopoulos et al., 2023, pp. 146, 148', extra: '<span class="st il">Ilustrativo</span> variador y cajas VAV en la red del modelo; el edificio no se modela.' } },
 ];
 export const M6 = {

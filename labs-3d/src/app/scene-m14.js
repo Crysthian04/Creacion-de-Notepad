@@ -58,14 +58,16 @@ export function buildM14({ THREE, label, go, fly }) {
   const vrf = new THREE.Group(); vrf.name = 'vrf_D_E'; g.add(vrf);
   const IU = ['labQC', 'comedor', 'recepcion', 'oficinas', 'juntas'].map(k => { const m = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 1.4), C.iu); m.position.copy(rooms[k].c).setY(3.6); m.name = 'unidad_interior_' + k; vrf.add(m); return m; });
   // Unidad exterior junto al Edificio E, del lado contrario al Edificio C (ATEX); ubicación ilustrativa
-  const OU = P(18, 89.3), OA = P(25, 61);
+  const OU = P(18, 89.3), OA = P(23.2, 89.3); // unidad exterior y unidad de aire exterior junto al Edificio E, lejos de C (ATEX)
   const pipePts = [[OU.clone().setY(1.2), P(18, 87.2, 3.4), P(18, 84.5, 3.4), P(12, 84.5, 3.4), rooms.recepcion.c.clone().setY(3.4)], [P(18, 84.5, 3.4), rooms.oficinas.c.clone().setY(3.4)],
     [P(18, 84.5, 3.4), P(26, 84.5, 3.4), rooms.juntas.c.clone().setY(3.4)],
     [P(26, 84.5, 3.4), P(28, 84.5, 3.4), P(28, 74, 3.4), P(23, 74, 3.4), P(23, 14, 3.4), P(21, 14, 3.4), rooms.labQC.c.clone().setY(3.4)], [P(23, 19.5, 3.4), P(21, 19.5, 3.4), rooms.comedor.c.clone().setY(3.4)]];
   const tube = (pts, r, mat, name, parent) => { const grp = new THREE.Group(); grp.name = name; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], L = a.distanceTo(b), m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, L, 8), mat); m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(v3(0, 1, 0), b.clone().sub(a).normalize()); grp.add(m); } parent.add(grp); return grp; };
   const pipeMat = C.pipe.clone(); const pipes = pipePts.map((p, i) => tube(p, 0.18, pipeMat, 'tuberia_refrigerante_' + i, vrf));
-  const oaMat = C.oa.clone(); tube([OA.clone().setY(1.6), P(22, 61, 2.8), P(22, 22, 2.8), P(21, 22, 2.8)], 0.32, oaMat, 'ducto_aire_exterior_D', vrf); tube([P(22, 61, 2.8), P(22, 78, 2.8), P(20, 78, 2.8)], 0.32, oaMat, 'ducto_aire_exterior_E', vrf);
-  const oaUnit = vol(24, 60, 2.4, 2, 1.8, M(0x7FA36E), 'unidad_aire_exterior', vrf);
+  const oaMat = C.oa.clone();
+  tube([OA.clone().setY(1.6), P(23.2, 86.6, 2.8), P(23.2, 82, 2.8), P(20, 82, 2.8)], 0.32, oaMat, 'ducto_aire_exterior_E', vrf);
+  tube([P(23.2, 86.6, 2.8), P(30.6, 86.6, 2.8), P(30.6, 74.5, 2.8), P(22, 74.5, 2.8), P(22, 22, 2.8), P(21, 22, 2.8)], 0.32, oaMat, 'ducto_aire_exterior_D', vrf);
+  const oaUnit = vol(22, 88.3, 2.4, 2, 1.8, M(0x7FA36E), 'unidad_aire_exterior', vrf);
   // Paneles de distribución PD-D y PD-E (unifilar, PDF p. 25); ubicación dentro de D y E ilustrativa
   const tabD = vol(19.4, 11.25, 1.2, 0.4, 1.8, C.panel, 'panel_PD-D', vrf, 0.3), tabE = vol(9.25, 77, 0.4, 1.2, 1.8, C.panel, 'panel_PD-E', vrf, 0.3);
   const cableMat = new THREE.LineDashedMaterial({ color: 0xE3A857, dashSize: 0.9, gapSize: 0.6 });
@@ -139,7 +141,7 @@ export function buildM14({ THREE, label, go, fly }) {
     ou: label(OU.clone().setY(2.6), `${il}Unidad exterior VRF`), oa: label(OA.clone().setY(2.4), `${il}Unidad de aire exterior`, { down: true }),
     medD: label(c(tabD).setY(2.6), MED('D'), { cls: 'amber', prio: true }),
     medE: label(c(tabE).setY(2.6), MED('E'), { cls: 'amber', prio: true }),
-    salaElec: label(c(sensC).setY(3.7), `${df()}Sala eléctrica / UPS<small>(Batista et al., 2026, p. 22)</small>`),
+    salaElec: label(c(sensC).setY(3.7), `${df()}Sala eléctrica / UPS<small>(Batista et al., 2026, p. 22)</small>`, { prio: true }),
     n2: label(P(94, 50, 8.5), 'Nivel 2 · Automatización del VRF<small>controlador central · pasarela BACnet/IP</small>', { cls: 'cyan', prio: true }),
     n3: label(P(94, 50, 16.5), 'Nivel 3 · Supervisión<small>SCADA central de REFRESH</small>', { cls: 'cyan', prio: true }),
     n4: label(P(94, 50, 24.5), 'Nivel 4 · Gestión de la información<small>modelo BIM as-built (LOD 500) + COBie · CMMS · tablero / gemelo digital</small>', { cls: 'cyan', prio: true }),
@@ -148,7 +150,7 @@ export function buildM14({ THREE, label, go, fly }) {
     esquema: label(P(85, 74, 8), `${il}Esquema de la Figura 3<small>no es una ubicación física</small>`, { down: true }),
     flujo: label(P(60, 50, 30), '', { cls: 'amber', prio: true }),
     gwConf: label(c(N.gw).setY(6.6), '<span class="st df">Dato de fuente</span>Integración con el SCADA: por confirmar<small>(Batista et al., 2026, p. 13)</small>', { cls: 'red', down: true }),
-    lod: label(OU.clone().setY(4.2), '', { cls: 'amber' }),
+    lod: label(OU.clone().setY(2.9), '', { cls: 'amber', prio: true }),
     nD: label(P(15, 33, 4.8), `${df()}Edificio D<small>(Batista et al., 2026, p. 21)</small>`), nC: label(P(15, 52, 6.3), `${df()}Edificio C<small>(Batista et al., 2026, p. 21)</small>`),
     nE: label(P(16, 78, 4.8), `${df()}Edificio E<small>(Batista et al., 2026, p. 21)</small>`),
     twinRot: label(P(45, 25, 64), '<span class="st df">Dato de fuente</span>Marco general (Hu et al., 2026); en REFRESH es una propuesta', { cls: 'amber' }),
@@ -181,7 +183,8 @@ export function buildM14({ THREE, label, go, fly }) {
 
   const base = [L.naveA, L.naveB, L.edC, L.edD, L.edE];
   const mepL = [L.ou, L.medD, L.medE, L.salaElec, L.n2, L.n3, L.n4, L.flujo, PL.M3];
-  const mepAll = [...mepL.filter(l => l !== L.flujo), L.oa, L.esquema, PL.iuD, PL.iuE, PL.ou, PL.M5, PL.M6, PL.C3, PL.C4]; // el orden de las salas se muestra en 2.0b
+  // P1: sin repetidos (M3 ya está en «M1 M2 M3 C1 C2 · en cada unidad interior», que se rotula una vez); el orden de las salas se muestra en 2.0b
+  const mepAll = [...mepL.filter(l => l !== L.flujo && l !== PL.M3), L.oa, L.esquema, PL.iuD, PL.ou, PL.M5, PL.M6, PL.C3, PL.C4];
   const LBL = {
     planta: [...base, L.terreno, L.expan, L.silos, L.fach], zona: [L.fach, L.pdD, L.pdE, L.salaElec, L.cable, L.salas, L.ou], coord: [L.coSt, L.coD, L.coB, L.coT, L.coP], lod: [L.lod], ventajas: base, gemelo: [L.twinRot, ...LAY.map((_, i) => L['lay' + i])],
     mep: mepL, propuesta: [L.sheet, L.ou], cierre: base, inspector: mepAll, integracion: [L.gwConf, L.n2, L.n3],
@@ -232,7 +235,7 @@ export function buildM14({ THREE, label, go, fly }) {
   function tick(dt, t, st) {
     const id = st.base || st.id;
     if (st.id === 'E1') { // planta completa con fachadas opacas → la cámara entra a D y E en rayos X; bucle de 48 s
-      const u = t % 48, ph = u < 7 ? 1 : u < 40 ? 2 : 1;
+      const ph = t < 7 ? 1 : 2; // una sola vez: planta → zona de estudio en rayos X, y ahí se queda (↺ Repetir)
       if (ph !== e1fly) { e1fly = ph; xr = ph === 2; fly(ph === 2 ? CAM.zona : CAM.planta); }
       vrf.visible = lodG.visible = ph === 2; if (ph === 2) showLOD('400');
       [L.nmD, L.nmE].forEach(l => l.set(l.el.dataset.base + (ph === 2 ? '<small>zona de estudio</small>' : '')));
@@ -268,19 +271,20 @@ export function buildM14({ THREE, label, go, fly }) {
       }
     }
     if (id === 'riesgos') { const on = Math.floor(t * 3) % 2; pipeMat.color.setHex(on ? 0xE3A857 : 0x2E6E8E); pipeMat.emissive.setHex(on ? 0x553300 : 0); }
-    if (id === 'propuesta') {
-      const u = Math.min(1, Math.max(0, (t % 12 - 1) / 4));
-      SH.forEach((m, i) => { m.position.copy(m.userData.a).lerp(P(15, 48, 8), u); m.material.opacity = 0.55 * (1 - Math.max(0, (t % 12 - 5) / 2)); m.rotation.x = -Math.PI / 2 * u * 0.9; m.visible = m.material.opacity > 0.02; });
-      const ph = t % 12 < 5 ? 0 : t % 12 < 8 ? 1 : 2; showLOD(['100', '350', '500'][ph]);
-      L.sheet.set(`<span class="st pr">Propuesta · M14 · Propuesta de aplicación</span>${['Hoy: vista isométrica 3D, P&amp;ID y unifilar independientes', 'Modelo coordinado de D y E: VRF en LOD 350', 'Modelo as-built de D y E + datos COBie'][ph]}<small>(Batista et al., 2026; BIMForum, 2024)</small>`);
-      L.ou.set(`<span class="st pr">Propuesta · M14</span>${['Volumen de reserva (anteproyecto)', 'LOD 350 · coordinación', 'As-built (LOD 500) + COBie'][ph]}`);
+    if (id === 'propuesta') { // una sola vez: hoy → modelo coordinado de D y E → as-built + COBie (↺ Repetir)
+      const u = Math.min(1, Math.max(0, (t - 1) / 4));
+      SH.forEach(m => { m.position.copy(m.userData.a).lerp(P(15, 48, 8), u); m.material.opacity = 0.55 * (1 - Math.min(1, Math.max(0, (t - 5) / 2))); m.rotation.x = -Math.PI / 2 * u * 0.9; m.visible = m.material.opacity > 0.02; });
+      const ph = t < 5 ? 0 : t < 8 ? 1 : 2; lodG.visible = vrf.visible = ph > 0; if (ph) showLOD(['100', '350', '500'][ph]); // «Hoy»: REFRESH no tiene climatización en D y E
+      L.sheet.set(ph === 0 ? '<span class="st df">Dato de fuente</span>Hoy: vista isométrica 3D, P&amp;ID y unifilar independientes<small>(Batista et al., 2026)</small>'
+        : `<span class="st pr">Propuesta · M14 · Propuesta de aplicación</span>${['', 'Modelo coordinado de D y E: VRF en LOD 350', 'Modelo as-built de D y E + datos COBie'][ph]}<small>(Batista et al., 2026; BIMForum, 2024)</small>`);
+      L.ou.set(ph === 0 ? '<span class="st df">Dato de fuente</span>Hoy: sin climatización de los espacios ocupados<small>(Batista et al., 2026)</small>' : `<span class="st pr">Propuesta · M14</span>${['', 'LOD 350 · coordinación', 'As-built (LOD 500) + COBie'][ph]}`);
     } else if (L.ou.el.querySelector('.box').textContent !== 'IlustrativoUnidad exterior VRF') L.ou.set(`${il}Unidad exterior VRF`);
   }
   // 2.2: recuadro con la planta de D, C y E (plano, p. 21) y la vista de la cámara; la ubicación de la unidad es ilustrativa
   const R2 = (x, y, w, d, t) => `<rect x="${y}" y="${x}" width="${d}" height="${w}" fill="#3A424A" stroke="#C9D1D8" stroke-width=".4"/><text x="${y + d / 2}" y="${x + w / 2 + 1.6}" font-size="5" fill="#F1F4F6" text-anchor="middle">${t}</text>`;
   const INSET = `<span class="st df">Dato de fuente</span>Planta: D, C y E <small>(Batista et al., 2026, p. 21)</small>
-<svg viewBox="8 4 92 30">${R2(9, 11, 12, 25, 'D')}${R2(9, 41, 12, 24, 'C')}${R2(9, 76, 20, 10, 'E')}<circle cx="89.3" cy="18" r="1.6" fill="#E3A857"/><path d="M95.8 26 L89.8 18.6 M95.8 26 L92.4 26.4 M95.8 26 L96 22.6" stroke="#29A9E0" stroke-width=".7" fill="none"/><text x="10" y="33" font-size="3.6" fill="#9AA6B1">← N</text></svg>
-<span class="st il">Ilustrativo</span>ubicación de la unidad exterior (●) y dirección de la vista.`;
+<svg viewBox="8 4 92 30">${R2(9, 11, 12, 25, 'D')}${R2(9, 41, 12, 24, 'C')}${R2(9, 76, 20, 10, 'E')}<circle cx="89.3" cy="18" r="1.6" fill="#E3A857"/><rect x="88.3" y="22" width="2" height="2.4" fill="#7FA36E"/><path d="M95.8 26 L89.8 18.6 M95.8 26 L92.4 26.4 M95.8 26 L96 22.6" stroke="#29A9E0" stroke-width=".7" fill="none"/><text x="10" y="33" font-size="3.6" fill="#9AA6B1">← N</text></svg>
+<span class="st il">Ilustrativo</span>ubicación de la unidad exterior (●), de la unidad de aire exterior (■) y dirección de la vista.`;
   // Miniatura para el inicio: la planta completa con la misma geometría; D y E resaltados con sus fachadas
   function mini() {
     const m = site.clone(true), hi = M(0x7FD6FF), win = M(0x2B3A46);

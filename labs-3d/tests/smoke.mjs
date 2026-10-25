@@ -101,12 +101,52 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
       }
     }
   }
-  // (c) simulación de la E2 del M6: cerrar la compuerta i baja Qi y sube los demás; reabrirla devuelve todo (±1 %)
+  // (c) simulación de la E2 del M6: diseño igual en los 8 terminales; red sin balancear con todo abierto;
+  // existe al menos una combinación con los 8 dentro de ±5 %; cerrar un paso baja su caudal y sube los demás; reabrir regresa (±1 %)
   if (W === 1920) {
-    const sim = await pg.evaluate(() => { const s = window.__labs.STOPS[1].sim, out = []; s.reset();
-      for (let i = 0; i < 8; i++) { const a = s.flows(); s.set(i, 2); const b = s.flows(); s.set(i, 0); const c = s.flows(); out.push({ i, down: b[i] < a[i], up: b.every((v, j) => j === i || v > a[j]), back: c.every((v, j) => Math.abs(v - a[j]) <= 0.01 * a[j]) }); }
-      return out; });
-    for (const r of sim) if (!r.down || !r.up || !r.back) fails.push(`E2 M6: al cerrar la compuerta ${r.i}: baja=${r.down}, suben las demás=${r.up}, regresa=${r.back}`);
+    const r = await pg.evaluate(() => { const s = window.__labs.STOPS[1].sim; s.reset(); const open = s.flows(), out = { open, pos: s.positions, bal: s.flows(s.balanced), count: s.search(), mono: [] };
+      for (let i = 0; i < 8; i++) for (let k = 0; k < s.positions - 1; k++) { const st = new Array(8).fill(0); st[i] = k; const a = s.flows(st); st[i] = k + 1; const b = s.flows(st); out.mono.push({ i, k, ok: b[i] < a[i] && b.every((v, j) => j === i || v > a[j]) }); }
+      for (let i = 0; i < 8; i++) { const a = s.flows(); s.set(i, s.positions - 1); s.set(i, 0); const c = s.flows(); if (!c.every((v, j) => Math.abs(v - a[j]) <= 0.01 * a[j])) out.mono.push({ i, k: 'reabrir', ok: false }); }
+      s.reset(); return out; });
+    if (r.pos < 6) fails.push(`E2 M6: la compuerta tiene ${r.pos} posiciones (se piden unas 6)`);
+    if (!r.open.some(v => v > 1.05) || !r.open.some(v => v < 0.95)) fails.push(`E2 M6: con todo abierto no hay terminales arriba y abajo de la franja (${r.open.map(v => v.toFixed(2))})`);
+    if (!r.bal.every(v => Math.abs(v - 1) <= 0.05) || r.count < 1) fails.push(`E2 M6: no existe una combinación con los 8 dentro de ±5 % (encontradas ${r.count})`);
+    for (const m of r.mono.filter(m => !m.ok)) fails.push(`E2 M6: falla la monotonía en la compuerta ${m.i}, paso ${m.k}`);
+    notes.push(`E2 M6: con todo abierto, relación medido/diseño = ${r.open.map(v => (v * 100).toFixed(0) + ' %').join(', ')}; combinaciones simétricas balanceadas: ${r.count} de 1,296`);
+  }
+  // (a) estados interactivos y fases de las animaciones: mismo conjunto de etiquetas a 1366 y a 1920
+  const vsetNow = () => pg.evaluate(() => [...document.querySelectorAll('#labels .lbl:not([hidden])')].map(l => l.dataset.i + '|' + l.querySelector('.box').innerText.replace(/\s+/g, ' ').slice(0, 34)));
+  const goId = (k, id) => pg.evaluate(([k, id]) => window.__labs.go(k, window.__labs.STOPS[k].steps.findIndex(x => x.id === id)), [k, id]);
+  const STATES = [
+    ['M6 E2 compuerta cerrada', async () => { await goId(1, 'E2'); await pg.waitForTimeout(1600); await pg.evaluate(() => window.__labs.STOPS[1].sim.set(3, 5)); await pg.waitForTimeout(800); }],
+    ['M6 E2 comparar métodos', async () => { await pg.click('#cmpBtn'); await pg.waitForTimeout(5000); }],
+    ...['100', '200', '300', '350', '400', '500'].map(n => [`M14 E2 LOD ${n}`, async () => { if (n === '100') { await goId(2, 'E2'); await pg.waitForTimeout(1600); } await pg.click(`[data-lod="${n}"]`); await pg.waitForTimeout(500); }]),
+    ['M14 E3 ficha de activo', async () => { await goId(2, 'E3'); await pg.waitForTimeout(1600); await pg.evaluate(() => window.__labs.STOPS[2].openFicha(3)); await pg.waitForTimeout(500); }],
+    ['M14 E1 planta', async () => { await goId(2, 'E1'); await pg.waitForTimeout(3000); }],
+    ['M14 E1 zona de estudio', async () => { await pg.waitForTimeout(9000); }],
+    ['M14 E4 hoy', async () => { await goId(2, 'E4'); await pg.waitForTimeout(2500); }],
+    ['M14 E4 coordinado', async () => { await pg.waitForTimeout(4000); }],
+    ['M14 E4 as-built', async () => { await pg.waitForTimeout(4500); }],
+  ];
+  for (const [name, act] of STATES) {
+    await act(); const v = await vsetNow(), key = 'estado:' + name;
+    if (W === 1920) visByStep[key] = v;
+    else { const ids = x => x.map(y => y.split('|')[0]), a = visByStep[key] || [];
+      for (const x of a.filter(y => !ids(v).includes(y.split('|')[0]))) fails.push(`${name}: «${x.split('|')[1]}» solo a 1920`);
+      for (const x of v.filter(y => !ids(a).includes(y.split('|')[0]))) fails.push(`${name}: «${x.split('|')[1]}» solo a 1366`); }
+    const out = await pg.evaluate(() => { const vp = document.getElementById('vp').getBoundingClientRect(); return [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].filter(b => { const r = b.getBoundingClientRect(); return r.top < vp.top || r.bottom > vp.bottom || r.left < vp.left || r.right > vp.right; }).length; });
+    if (out) fails.push(`${W}x${H} ${name}: ${out} etiquetas fuera del visor`);
+    if (W === 1366) await pg.screenshot({ path: join(shots, `${W}_estado_${name.replace(/[^\w]+/g, '_')}.png`) });
+  }
+  // Escenas narrativas: se reproducen una vez y se quedan en el estado final (M14 E1 a los 60 s sigue en la zona de estudio)
+  if (W === 1920) {
+    await goId(2, 'E1'); await pg.waitForTimeout(60000);
+    const z = await pg.evaluate(() => [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].some(b => /zona de estudio/.test(b.innerText)));
+    if (!z) fails.push('M14 E1: a los 60 s ya no está en la zona de estudio (debe quedarse en el estado final)');
+    const sheet = await pg.evaluate(() => { window.__labs.go(2, window.__labs.STOPS[2].steps.findIndex(x => x.id === 'E4')); return true; }); await pg.waitForTimeout(20000);
+    const ab = await pg.evaluate(() => [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => b.innerText).join(' | '));
+    if (!/as-built de D y E/i.test(ab)) fails.push('M14 E4: a los 20 s no está en la fase as-built (debe quedarse en el estado final)');
+    if (!(await pg.evaluate(() => !!document.querySelector('[data-replay]')))) fails.push('M14 E4: falta el botón «↺ Repetir»');
   }
   // Navegación: 0 = inicio; → desde el inicio entra a la parada 1; ← regresa; la nota «no a escala» siempre visible
   await pg.keyboard.press('0'); await pg.waitForTimeout(400);
