@@ -53,6 +53,7 @@ export function cardHTML(c) {
   const stamp = c.stamp ? `<span class="st ${c.stamp}">${STAMP[c.stamp]}</span>${c.cite ? `<span class="cite">(${c.cite})</span>` : ''}` : '';
   const ref = c.ref ? `<span class="ref">${c.ref}</span>` : '';
   const fig = c.fig ? `<div class="fig"><div class="ft">${c.fig.title}</div><img src="${c.fig.src}" alt="${c.fig.alt || ''}" data-fig><div class="cr">${c.fig.credit}</div></div>` : '';
+  if (c.fold) return `<details class="card" data-card><summary>${c.title}</summary>${c.body}</details>`;
   return `<div class="card${c.wide ? ' wide' : ''}" data-card>${(ref || stamp) ? `<div class="ch">${ref}${stamp}</div>` : ''}${c.title ? `<h4>${c.title}</h4>` : ''}${c.body || ''}${fig}</div>`;
 }
 const dock = document.getElementById('dock');
@@ -83,6 +84,7 @@ function go(si, idx = 0) {
   $('note').innerHTML = s.note;
   document.querySelectorAll('#stops [data-stop]').forEach(b => b.classList.toggle('on', +b.dataset.stop === si));
   document.querySelectorAll('.steps li').forEach(li => li.classList.toggle('on', +li.dataset.i === step));
+  showTab(st.level === 'PR' ? 'deep' : 'main');
   const seq = order(s), k = seq.indexOf(st);
   $('pos').textContent = st.level === 'PR' && !deepNav ? `${st.n} · profundización` : `${st.n} · ${k + 1} de ${seq.length}`;
   if (st.cam) flyTo(st.cam);
@@ -103,10 +105,16 @@ function buildAside(s) {
   const li = (x, i) => `<li data-i="${i}"><span class="k">${x.n}</span><span>${x.title}${x.ref ? `<span class="r">${x.ref}</span>` : ''}</span></li>`;
   const main = s.steps.map((x, i) => x.level === 'RP' ? li(x, i) : '').join(''), deep = s.steps.map((x, i) => x.level === 'PR' ? li(x, i) : '').join('');
   $('main').innerHTML = main; $('deep').innerHTML = deep;
-  $('hdeep').hidden = $('deep').hidden = !deep; $('deepBtn').hidden = !deep; $('refBtn').hidden = !s.refs;
-  $('hmain').hidden = !deep;
+  const multi = s.steps.length > 1;
+  $('tabs').hidden = !deep; $('main').hidden = !multi; $('deep').hidden = true;
+  $('deepBtn').hidden = !deep; $('refBtn').hidden = !s.refs;
   $('extra').innerHTML = (s.extraCards || []).map(cardHTML).join('');
   document.querySelectorAll('.steps li').forEach(el => el.addEventListener('click', () => go(cur, +el.dataset.i)));
+}
+function showTab(t) {
+  if ($('tabs').hidden) return;
+  $('main').hidden = t !== 'main'; $('deep').hidden = t !== 'deep';
+  document.querySelectorAll('#tabs [data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
 }
 function setDeep(on) { deepNav = on; $('deepBtn').textContent = `Profundización en ← →: ${on ? 'sí' : 'no'}`; $('deepBtn').classList.toggle('on', on); go(cur, step); }
 function showRefs() {
@@ -115,7 +123,8 @@ function showRefs() {
   $('refbox').hidden = false;
 }
 $('prev').onclick = () => move(-1); $('next').onclick = () => move(1);
-$('deepBtn').onclick = () => setDeep(!deepNav); $('refBtn').onclick = showRefs;
+$('deepBtn').onclick = () => setDeep(!deepNav);
+document.querySelectorAll('#tabs [data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab)); $('refBtn').onclick = showRefs;
 document.querySelectorAll('#stops [data-stop]').forEach(b => b.onclick = () => go(+b.dataset.stop, 0));
 addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;

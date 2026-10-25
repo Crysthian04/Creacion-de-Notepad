@@ -20,17 +20,25 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   const pg = await browser.newPage({ viewport: { width: W, height: H } });
   const errs = [];
   pg.on('pageerror', e => errs.push('pageerror: ' + e.message));
-  pg.on('console', m => { if (m.type() === 'error' || /Multiple instances/.test(m.text())) errs.push('console: ' + m.text()); });
+  pg.on('console', m => { if (m.type() === 'error' || m.type() === 'warning' || /Multiple instances/.test(m.text())) errs.push(`console ${m.type()}: ` + m.text()); });
   pg.on('request', q => { if (/^https?:/.test(q.url())) errs.push('red (debe ser offline): ' + q.url()); });
   await pg.goto(pathToFileURL(file).href);
   await pg.waitForFunction(() => document.querySelector('three-d-stage')?.shadowRoot?.querySelector('canvas'), null, { timeout: 30000 });
   await pg.waitForTimeout(3000);
-  for (const k of '012') {
-    await pg.keyboard.press(k); await pg.waitForTimeout(2000);
-    banned(await pg.evaluate(() => document.body.innerText), `${W}x${H} parada ${k}`);
-    const ov = await pg.evaluate(() => [...document.querySelectorAll('[data-card]')].map(c => c.scrollHeight - c.clientHeight).reduce((a, b) => Math.max(a, b), 0));
-    if (ov > 8) fails.push(`${W}x${H} parada ${k}: tarjetas desbordan ${ov}px`);
-    await pg.screenshot({ path: join(shots, `${W}_parada_${k}.png`) });
+  // Todas las paradas y todos los pasos: sin desborde (tarjetas, dock y panel derecho), sin términos prohibidos
+  const plan = await pg.evaluate(() => window.__labs.STOPS.map(s => s.steps.length));
+  for (const [k, n] of plan.entries()) {
+    for (let i = 0; i < n; i++) {
+      await pg.evaluate(([k, i]) => window.__labs.go(k, i), [k, i]); await pg.waitForTimeout(i ? 1300 : 1800);
+      const where = `${W}x${H} parada ${k} paso ${i}`;
+      banned(await pg.evaluate(() => document.body.innerText), where);
+      const ov = await pg.evaluate(() => {
+        const d = el => el ? el.scrollHeight - el.clientHeight : 0;
+        return { card: Math.max(0, ...[...document.querySelectorAll('[data-card]')].map(d)), dock: d(document.getElementById('dock')), aside: d(document.querySelector('aside')) };
+      });
+      for (const [kk, px] of Object.entries(ov)) if (px > 8) fails.push(`${where}: ${kk === 'aside' ? 'panel derecho' : kk === 'dock' ? 'columna de tarjetas' : 'tarjeta'} desborda ${px}px`);
+      await pg.screenshot({ path: join(shots, `${W}_p${k}_${String(i).padStart(2, '0')}.png`) });
+    }
   }
   // Navegación: 0 = inicio; → desde el inicio entra a la parada 1; ← regresa; la nota «no a escala» siempre visible
   await pg.keyboard.press('0'); await pg.waitForTimeout(400);
