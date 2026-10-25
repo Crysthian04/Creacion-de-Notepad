@@ -24,19 +24,34 @@ function label(anchor, html, { cls = '', down = false, onClick = null, id = '' }
 function placeLabels() {
   const r = host.getBoundingClientRect(), dk = document.getElementById('dock');
   const dockRight = dk && dk.childElementCount ? dk.offsetLeft + dk.offsetWidth + 6 : 0;
+  const vis = [];
   for (const L of labels) {
     if (!L.on) continue;
     const p = L.anchor.isVector3 ? v.copy(L.anchor) : L.anchor.getWorldPosition(v);
     p.project(cam);
-    let vis = p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
-    if (vis && dockRight && (p.x + 1) / 2 * r.width < dockRight) vis = false; // detrás de la columna de tarjetas
-    L.el.hidden = !vis;
-    if (vis) {
-      let x = (p.x + 1) / 2 * r.width; const y = (1 - p.y) / 2 * r.height;
-      const hw = (L.el.offsetWidth || 0) / 2; x = Math.max(hw + 4, Math.min(r.width - hw - 4, x)); // dentro de la vista
-      const down = L.el.firstElementChild.classList.contains('dot');
-      L.el.style.transform = `translate(${x}px, ${y}px) translate(-50%, ${down ? '0' : '-100%'})`;
+    let ok = p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
+    if (ok && dockRight && (p.x + 1) / 2 * r.width < dockRight) ok = false; // detrás de la columna de tarjetas
+    L.el.hidden = !ok;
+    if (ok) vis.push({ L, x: (p.x + 1) / 2 * r.width, y: (1 - p.y) / 2 * r.height });
+  }
+  // Separación de etiquetas encimadas: la caja se aleja de su punto alargando el tallo
+  const placed = [];
+  vis.sort((a, b) => b.y - a.y);
+  for (const o of vis) {
+    const box = o.L.el.querySelector('.box'), w = box.offsetWidth, h = box.offsetHeight;
+    const down = o.L.el.firstElementChild.classList.contains('dot');
+    const x = Math.max(w / 2 + 4, Math.min(r.width - w / 2 - 4, o.x));
+    let stem = 16, rect;
+    for (let k = 0; k < 40; k++) {
+      const top = down ? o.y + 5 + stem : o.y - 5 - stem - h;
+      rect = { l: x - w / 2 - 3, r: x + w / 2 + 3, t: top - 3, b: top + h + 3 };
+      const hit = placed.find(q => rect.l < q.r && rect.r > q.l && rect.t < q.b && rect.b > q.t);
+      if (!hit) break;
+      stem += down ? hit.b - rect.t + 1 : rect.b - hit.t + 1;
     }
+    placed.push(rect);
+    const st = o.L.el.querySelector('.stem'); if (st.style.height !== stem + 'px') st.style.height = stem + 'px';
+    o.L.el.style.transform = `translate(${x}px, ${o.y}px) translate(-50%, ${down ? '0' : '-100%'})`;
   }
 }
 

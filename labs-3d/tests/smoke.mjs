@@ -37,6 +37,18 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
         return { card: Math.max(0, ...[...document.querySelectorAll('[data-card]')].map(d)), dock: d(document.getElementById('dock')), aside: d(document.querySelector('aside')) };
       });
       for (const [kk, px] of Object.entries(ov)) if (px > 8) fails.push(`${where}: ${kk === 'aside' ? 'panel derecho' : kk === 'dock' ? 'columna de tarjetas' : 'tarjeta'} desborda ${px}px`);
+      // Etiquetas 3D encimadas (cajas visibles que se cruzan más de 2 px)
+      await pg.waitForTimeout(300);
+      const ovl = await pg.evaluate(() => {
+        const bx = [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => ({ t: b.innerText.replace(/\s+/g, ' ').slice(0, 40), r: b.getBoundingClientRect() })).filter(o => o.r.width > 0);
+        const out = [];
+        for (let a = 0; a < bx.length; a++) for (let b = a + 1; b < bx.length; b++) {
+          const A = bx[a].r, B = bx[b].r, ox = Math.min(A.right, B.right) - Math.max(A.left, B.left), oy = Math.min(A.bottom, B.bottom) - Math.max(A.top, B.top);
+          if (ox > 2 && oy > 2) out.push(`«${bx[a].t}» / «${bx[b].t}»`);
+        }
+        return out;
+      });
+      if (ovl.length) fails.push(`${where}: etiquetas encimadas ${ovl.join('; ')}`);
       await pg.screenshot({ path: join(shots, `${W}_p${k}_${String(i).padStart(2, '0')}.png`) });
     }
   }
