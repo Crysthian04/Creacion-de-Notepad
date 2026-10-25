@@ -223,6 +223,10 @@
   .start .uni { font: 500 11px "IBM Plex Mono", monospace; color: #8E9AA5; letter-spacing: .1em; text-transform: uppercase; }
   .start h2 { margin: 8px 0 4px; font-size: 28px; color: #F1F4F6; font-weight: 600; }
   .start p { margin: 0; color: #A9B4BE; font-size: 14px; }
+  .lbl.flip { flex-direction: column-reverse; }
+  .inset { position: absolute; right: 16px; top: 14px; width: 230px; background: rgba(22,25,28,.92); border: 1px solid rgba(214,224,232,.24); padding: 8px 10px; font: 400 10.5px/1.35 "IBM Plex Mono", monospace; color: #C9D1D8; }
+  .inset svg { display: block; width: 100%; height: auto; margin: 4px 0; }
+  .inset .st { margin-right: 4px; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -244,6 +248,7 @@
     <three-d-stage name="labs-m6-m14"></three-d-stage>
     <div id="labels"></div>
     <div class="start" id="start" hidden></div>
+    <div class="inset" id="inset" hidden></div>
     <div id="dock"></div>
     <div class="bottom">
       <div class="note" id="note">Modelo conceptual, no a escala.</div>

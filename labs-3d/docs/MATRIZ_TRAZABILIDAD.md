@@ -140,3 +140,16 @@ Origen: `origin/claude/spanish-greeting-CWfoM:asignacion-6-distribucion-planta/p
 | Equipos del VRF y puntos M/C | No existen | Geometría propia y baja; ubicación IL |
 
 No se copia `lib/three.min.js` (r128) ni ningún código que dependa de él. Las coordenadas se convierten del plano (x, y) a three.js (x − 50, altura, y − 50), como en el original.
+
+
+---
+
+## Ronda 3 (24/10/2026)
+
+- **Inicio:** dos miniaturas hechas con la geometría real de cada parada. La del M6 tiene la correa corregida y el aire animado; la del M14 es la planta completa, con D y E resaltados. Sello «Ilustrativo · miniatura de la parada», tres hitos sin cifras y sin fecha. Con un clic o con las teclas 1 y 2, la cámara entra en la miniatura y pasa a la parada.
+- **M6 · correa (1.2, P3 y toda escena con el motor):** las dos poleas en el mismo plano, con ejes paralelos, y una correa plana con tramos tangentes y arcos.
+- **M14 · 2.0b Zona de estudio (nuevo paso de ruta principal):** fachadas de D y E opacas en la planta, con el sello «Ilustrativo · REFRESH no define fachadas»; en la zona de estudio se desvanecen (rayos X) para mostrar las salas, las unidades y la tubería. Paneles PD-D y PD-E: «Dato de fuente (Batista et al., 2026, p. 25)», sin amperajes. El recorrido del cable es ilustrativo. No se modelan en 3D el P&ID ni el cableado de la planta.
+- **M14 · 2.2 LOD:** vista cercana y fija, en diagonal; la unidad mide alrededor de 130 px a 1366. Un recuadro con la planta de D, C y E (p. 21) marca la unidad y la dirección de la vista. D y E están a unos 40 m entre sí, así que a 1366 no pueden verse completos en la misma vista cuando la unidad mide 120–150 px. El LOD 400 se distingue del 350 por la derivación (Tabla 1: «Derivaciones y soportes definidos para el montaje»).
+- **M14 · 2.5:** el flujo M3 y el paro C3 llevan «Propuesta · M14 · Figura 3». Cada nodo lleva su nivel en el nombre para que quepan los cuatro niveles. La tarjeta del medidor marca la propuesta.
+- **M14 · 2.6:** el modelo coordinado se muestra solo sobre D y E, con el sello de propuesta.
+- **Sin cambios:** 2.1 (cielo raso genérico, caso Khanzode) y 2.4 (marco general con el rótulo de propuesta) siguen sin presentarse como REFRESH.

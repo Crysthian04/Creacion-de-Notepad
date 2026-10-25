@@ -36,32 +36,41 @@ function placeLabels() {
   }
   // Separación de etiquetas encimadas: la caja se aleja de su punto alargando el tallo
   // Las tarjetas también cuentan como zonas ocupadas: ninguna etiqueta queda bajo una tarjeta
-  const hr = host.getBoundingClientRect();
-  const cards = dk && dk.childElementCount ? [...dk.children].map(c => { const q = c.getBoundingClientRect(); return { l: q.left - hr.left - 4, r: q.right - hr.left + 4, t: q.top - hr.top - 4, b: q.bottom - hr.top + 4 }; }) : [];
-  const placed = [];
+  const hr = host.getBoundingClientRect(), zone = q => ({ l: q.left - hr.left - 4, r: q.right - hr.left + 4, t: q.top - hr.top - 4, b: q.bottom - hr.top + 4 });
+  const cards = dk && dk.childElementCount ? [...dk.children].map(c => zone(c.getBoundingClientRect())) : [];
+  const ins = document.getElementById('inset'); if (ins && !ins.hidden) cards.push(zone(ins.getBoundingClientRect()));
+  document.querySelectorAll('.bottom > *').forEach(e => cards.push(zone(e.getBoundingClientRect()))); // nota y barra ← →
+  const placed = [], H = r.height;
   vis.sort((a, b) => b.y - a.y);
   for (const o of vis) {
     const box = o.L.el.querySelector('.box'), w = box.offsetWidth, h = box.offsetHeight;
-    const down = o.L.el.firstElementChild.classList.contains('dot');
+    const nat = o.L.el.firstElementChild.classList.contains('dot'); // true = la caja va debajo del punto
     const x = Math.max(w / 2 + 4, Math.min(r.width - w / 2 - 4, o.x));
-    let stem = 16, rect;
-    for (let k = 0; k < 40; k++) {
-      const top = down ? o.y + 5 + stem : o.y - 5 - stem - h;
-      rect = { l: x - w / 2 - 5, r: x + w / 2 + 5, t: top - 5, b: top + h + 5 };
-      const hit = placed.find(q => rect.l < q.r && rect.r > q.l && rect.t < q.b && rect.b > q.t);
-      if (!hit) break;
-      stem += down ? hit.b - rect.t + 1 : rect.b - hit.t + 1;
-    }
-    if (cards.some(q => rect.l < q.r && rect.r > q.l && rect.t < q.b && rect.b > q.t)) { o.L.el.hidden = true; continue; }
-    placed.push(rect);
-    const st = o.L.el.querySelector('.stem'); if (st.style.height !== stem + 'px') st.style.height = stem + 'px';
-    o.L.el.style.transform = `translate(${x}px, ${o.y}px) translate(-50%, ${down ? '0' : '-100%'})`;
+    // Coloca la caja hacia arriba o hacia abajo; si se sale del visor en su sentido natural, se voltea
+    const fit = down => {
+      let stem = 16, rect;
+      for (let k = 0; k < 40; k++) {
+        const top = down ? o.y + 5 + stem : o.y - 5 - stem - h;
+        rect = { l: x - w / 2 - 5, r: x + w / 2 + 5, t: top - 5, b: top + h + 5 };
+        const hit = placed.find(q => rect.l < q.r && rect.r > q.l && rect.t < q.b && rect.b > q.t);
+        if (!hit) break;
+        stem += down ? hit.b - rect.t + 1 : rect.b - hit.t + 1;
+      }
+      return { stem, rect, down, inside: rect.t + 5 >= 2 && rect.b - 5 <= H - 2 };
+    };
+    let f = fit(nat); if (!f.inside) { const g2 = fit(!nat); if (g2.inside && g2.stem <= 48) f = g2; } // solo se voltea si queda cerca de su punto
+    if (!f.inside || cards.some(q => f.rect.l < q.r && f.rect.r > q.l && f.rect.t < q.b && f.rect.b > q.t)) { o.L.el.hidden = true; continue; }
+    placed.push(f.rect);
+    o.L.el.classList.toggle('flip', f.down !== nat);
+    const st = o.L.el.querySelector('.stem'); if (st.style.height !== f.stem + 'px') st.style.height = f.stem + 'px';
+    o.L.el.style.transform = `translate(${x}px, ${o.y}px) translate(-50%, ${f.down ? '0' : '-100%'})`;
   }
 }
 
 const root = new THREE.Group(); root.name = 'labs_m6_m14';
-const ctx = { THREE, scene, cam, label, go: (s, i) => go(s, i) };
-const STOPS = [buildInicio(ctx), buildM6(ctx), buildM14(ctx)];
+const ctx = { THREE, scene, cam, label, go: (s, i) => go(s, i), fly: c => flyTo(c) };
+const S1 = buildM6(ctx), S2 = buildM14(ctx);
+const STOPS = [buildInicio({ ...ctx, m6: S1, m14: S2 }), S1, S2]; // el inicio usa miniaturas con la geometría de las paradas
 STOPS.forEach(s => root.add(s.group));
 stage.setObject(root);
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
@@ -111,6 +120,7 @@ function go(si, idx = 0) {
   dock.innerHTML = (st.cards || []).map(cardHTML).join('');
   dock.scrollTop = 0;
   $('start').hidden = !st.start; if (st.start) $('start').innerHTML = st.start;
+  $('inset').hidden = !st.inset; if (st.inset) $('inset').innerHTML = st.inset;
   $('note').innerHTML = s.note;
   document.querySelectorAll('#stops [data-stop]').forEach(b => b.classList.toggle('on', +b.dataset.stop === si));
   document.querySelectorAll('.steps li').forEach(li => li.classList.toggle('on', +li.dataset.i === step));
@@ -155,11 +165,13 @@ function showRefs() {
 $('prev').onclick = () => move(-1); $('next').onclick = () => move(1);
 $('deepBtn').onclick = () => setDeep(!deepNav);
 document.querySelectorAll('#tabs [data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab)); $('refBtn').onclick = showRefs;
-document.querySelectorAll('#stops [data-stop]').forEach(b => b.onclick = () => go(+b.dataset.stop, 0));
+// Desde el inicio, la cámara entra en la miniatura antes de pasar a la parada
+const enterStop = k => (cur === 0 && k > 0 && STOPS[0].enterStop) ? STOPS[0].enterStop(k) : go(k, 0);
+document.querySelectorAll('#stops [data-stop]').forEach(b => b.onclick = () => enterStop(+b.dataset.stop));
 addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;
   if (e.key === 'Escape') return closeOverlays();
-  if ('012'.includes(e.key) && e.key.length === 1) { closeOverlays(); go(+e.key, 0); }
+  if ('012'.includes(e.key) && e.key.length === 1) { closeOverlays(); enterStop(+e.key); }
   else if (e.key === 'ArrowRight') { closeOverlays(); move(1); }
   else if (e.key === 'ArrowLeft') { closeOverlays(); move(-1); }
   else if (e.key === 'p' || e.key === 'P') setDeep(!deepNav);
@@ -189,5 +201,15 @@ stage.onFrame = () => {
   placeLabels();
 };
 STOPS.forEach(s => s.setRestart && s.setRestart(() => { t0 = performance.now(); }));
+{ // clic sobre una miniatura del inicio
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let down0 = null;
+  const cv = stage.shadowRoot.querySelector('canvas');
+  cv.addEventListener('pointerdown', e => { down0 = [e.clientX, e.clientY]; });
+  cv.addEventListener('pointerup', e => {
+    if (cur !== 0 || !down0 || Math.hypot(e.clientX - down0[0], e.clientY - down0[1]) > 5 || !STOPS[0].pick) return;
+    const q = cv.getBoundingClientRect(); ndc.set((e.clientX - q.left) / q.width * 2 - 1, -(e.clientY - q.top) / q.height * 2 + 1);
+    ray.setFromCamera(ndc, cam); const k = STOPS[0].pick(ray); if (k) enterStop(k);
+  });
+}
 window.__labs = { go, move, setDeep, get cur() { return cur; }, get step() { return step; }, STOPS };
 go(0, 0);

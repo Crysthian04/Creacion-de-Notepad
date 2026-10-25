@@ -54,6 +54,14 @@ export const M14 = {
       { stamp: 'df', cite: 'Batista et al., 2026, pp. 21–22', title: 'Planta y dimensiones',
         body: '<p>Dimensiones de cada edificio en sus etiquetas; ubicación aproximada al plano general. La única altura de fuente es la de la zona de la torre de la Nave A (22&nbsp;m). <span class="st il">Ilustrativo</span> las demás alturas y el tamaño de las salas.</p>' },
     ] },
+    { id: 'zona', n: '2.0b', level: 'RP', title: 'Zona de estudio: Edificios D y E', ref: 'M14 · Sistema MEP integrado · Figura 3', cards: [
+      { ref: 'M14 · Sistema MEP integrado para la planta REFRESH S.A.', stamp: 'df', cite: 'Batista et al., 2026', title: 'Dónde se aplica la propuesta',
+        body: '<p>Los Edificios D (laboratorio de control de calidad, comedor, baños y taller) y E (recepción, oficinas y sala de juntas) concentran los espacios ocupados que requieren climatización. La sala eléctrica / UPS del Edificio C entra solo como punto de monitoreo de temperatura (M6, Figura 3).</p>' },
+      { ref: 'M14 · Figura 3 (tableros de D y E)', stamp: 'df', cite: 'Batista et al., 2026, p. 25', title: 'Paneles PD-D y PD-E',
+        body: '<p>Del diagrama unifilar de REFRESH se toman solo los paneles de distribución de los Edificios D y E. <span class="st il">Ilustrativo</span> su ubicación dentro de cada edificio y el recorrido del cable.</p>' },
+      { stamp: 'il', title: 'Fachadas en rayos X',
+        body: '<p>Las fachadas de D y E se desvanecen para mostrar las salas, las unidades interiores y la tubería. REFRESH no define fachadas: son ilustrativas, con la vista isométrica del proyecto como referencia visual (Batista et al., 2026, p. 22).</p>' },
+    ] },
     { id: 'coord', n: '2.1', level: 'RP', title: 'Metodología BIM: coordinación', ref: 'M14 · La metodología BIM aplicada a sistemas HVAC-R', cards: [
       { ref: 'M14 · La metodología BIM aplicada a sistemas HVAC-R', stamp: 'df', cite: 'BIMForum, 2024', title: 'Elementos con información',
         body: '<p>Cada elemento (una puerta, una viga, una bomba) se representa en 3D y puede asociarse con información; como el gráfico puede aparentar más precisión de la que tiene, el LOD comunica cuánto confiar en cada uno.</p>' },
@@ -90,7 +98,7 @@ export const M14 = {
       { ref: 'M14 · Figura 3', stamp: 'df', cite: `${DAIKIN}, pp. 8, 24`, title: 'Cuatro niveles y una alerta',
         body: '<p>Campo → automatización del VRF → supervisión (SCADA) → información (BIM as-built + COBie, CMMS y tablero). <b>Animación:</b> aviso de filtro (M3) → controlador → pasarela BACnet/IP → SCADA → tablero → orden de trabajo en el CMMS; luego, <b>paro forzado (C3)</b>: se apagan todas las unidades interiores.</p><p><span class="st il">Ilustrativo</span> ubicación de equipos y tamaño de salas; orden de las salas del plano general (Batista et al., 2026, p. 21).</p>' },
       { fold: true, ref: 'M14 · Sistema MEP integrado', stamp: 'df', cite: `${DAIKIN}, pp. 30–31`, title: 'Medidor propuesto (M5)',
-        body: '<p>La potencia que reporta el VRF es calculada y no reemplaza a un medidor de energía en el tablero: el esquema propone un medidor en los tableros de D y E.</p>' },
+        body: '<p>La potencia que reporta el VRF es calculada y no reemplaza a un medidor de energía en el tablero.</p><p><span class="st pr">Propuesta · M14 · Figura 3</span> el informe propone un medidor de energía en los tableros de D y E (M5).</p>' },
     ] },
     { id: 'propuesta', n: '2.6', level: 'RP', title: 'Propuesta para REFRESH', ref: 'M14 · Propuesta de aplicación al proyecto REFRESH S.A.', cards: [
       { ref: 'M14 · Propuesta de aplicación', stamp: 'df', cite: 'Batista et al., 2026', title: 'Hoy: planos independientes',

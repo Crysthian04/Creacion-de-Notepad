@@ -33,17 +33,27 @@ export function buildM6({ THREE, label }) {
   for (let i = 0; i < 12; i++) { const a = new THREE.Group(); a.rotation.z = i * Math.PI / 6; box(0.05, 0.42, 0.8, mat.wheel, 0, 0.62, 0, a); wheel.add(a); }
   // Descarga del ventilador hacia el ducto principal
   box(0.9, 2.4, 0.9, mat.duct, -9.6, Y + 1.9, 0, g, 'descarga');
-  // Motor, poleas y correa
-  const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.8, 24), mat.casing); motor.rotation.x = Math.PI / 2; motor.position.set(-10.4, 0.45, 1.6); motor.name = 'motor'; g.add(motor);
-  const pul = (y, z, r) => { const p = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.12, 24), mat.pulley); p.rotation.x = Math.PI / 2; p.position.set(-10.4, y, z); g.add(p); return p; };
-  const p1 = pul(0.45, 2.05, 0.22), p2 = pul(fanC.y, 0.55, 0.4);
+  // Motor, poleas y correa: las dos poleas en el mismo plano (z = ZP) con ejes paralelos (eje z);
+  // la correa está en ese plano, con tramos tangentes y arcos alrededor de cada polea (caso «correcto» de la Figura 3).
+  const ZP = 1.25, PW = 0.12, MY = 0.45, R1 = 0.22, R2 = 0.4; // plano de poleas, ancho de polea, eje del motor, radios
+  const shaft = (x, y, z0, z1, r) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, z1 - z0, 12), mat.pulley); m.rotation.x = Math.PI / 2; m.position.set(x, y, (z0 + z1) / 2); g.add(m); return m; };
+  shaft(-10.4, fanC.y, 0.45, ZP + PW / 2 + 0.04, 0.05); // eje del ventilador, alargado hasta el plano de las poleas
+  shaft(-10.4, MY, 1.1, ZP + PW / 2 + 0.04, 0.05);       // eje del motor (el cuerpo queda detrás del plano de poleas, hacia el ventilador)
+  const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.6, 24), mat.casing); motor.rotation.x = Math.PI / 2; motor.position.set(-10.4, MY, 0.82); motor.name = 'motor'; g.add(motor);
+  const pul = (y, r) => { const p = new THREE.Mesh(new THREE.CylinderGeometry(r, r, PW, 32), mat.pulley); p.rotation.x = Math.PI / 2; p.position.set(-10.4, y, ZP); p.name = 'polea'; g.add(p); return p; };
+  const p1 = pul(MY, R1), p2 = pul(fanC.y, R2);
   const beltG = new THREE.Group(); beltG.name = 'correa'; g.add(beltG);
-  [[0.22, 0.4], [-0.22, -0.4]].forEach(([d1, d2]) => {
-    const a = v3(-10.4 + d1 * 0, 0.45 + d1, 2.05), b = v3(-10.4, fanC.y + d2, 0.55);
-    const len = a.distanceTo(b), seg = new THREE.Mesh(new THREE.BoxGeometry(0.06, len, 0.08), mat.belt);
-    seg.position.copy(a).add(b).multiplyScalar(0.5); seg.lookAt(b); seg.rotateX(Math.PI / 2); beltG.add(seg);
-  });
-  const motorBase = box(1.0, 0.1, 1.0, mat.dark, -10.4, 0.05, 1.6, g);
+  {
+    const d = fanC.y - MY, be = Math.asin((R2 - R1) / d), T = 0.035; // ángulo de los tramos rectos y espesor de la correa
+    const loop = off => { // contorno cerrado: arco superior (polea del ventilador) + arco inferior (polea del motor)
+      const pts = [], arc = (cy, r, a0, a1) => { for (let i = 0; i <= 24; i++) { const a = a0 + (a1 - a0) * i / 24; pts.push(new THREE.Vector2(Math.cos(a) * (r + off), cy + Math.sin(a) * (r + off))); } };
+      arc(fanC.y, R2, -be, Math.PI + be); arc(MY, R1, Math.PI + be, 2 * Math.PI - be); return pts;
+    };
+    const shape = new THREE.Shape(loop(T)); shape.holes.push(new THREE.Path(loop(0)));
+    const belt = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: PW, bevelEnabled: false, curveSegments: 4 }), mat.belt);
+    belt.position.set(-10.4, 0, ZP - PW / 2); belt.name = 'correa_plana'; beltG.add(belt);
+  }
+  const motorBase = box(0.9, 0.1, 0.8, mat.dark, -10.4, 0.05, 0.82, g);
 
   // Ducto principal y ramales
   const DY = 3.6, X0 = -9.6, X1 = 13.6;
@@ -89,12 +99,12 @@ export function buildM6({ THREE, label }) {
   }
 
   // Objetos de pasos específicos
-  const elbow = new THREE.Group(); elbow.visible = false; g.add(elbow);
+  const elbow = new THREE.Group(); elbow.name = 'codo'; elbow.visible = false; g.add(elbow);
   box(0.95, 0.95, 0.95, mat.elbow, -9.6, DY + 0.55, 0, elbow); box(1.6, 0.85, 0.95, mat.elbow, -10.6, DY + 0.55, 0, elbow);
   const vfd = box(0.5, 0.8, 0.3, mat.vfd, -11.6, 0.9, 1.9, g, 'variador'); vfd.visible = false;
   const vavs = BX.map((bx, i) => { const o = box(0.7, 0.6, 0.8, mat.vav, bx, DY, 1.4, g, `caja_vav_${i + 1}`); o.visible = false; return o; });
   const probe = box(0.12, 0.6, 0.12, mat.probe, 0, TY + 0.6, 0, g, 'sonda_referencia'); probe.visible = false;
-  const anem = new THREE.Group(); anem.visible = false; g.add(anem);
+  const anem = new THREE.Group(); anem.name = 'anemometro'; anem.visible = false; g.add(anem);
   box(0.9, 0.5, 0.9, new THREE.MeshStandardMaterial({ color: 0x31363B, transparent: true, opacity: 0.85 }), 0, 0, 0, anem); box(0.08, 1.2, 0.08, mat.dark, 0, -0.85, 0, anem);
   const taps = [v3(-11.6, Y + 0.2, 0.55), v3(-9.6, DY - 0.2, 0.55)];
 
@@ -104,7 +114,7 @@ export function buildM6({ THREE, label }) {
     filtro: label(v3(-14.4, Y - 1.0, 0.9), 'Filtro', { down: true }),
     serp: label(v3(-12.8, Y + 1.15, 0), 'Serpentín'),
     vent: label(v3(-10.0, Y + 3.4, 0), 'Ventilador y descarga'),
-    motor: label(v3(-10.4, 0.9, 1.6), 'Motor, poleas y correa', { down: true }),
+    motor: label(v3(-10.4, 0.25, 1.3), 'Motor, poleas y correa', { down: true }),
     ducto: label(v3(0, DY + 0.45, 0), 'Ducto principal'),
     ramal: label(v3(BX[1], DY + 0.35, -Z * 0.55), 'Ramal'),
     comp: label(v3(BX[3], TY + 0.6, Z), 'Compuerta'),
@@ -122,7 +132,7 @@ export function buildM6({ THREE, label }) {
     tomaOut: label(taps[1], `${il}Toma de presión · salida`, { cls: 'cyan' }),
     anem: label(v3(0, TY + 0.4, 0), `${il}Anemómetro: varias lecturas y promedio`, { cls: 'cyan', down: true }),
     cl: label(v3(4, DY + 0.6, 0), '', { cls: 'amber' }),
-    correa: label(v3(-10.4, 1.4, 1.3), `${il}Correas y poleas: estado, tensión y alineación`, { cls: 'amber' }),
+    correa: label(v3(-9.7, 2.2, 1.25), `${il}Correas y poleas: estado, tensión y alineación`, { cls: 'amber' }),
   };
   const base = [L.filtro, L.serp, L.vent, L.ducto, L.comp, L.term];
   const net = [L.banda, L.barra];
@@ -132,7 +142,7 @@ export function buildM6({ THREE, label }) {
     red: [-19, 16, 18, 1, 1.5, 0], marco: [-15, 13, 17, 3, 1.0, 0], previas: [-6, 6, 11, -11.5, 1.8, 0],
     proporcion: [-15, 13, 17, 3, 1.0, 0], progresivo: [-15, 13, 17, 3, 1.0, 0], apertura: [-14, 11, 15, 3, 2.5, 0],
     leyes: [-6, 5, 9, -10.8, 1.8, 0], panama: [-17, 14, 17, 2, 2, 0], cierre: [-19, 16, 18, 1, 1.5, 0],
-    nebb: [-15, 13, 17, 3, 1.0, 0], fugas: [-9, 9, 11, 2, 3.4, 0], correas: [-7, 3.2, 7, -10.6, 1, 1],
+    nebb: [-15, 13, 17, 3, 1.0, 0], fugas: [-9, 9, 11, 2, 3.4, 0], correas: [-8.6, 1.7, 5.6, -10.4, 1.0, 1.25],
     presion: [-6, 5, 8, -10.8, 2.4, 0], medir: [-2, 5, 9, 1.0, 2.2, 3.2], efecto: [-6, 7, 10, -10.2, 3.2, 0],
     kleberg: [-19, 16, 18, 1, 1.5, 0], bogota: [-15, 13, 17, 3, 1.0, 0], normas: [-19, 16, 18, 1, 1.5, 0],
   };
@@ -232,5 +242,15 @@ export function buildM6({ THREE, label }) {
   const stopRef = { t0: () => {} };
 
   const steps = M6.steps.map(s => ({ ...s, cam: CAM[s.id], labels: LBL[s.id] || [] }));
-  return { group: g, ...M6.stop, note: M6.note, refs: M6.refs, steps, enter, tick, setRestart(fn) { stopRef.t0 = fn; } };
+  // Miniatura para el inicio: la misma geometría (correa corregida incluida), sin piso, barras ni objetos de pasos específicos
+  function mini() {
+    const m = g.clone(true), drop = [];
+    m.traverse(o => { if (/^(piso|barra_relacion|franja_5|variador|caja_vav_\d|sonda_referencia|codo|anemometro)$/.test(o.name)) drop.push(o); });
+    drop.forEach(o => o.parent.remove(o)); m.visible = true;
+    m.getObjectByName('filtro').material = mat.filterClean;
+    m.traverse(o => { if (o.isInstancedMesh && o.name === 'particulas_aire') o.instanceMatrix = pim.instanceMatrix; }); // comparte el movimiento del aire
+    return { group: m, wheel: m.getObjectByName('rodete') };
+  }
+  const air = dt => stepParticles(dt, 1);
+  return { group: g, ...M6.stop, note: M6.note, refs: M6.refs, steps, enter, tick, mini, air, setRestart(fn) { stopRef.t0 = fn; } };
 }

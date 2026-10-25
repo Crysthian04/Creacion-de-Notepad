@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const out = process.argv[3];
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'] });
+const pg = await b.newPage({ viewport: { width: 1366, height: 768 } });
+await pg.goto('file://' + process.argv[2]); await pg.waitForTimeout(3000);
+await pg.evaluate(() => window.__labs.go(1, window.__labs.STOPS[1].steps.findIndex(s => s.id === 'correas'))); await pg.waitForTimeout(1800);
+const view = async (p, t, name) => { await pg.evaluate(([p, t]) => { const s = document.querySelector('three-d-stage'); s._camera.position.set(...p); s._controls.target.set(...t); }, [p, t]); await pg.waitForTimeout(700); await pg.screenshot({ path: `${out}/${name}.png` }); };
+await view([-10.4, 1.0, 5.2], [-10.4, 1.0, 1.25], 'belt_front');
+await view([-6.2, 1.0, 1.25], [-10.4, 1.0, 1.25], 'belt_side');
+await b.close();

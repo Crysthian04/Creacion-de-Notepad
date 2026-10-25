@@ -58,6 +58,12 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
         return [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && cs.some(q => r.left < q.right && r.right > q.left && r.top < q.bottom && r.bottom > q.top); }).map(b => b.innerText.replace(/\s+/g, ' ').slice(0, 40));
       });
       if (under.length) fails.push(`${where}: etiquetas bajo una tarjeta ${under.join('; ')}`);
+      const outside = await pg.evaluate(() => {
+        const v = document.getElementById('vp').getBoundingClientRect();
+        return [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.top < v.top || r.bottom > v.bottom || r.left < v.left || r.right > v.right); }).map(b => b.innerText.replace(/\s+/g, ' ').slice(0, 40));
+      });
+      if (outside.length) fails.push(`${where}: etiquetas fuera del visor ${outside.join('; ')}`);
+      if (k === 0 && /octubre|entrega|2026/i.test(await pg.evaluate(() => document.getElementById('vp').innerText + document.querySelector('aside').innerText))) fails.push(`${where}: el inicio muestra una fecha`);
       await pg.screenshot({ path: join(shots, `${W}_p${k}_${String(i).padStart(2, '0')}.png`) });
     }
   }
@@ -68,7 +74,7 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   await pg.keyboard.press('ArrowLeft'); await pg.waitForTimeout(400);
   if ((await pg.evaluate(() => window.__labs.cur)) !== 0) fails.push(`${W}x${H} ← desde la parada 1 no regresa al inicio`);
   for (const k of '012') {
-    await pg.keyboard.press(k); await pg.waitForTimeout(300);
+    await pg.keyboard.press(k); await pg.waitForTimeout(1500); // desde el inicio, la cámara entra en la miniatura (≈ 1 s)
     if ((await pg.evaluate(() => window.__labs.cur)) !== +k) fails.push(`${W}x${H} la tecla ${k} no abre la parada ${k}`);
     if (!/no a escala/.test(await pg.evaluate(() => document.getElementById('note').innerText))) fails.push(`${W}x${H} parada ${k}: falta «no a escala»`);
   }

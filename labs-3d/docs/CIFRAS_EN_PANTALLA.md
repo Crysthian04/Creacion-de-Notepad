@@ -6,9 +6,7 @@ Criterio: la referencia al informe va por sección, figura o tabla, sin páginas
 
 ## Parada 0 · Inicio
 
-| Cifra | Paso | Informe | Fuente original y página |
-|---|---|---|---|
-| 28 de octubre de 2026 (entrega) | 0 | Portada de ambos Word | — |
+Sin cifras: el inicio no muestra fechas ni datos (decisión de la ronda 3).
 
 ## Parada 1 · M6
 
@@ -50,9 +48,10 @@ Criterio: la referencia al informe va por sección, figura o tabla, sin páginas
 |---|---|---|---|
 | USD 15,824 millones (2002); cerca de dos terceras partes | 2.0 | M14 · Introducción | Gallaher et al. (2004), p. ES-6 |
 | cinco edificios; terreno de 10,000 m² | 2.0 | M14 · Sistema MEP integrado | Batista et al. (2026), p. 22 |
+| PD-D; PD-E (identificadores de los paneles de distribución de D y E; sin amperajes) | 2.0b, 2.5, P1 (etiquetas) | M14 · Figura 3 (tableros de D y E) | Batista et al. (2026), p. 25 (unifilar) |
 | Terreno 100 × 100 m (10,000 m²) | 2.0 (etiqueta) | M14 · Sistema MEP integrado | Batista et al. (2026), p. 22 |
-| Nave A 40 × 20 m; Nave B 30 × 18 m; Edificio C 24 × 12 m; Edificio D 25 × 12 m; Edificio E 20 × 10 m | 2.0 y vistas de conjunto (etiquetas) | Ídem | Batista et al. (2026), p. 22 |
-| Zona de la torre · 22 m | 2.0 y vistas de conjunto (etiqueta) | Ídem | Batista et al. (2026), p. 22 |
+| Nave A 40 × 20 m (la etiqueta incluye «zona de la torre: 22 m»); Nave B 30 × 18 m; Edificio C 24 × 12 m; Edificio D 25 × 12 m; Edificio E 20 × 10 m | 2.0 y vistas de conjunto (etiquetas) | Ídem | Batista et al. (2026), p. 22 |
+| zona de la torre: 22 m | 2.0 y vistas de conjunto (en la etiqueta de la Nave A) | Ídem | Batista et al. (2026), p. 22 |
 | 4 silos Ø 2.50 m | 2.0 (etiqueta) | Escena base | Batista et al. (2026), p. 22 |
 | Área de expansión futura · 3,000 m² (30 %) | 2.0 (etiqueta) | Escena base | Batista et al. (2026), p. 22 |
 | USD 96.9 millones (edificio médico) | 2.1 | M14 · La metodología BIM aplicada a sistemas HVAC-R | Khanzode et al. (2008), p. 324 |
