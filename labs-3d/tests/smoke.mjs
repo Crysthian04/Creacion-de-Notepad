@@ -32,6 +32,17 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     if (ov > 8) fails.push(`${W}x${H} parada ${k}: tarjetas desbordan ${ov}px`);
     await pg.screenshot({ path: join(shots, `${W}_parada_${k}.png`) });
   }
+  // Navegación: 0 = inicio; → desde el inicio entra a la parada 1; ← regresa; la nota «no a escala» siempre visible
+  await pg.keyboard.press('0'); await pg.waitForTimeout(400);
+  await pg.keyboard.press('ArrowRight'); await pg.waitForTimeout(400);
+  if ((await pg.evaluate(() => window.__labs.cur)) !== 1) fails.push(`${W}x${H} → desde el inicio no entra a la parada 1`);
+  await pg.keyboard.press('ArrowLeft'); await pg.waitForTimeout(400);
+  if ((await pg.evaluate(() => window.__labs.cur)) !== 0) fails.push(`${W}x${H} ← desde la parada 1 no regresa al inicio`);
+  for (const k of '012') {
+    await pg.keyboard.press(k); await pg.waitForTimeout(300);
+    if ((await pg.evaluate(() => window.__labs.cur)) !== +k) fails.push(`${W}x${H} la tecla ${k} no abre la parada ${k}`);
+    if (!/no a escala/.test(await pg.evaluate(() => document.getElementById('note').innerText))) fails.push(`${W}x${H} parada ${k}: falta «no a escala»`);
+  }
   if (errs.length) fails.push(...errs.map(e => `${W}x${H} ${e}`));
   await pg.close();
 }

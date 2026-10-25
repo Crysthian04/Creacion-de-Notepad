@@ -35,6 +35,10 @@ const esc = s => s.replace(/<\/script/gi, '<\\/script');
 const start = html.indexOf('<!-- DEV:'), end = html.indexOf('</script>', html.indexOf('src="./src/main.js"')) + 9;
 if (start < 0 || end < 9) throw new Error('No se encontró el bloque DEV en index.html');
 html = html.slice(0, start) + `<script type="module">${esc(app)}</script>` + html.slice(end);
+// Imágenes de los informes (assets/img) → data URI, en el HTML y en el código empaquetado
+const MIME = { jpg: 'image/jpeg', png: 'image/png' };
+html = await replaceAsync(html, /assets\/img\/[\w.-]+\.(jpg|png)/g, async (p, ext) =>
+  `data:${MIME[ext]};base64,${(await readFile(r(p))).toString('base64')}`);
 await mkdir(r('dist'), { recursive: true });
 const out = r('dist/Modelo3D_Labs_M6_M14_offline.html');
 await writeFile(out, html);
