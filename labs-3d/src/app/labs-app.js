@@ -165,13 +165,13 @@ addEventListener('keydown', e => {
 // ---------- Cámara ----------
 let fly = null;
 function flyTo([x, y, z, tx, ty, tz]) {
-  fly = { a: cam.position.clone(), b: new THREE.Vector3(x, y, z), at: ctl.target.clone(), bt: new THREE.Vector3(tx, ty, tz), t: 0 };
+  fly = { a: cam.position.clone(), b: new THREE.Vector3(x, y, z), at: ctl.target.clone(), bt: new THREE.Vector3(tx, ty, tz), t: 0, t0: performance.now() };
 }
 let last = performance.now();
 stage.onFrame = () => {
   const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (fly) {
-    fly.t = Math.min(1, fly.t + dt / 1.1);
+    fly.t = Math.min(1, (now - fly.t0) / 1100); // tiempo real: igual de rápido con pocos cuadros por segundo
     const e = fly.t < 0.5 ? 2 * fly.t * fly.t : 1 - Math.pow(-2 * fly.t + 2, 2) / 2;
     cam.position.lerpVectors(fly.a, fly.b, e); ctl.target.lerpVectors(fly.at, fly.bt, e);
     if (fly.t >= 1) fly = null;
