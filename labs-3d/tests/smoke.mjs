@@ -51,6 +51,31 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     if ((await pg.evaluate(() => window.__labs.cur)) !== +k) fails.push(`${W}x${H} la tecla ${k} no abre la parada ${k}`);
     if (!/no a escala/.test(await pg.evaluate(() => document.getElementById('note').innerText))) fails.push(`${W}x${H} parada ${k}: falta «no a escala»`);
   }
+  // Parada 1: la tecla R y el botón «Referencias» abren las referencias del M6 (10 obras del Word)
+  for (const how of ['tecla', 'botón']) {
+    await pg.keyboard.press('1'); await pg.waitForTimeout(400);
+    if (how === 'tecla') await pg.keyboard.press('r'); else await pg.click('#refBtn');
+    await pg.waitForTimeout(300);
+    const rf = await pg.evaluate(() => ({ open: !document.getElementById('refbox').hidden, h: document.querySelector('#refbody h3')?.textContent, n: document.querySelectorAll('#refbody p').length, t: document.getElementById('refbody').innerText }));
+    if (!rf.open || !/M6/.test(rf.h || '') || rf.n !== 10 || !/Pedranzini/.test(rf.t)) fails.push(`${W}x${H} parada 1 (${how}): no abre las referencias del M6 (${JSON.stringify({ open: rf.open, h: rf.h, n: rf.n })})`);
+    if (W === 1366 && how === 'tecla') await pg.screenshot({ path: join(shots, `${W}_p1_referencias.png`) });
+    await pg.keyboard.press('Escape');
+  }
+  // Parada 1 · leyes de los ventiladores: barras sin cifras y rótulo exacto del Word
+  const li = await pg.evaluate(() => window.__labs.STOPS[1].steps.findIndex(s => s.id === 'leyes'));
+  await pg.evaluate(i => window.__labs.go(1, i), li); await pg.waitForTimeout(600);
+  await pg.click('#spd80'); await pg.waitForTimeout(300);
+  const lw = await pg.evaluate(() => ({ rot: document.getElementById('rot').innerText.replace(/\u00a0/g, ' '), hot: document.getElementById('rot').classList.contains('hot'), bars: [...document.querySelectorAll('.laws .bar')].map(b => b.innerText).join('|') }));
+  if (!lw.rot.includes('Reducir la velocidad del ventilador un 20 % disminuye su potencia un 50 %') || !lw.hot) fails.push(`${W}x${H} leyes: rótulo del 80 % incorrecto`);
+  if (/\d/.test(lw.bars.replace(/N[²³]/g, ''))) fails.push(`${W}x${H} leyes: las barras muestran cifras (${lw.bars})`);
+  // Parada 1 · contadores: proporción llega a 14 y flujo progresivo a 10
+  for (const [id, want, wait] of [['proporcion', '14', 21500], ['progresivo', '10', 14000]]) {
+    const i = await pg.evaluate(id => window.__labs.STOPS[1].steps.findIndex(s => s.id === id), id);
+    await pg.evaluate(i => window.__labs.go(1, i), i); await pg.waitForTimeout(wait);
+    const c = await pg.evaluate(() => document.querySelector('[data-cnt]')?.textContent);
+    if (c !== want) fails.push(`${W}x${H} ${id}: el contador llega a ${c}, no a ${want}`);
+    if (W === 1366) await pg.screenshot({ path: join(shots, `${W}_p1_${id}_final.png`) });
+  }
   if (errs.length) fails.push(...errs.map(e => `${W}x${H} ${e}`));
   await pg.close();
 }
