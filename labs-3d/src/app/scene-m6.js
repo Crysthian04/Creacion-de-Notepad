@@ -1,7 +1,7 @@
 // Parada 1 · M6: unidad con filtro, serpentín y ventilador con correas; ducto principal, 4 ramales,
 // 8 terminales con compuerta y difusor. Barras (relación medido/diseño, sin escala) con la franja de ±5 %.
 // Toda la geometría es ilustrativa; el texto está en content-m6.js.
-import { M6 } from 'app/content-m6.js';
+import { M6, SC6 } from 'app/content-m6.js';
 
 export function buildM6({ THREE, label }) {
   const g = new THREE.Group(); g.name = 'parada_1_m6';
@@ -73,11 +73,12 @@ export function buildM6({ THREE, label }) {
       // Barra de relación (medido/diseño) sobre el piso y franja de ±5 %
       const bar = box(0.5, 1, 0.5, mat.bar, bx, 0.5, z, g, 'barra_relacion');
       const band = box(0.8, 0.16, 0.8, mat.band, bx, 1.6, z, g, 'franja_5'); band.castShadow = false;
-      T.push({ b, z, x: bx, damp, diff, bar, band, r: 1, rt: 1, ang: 0, angT: 0, flowPath: [v3(-9.6, DY, 0), v3(bx, DY, 0), v3(bx, DY, z), v3(bx, TY - 0.3, z)] });
+      T.push({ b, z, x: bx, damp, neck, diff, bar, band, r: 1, rt: 1, ang: 0, angT: 0, flowPath: [v3(-9.6, DY, 0), v3(bx, DY, 0), v3(bx, DY, z), v3(bx, TY - 0.3, z)] });
     });
   });
   // Ordenar del más cercano al más lejano (por longitud de recorrido)
   T.sort((a, b) => (a.x + Math.abs(a.z) * 0.01) - (b.x + Math.abs(b.z) * 0.01));
+  T.forEach((t, i) => [t.neck, t.diff].forEach(o => o.traverse(q => { q.userData.term = i; }))); // clic sobre la compuerta (E2)
   const H1 = 1.6; // altura de la barra cuando la relación es 1 (centro de la franja)
   const setBars = () => T.forEach(t => { const h = Math.max(0.05, t.r * H1); t.bar.scale.y = h; t.bar.position.y = h / 2; const ok = Math.abs(t.r - 1) <= 0.05; t.bar.material = ok ? barOk : mat.bar; });
   const barOk = M(0x4FAE5B, { emissive: 0x123A18 });
@@ -113,6 +114,7 @@ export function buildM6({ THREE, label }) {
   const L = {
     filtro: label(v3(-14.4, Y - 1.0, 0.9), 'Filtro', { down: true }),
     serp: label(v3(-12.8, Y + 1.15, 0), 'Serpentín'),
+    fs: label(v3(-13.5, Y + 1.15, 0), 'Filtro · serpentín'),
     vent: label(v3(-10.0, Y + 3.4, 0), 'Ventilador y descarga'),
     motor: label(v3(-10.4, 0.25, 1.3), 'Motor, poleas y correa', { down: true }),
     ducto: label(v3(0, DY + 0.45, 0), 'Ducto principal'),
@@ -134,17 +136,17 @@ export function buildM6({ THREE, label }) {
     cl: label(v3(4, DY + 0.6, 0), '', { cls: 'amber' }),
     correa: label(v3(-9.7, 2.2, 1.25), `${il}Correas y poleas: estado, tensión y alineación`, { cls: 'amber' }),
   };
-  const base = [L.filtro, L.serp, L.vent, L.ducto, L.comp, L.term];
+  const base = [L.fs, L.vent, L.ducto, L.comp, L.term];
   const net = [L.banda, L.barra];
 
   // Cámara por paso [posición, objetivo]
   const CAM = {
-    red: [-19, 16, 18, 1, 1.5, 0], marco: [-15, 13, 17, 3, 1.0, 0], previas: [-6, 6, 11, -11.5, 1.8, 0],
+    red: [-10, 16, 24, -4, 1.2, 0], marco: [-15, 13, 17, 3, 1.0, 0], previas: [-6, 6, 11, -11.5, 1.8, 0],
     proporcion: [-15, 13, 17, 3, 1.0, 0], progresivo: [-15, 13, 17, 3, 1.0, 0], apertura: [-14, 11, 15, 3, 2.5, 0],
-    leyes: [-6, 5, 9, -10.8, 1.8, 0], panama: [-17, 14, 17, 2, 2, 0], cierre: [-19, 16, 18, 1, 1.5, 0],
+    leyes: [-6, 5, 9, -10.8, 1.8, 0], panama: [-11, 14, 22, -5, 1.5, 0], cierre: [-10, 16, 24, -4, 1.2, 0],
     nebb: [-15, 13, 17, 3, 1.0, 0], fugas: [-9, 9, 11, 2, 3.4, 0], correas: [-8.6, 1.7, 5.6, -10.4, 1.0, 1.25],
     presion: [-6, 5, 8, -10.8, 2.4, 0], medir: [-2, 5, 9, 1.0, 2.2, 3.2], efecto: [-6, 7, 10, -10.2, 3.2, 0],
-    kleberg: [-19, 16, 18, 1, 1.5, 0], bogota: [-15, 13, 17, 3, 1.0, 0], normas: [-19, 16, 18, 1, 1.5, 0],
+    kleberg: [-10, 16, 24, -4, 1.2, 0], bogota: [-15, 13, 17, 3, 1.0, 0], normas: [-10, 16, 24, -4, 1.2, 0],
   };
 
   const LBL = {
@@ -176,21 +178,22 @@ export function buildM6({ THREE, label }) {
 
   function enter(st) {
     resetNet(); cntEl = null;
-    elbow.visible = st.id === 'efecto'; vfd.visible = ['progresivo', 'panama'].includes(st.id); vavs.forEach(v => v.visible = st.id === 'panama');
+    elbow.visible = st.id === 'efecto'; vfd.visible = ['progresivo', 'panama', 'E4'].includes(st.id); vavs.forEach(v => v.visible = ['panama', 'E4'].includes(st.id));
     probe.visible = st.id === 'progresivo'; if (probe.visible) probe.position.set(T[0].x, TY + 0.6, T[0].z);
     anem.visible = st.id === 'medir'; if (anem.visible) anem.position.set(T[2].x, TY - 0.55, T[2].z);
     L.anem.anchor.set(T[2].x, TY - 0.85, T[2].z); L.sonda.anchor.set(T[0].x, TY + 1.0, T[0].z);
-    const showBars = ['marco', 'proporcion', 'progresivo'].includes(st.id); // en Bogotá no hay valores por rejilla en el informe
+    const showBars = ['marco', 'proporcion', 'progresivo', 'E2'].includes(st.id); // en Bogotá no hay valores por rejilla en el informe
     T.forEach(t => { t.bar.visible = t.band.visible = showBars; });
     if (st.id === 'proporcion' || st.id === 'progresivo') { T.forEach((t, i) => { t.r = t.rt = R0[i]; }); cnt(0); }
     if (st.id === 'previas') filt.material = mat.filterDirty;
     if (st.id === 'leyes') { const s = document.getElementById('spd'), b = document.getElementById('spd80'); if (s) { s.oninput = laws; b.onclick = () => { s.value = 80; laws(); }; laws(); } }
+    scEnter(st);
     setBars();
   }
   function laws() {
     const s = document.getElementById('spd'); if (!s) return; const n = s.value / 100;
     [1, 2, 3].forEach(k => { const el = document.querySelector(`[data-law="${k}"]`); if (el) el.style.width = (Math.pow(n, k) * 100).toFixed(1) + '%'; });
-    document.getElementById('rot').classList.toggle('hot', Math.abs(s.value - 80) < 1);
+    document.getElementById('rot')?.classList.toggle('hot', Math.abs(s.value - 80) < 1);
     fanT = n;
   }
 
@@ -230,6 +233,7 @@ export function buildM6({ THREE, label }) {
       L.cl.set(`<span class="st df">Dato de fuente</span>${['CL 48 · rectangular sin sellar', 'CL 24 · uniones transversales selladas', 'CL 6 · todo sellado'][ph]}<small>(DOE y AMCA, 2003, p. 38)</small>`);
     }
     if (id === 'correas') beltG.children.forEach(b => b.material = Math.floor(t * 3) % 2 ? mat.damper : mat.belt);
+    scTick(dt, t, st);
     // Interpolación suave de barras, compuertas y velocidad
     const a = Math.min(1, dt * 4);
     T.forEach(tt => { tt.r += (tt.rt - tt.r) * a; tt.ang += (tt.angT - tt.ang) * a; tt.damp.rotation.x = Math.PI / 2 - tt.ang * (Math.PI / 2) * 0.85; });
@@ -241,7 +245,70 @@ export function buildM6({ THREE, label }) {
   enter.restart = st => { stopRef.t0(); enter(st); };
   const stopRef = { t0: () => {} };
 
-  const steps = M6.steps.map(s => ({ ...s, cam: CAM[s.id], labels: LBL[s.id] || [] }));
+  // ---------- E2 · simulación ilustrativa de la red (sin valores en pantalla) ----------
+  // Tramos del ducto principal (Rm), ramales (Rb), terminales (Rt) y compuertas (Rd) con ΔP = R·Q²;
+  // ventilador con curva P = P0·(1 − (Q/Qmax)²). En serie las R se suman; en paralelo se suman las conductancias 1/√R.
+  const SIM = { Rm: 0.06, Rb: 0.12, Rt: 1, Rd: [0, 3, 40], P0: 1, Qmax: 2.6, st: new Array(8).fill(0) };
+  const cond = R => 1 / Math.sqrt(R), par = (...R) => 1 / Math.pow(R.reduce((a, r) => a + cond(r), 0), 2);
+  const byB = [0, 1, 2, 3].map(b => T.map((t, i) => t.b === b ? i : -1).filter(i => i >= 0));
+  function solve(st = SIM.st) {
+    const Rt = st.map(k => SIM.Rt + SIM.Rd[k]), Rpar = byB.map(ix => par(...ix.map(i => Rt[i]))), Rbr = Rpar.map(r => SIM.Rb + r);
+    const Req = new Array(4); Req[3] = Rbr[3]; for (let b = 2; b >= 0; b--) Req[b] = par(Rbr[b], SIM.Rm + Req[b + 1]);
+    const Rsys = SIM.Rm + Req[0];
+    // Punto de operación: R_sys·Q² = P0·(1 − (Q/Qmax)²); se resuelve por iteración (punto fijo amortiguado)
+    let Q = SIM.Qmax / 2; for (let k = 0; k < 60; k++) Q = 0.5 * Q + 0.5 * Math.sqrt(SIM.P0 * (1 - Math.min(0.999, (Q / SIM.Qmax) ** 2)) / Rsys);
+    const q = new Array(8); let Qin = Q, Pn = Req[0] * Q * Q;
+    for (let b = 0; b < 4; b++) {
+      const Qb = b === 3 ? Qin : Math.sqrt(Pn / Rbr[b]), Pt = Rpar[b] * Qb * Qb;
+      byB[b].forEach(i => { q[i] = Math.sqrt(Pt / Rt[i]); });
+      Qin -= Qb; if (b < 3) Pn -= SIM.Rm * Qin * Qin;
+    }
+    return q;
+  }
+  const QD = solve(new Array(8).fill(0)); // caudal de «diseño»: todas las compuertas abiertas (ilustrativo)
+  const simApply = () => { const q = solve(); T.forEach((t, i) => { t.rt = q[i] / QD[i]; t.angT = [0, 0.5, 0.95][SIM.st[i]]; }); };
+  const sim = { flows: () => solve().map((v, i) => v / QD[i]), set(i, k) { SIM.st[i] = k; simApply(); }, reset() { SIM.st.fill(0); simApply(); } };
+  let cmp = null; // comparación de métodos (contador doble)
+  function onClick(ray, st) {
+    if (st.id !== 'E2' || cmp) return;
+    const hit = ray.intersectObjects(T.flatMap(t => [t.neck, t.diff]), true).find(h => h.object.userData.term !== undefined);
+    if (hit) { const i = hit.object.userData.term; sim.set(i, (SIM.st[i] + 1) % 3); }
+  }
+  // Etiquetas de las escenas (pocas, para que quepan a 1366)
+  const LS = {
+    filtroE: label(v3(-14.4, Y + 1.1, 0), 'Filtro'), fase1: label(v3(-12.6, Y + 2.6, 0), '', { cls: 'amber' }),
+    clic: label(v3(BX[2], TY + 0.9, Z), `${il}Clic: compuerta abierta / media / cerrada`, { cls: 'amber' }),
+    simS: label(v3(BX[1], 2.4, -Z), `${il}Simulación ilustrativa · sin valores`, { cls: 'amber' }),
+  };
+  Object.assign(CAM, { E1: [-10, 16, 24, -4, 1.2, 0], E2: [-15, 13, 17, 3, 1.0, 0], E3: [-14, 11, 15, 3, 2.5, 0], E4: [-11, 14, 22, -5, 1.5, 0] });
+  Object.assign(LBL, { E1: [LS.filtroE, LS.fase1, L.vent, L.banda, L.barra], E2: [L.banda, L.barra, LS.clic, LS.simS], E3: [L.estado, L.comp, L.vent], E4: [L.vfd, L.vav, L.ducto] });
+  const scEnter = st => {
+    if (st.id === 'E2') { cmp = null; sim.reset(); T.forEach(t => { t.r = t.rt; }); const b = document.getElementById('cmpBtn'); if (b) b.onclick = () => { cmp = { t0: performance.now() }; document.querySelectorAll('.cmprow').forEach(r => r.hidden = false); }; }
+    if (st.id === 'E1') { filt.material = mat.filterDirty; T.forEach((t, i) => { t.r = t.rt = R0[i]; }); }
+    if (st.id === 'E3') { userSpd = false; const sp = document.getElementById('spd'), b = document.getElementById('spd80'); if (sp) { sp.oninput = () => { userSpd = true; laws(); }; b.onclick = () => { userSpd = true; sp.value = 80; laws(); }; laws(); } }
+  };
+  let userSpd = false;
+  const scTick = (dt, t, st) => {
+    if (st.id === 'E1') { // filtro sucio → limpio; luego barras medido/diseño y franja de ±5 %; se balancean; bucle de 48 s
+      const u = t % 48; filt.material = u < 7 ? mat.filterDirty : mat.filterClean;
+      const showB = u > 10; T.forEach((tt, i) => { tt.bar.visible = tt.band.visible = showB; tt.rt = u < 22 ? R0[i] : 1 + [0.01, -0.02, 0.015, -0.01, 0.02, -0.015, 0.01, 0][i]; });
+      LS.fase1.set(`<span class="st il">Ilustrativo</span>${u < 7 ? 'Filtro sucio' : u < 10 ? 'Filtro limpio' : u < 22 ? 'Antes del balanceo' : 'Balanceada: todas en la franja'}`);
+    }
+    if (st.id === 'E2' && cmp) { // contador doble: proporción (14) y flujo progresivo (10) avanzan en paralelo
+      const tc = (performance.now() - cmp.t0) / 1000, kp = Math.min(14, Math.floor(tc / 1.4)), kf = Math.min(10, Math.floor(tc / 1.4));
+      const f = PROP[kp]; T.forEach((tt, i) => { tt.rt = f.r[i]; tt.angT = f.ang[i]; });
+      const put = (k, n, m) => { const i = document.querySelector(`[data-cmp="${k}"]`), b = document.querySelector(`[data-cmpn="${k}"]`); if (i) i.style.width = (n / 14 * 100) + '%'; if (b) b.textContent = `${n} de ${m}`; };
+      put('p', kp, 14); put('f', kf, 10);
+      if (tc > 14 * 1.4 + 5) { cmp = null; sim.reset(); }
+    }
+    if (st.id === 'E3') { // compuertas de casi cerradas a abiertas mientras baja la velocidad; bucle de 40 s
+      const open = (t % 40) > 14; T.forEach(tt => tt.angT = open ? 0 : 0.85);
+      if (!userSpd) { const sp = document.getElementById('spd'); if (sp) { const v = open ? 80 : 100; if (+sp.value !== v) { sp.value = v; laws(); } } }
+      L.estado.set(`<span class="st il">Ilustrativo</span>${open ? 'Compuertas abiertas · menor velocidad' : 'Compuertas casi cerradas · ventilador rápido'}<small>mismo caudal en los terminales</small>`);
+    }
+    if (st.id === 'E4') { const on = (t % 40) > 3; vfd.visible = on; vavs.forEach(v => v.visible = on); fanT = on ? 0.85 + 0.08 * Math.sin(t * 0.6) : 1; }
+  };
+  const steps = [...SC6.map(s => ({ ...s, cam: CAM[s.id], labels: LBL[s.id] || [] })), ...M6.steps.map(s => ({ ...s, level: 'PR', cam: CAM[s.id], labels: LBL[s.id] || [] }))];
   // Miniatura para el inicio: la misma geometría (correa corregida incluida), sin piso, barras ni objetos de pasos específicos
   function mini() {
     const m = g.clone(true), drop = [];
@@ -252,5 +319,5 @@ export function buildM6({ THREE, label }) {
     return { group: m, wheel: m.getObjectByName('rodete') };
   }
   const air = dt => stepParticles(dt, 1);
-  return { group: g, ...M6.stop, note: M6.note, refs: M6.refs, steps, enter, tick, mini, air, setRestart(fn) { stopRef.t0 = fn; } };
+  return { group: g, ...M6.stop, note: M6.note, refs: M6.refs, steps, enter, tick, mini, air, onClick, sim, setRestart(fn) { stopRef.t0 = fn; } };
 }

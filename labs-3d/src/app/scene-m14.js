@@ -2,9 +2,9 @@
 // VRF de los Edificios D y E, niveles de la Figura 3, LOD, coordinación BIM (tramo genérico) y capas del gemelo digital.
 // Técnica de volúmenes con aristas adaptada de plano3d.js (simulador de REFRESH) a three.js r184.
 // Plano (x hacia el este, y hacia el sur, origen en la esquina noroeste) → 3D (x − 50, altura, y − 50).
-import { M14, LOD, PTS } from 'app/content-m14.js';
+import { M14, LOD, PTS, SC14, FICHA } from 'app/content-m14.js';
 
-export function buildM14({ THREE, label, go }) {
+export function buildM14({ THREE, label, go, fly }) {
   const g = new THREE.Group(); g.name = 'parada_2_m14';
   const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0.05, ...o });
   const glass = (c, op) => new THREE.MeshStandardMaterial({ color: c, transparent: true, opacity: op, depthWrite: false, roughness: 0.9 });
@@ -57,9 +57,11 @@ export function buildM14({ THREE, label, go }) {
   // ---------- VRF (ubicación ilustrativa) ----------
   const vrf = new THREE.Group(); vrf.name = 'vrf_D_E'; g.add(vrf);
   const IU = ['labQC', 'comedor', 'recepcion', 'oficinas', 'juntas'].map(k => { const m = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 1.4), C.iu); m.position.copy(rooms[k].c).setY(3.6); m.name = 'unidad_interior_' + k; vrf.add(m); return m; });
-  const OU = P(25, 55.5), OA = P(25, 61);
-  const pipePts = [[OU.clone().setY(1.2), P(23, 55.5, 3.4), P(23, 14, 3.4), P(21, 14, 3.4), rooms.labQC.c.clone().setY(3.4)], [P(23, 19.5, 3.4), P(21, 19.5, 3.4), rooms.comedor.c.clone().setY(3.4)],
-    [P(23, 55.5, 3.4), P(23, 74, 3.4), P(12, 74, 3.4), P(12, 76, 3.4), rooms.recepcion.c.clone().setY(3.4)], [P(19, 74, 3.4), rooms.oficinas.c.clone().setY(3.4)], [P(26, 74, 3.4), rooms.juntas.c.clone().setY(3.4)]];
+  // Unidad exterior junto al Edificio E, del lado contrario al Edificio C (ATEX); ubicación ilustrativa
+  const OU = P(18, 89.3), OA = P(25, 61);
+  const pipePts = [[OU.clone().setY(1.2), P(18, 87.2, 3.4), P(18, 84.5, 3.4), P(12, 84.5, 3.4), rooms.recepcion.c.clone().setY(3.4)], [P(18, 84.5, 3.4), rooms.oficinas.c.clone().setY(3.4)],
+    [P(18, 84.5, 3.4), P(26, 84.5, 3.4), rooms.juntas.c.clone().setY(3.4)],
+    [P(26, 84.5, 3.4), P(28, 84.5, 3.4), P(28, 74, 3.4), P(23, 74, 3.4), P(23, 14, 3.4), P(21, 14, 3.4), rooms.labQC.c.clone().setY(3.4)], [P(23, 19.5, 3.4), P(21, 19.5, 3.4), rooms.comedor.c.clone().setY(3.4)]];
   const tube = (pts, r, mat, name, parent) => { const grp = new THREE.Group(); grp.name = name; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], L = a.distanceTo(b), m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, L, 8), mat); m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(v3(0, 1, 0), b.clone().sub(a).normalize()); grp.add(m); } parent.add(grp); return grp; };
   const pipeMat = C.pipe.clone(); const pipes = pipePts.map((p, i) => tube(p, 0.18, pipeMat, 'tuberia_refrigerante_' + i, vrf));
   const oaMat = C.oa.clone(); tube([OA.clone().setY(1.6), P(22, 61, 2.8), P(22, 22, 2.8), P(21, 22, 2.8)], 0.32, oaMat, 'ducto_aire_exterior_D', vrf); tube([P(22, 61, 2.8), P(22, 78, 2.8), P(20, 78, 2.8)], 0.32, oaMat, 'ducto_aire_exterior_E', vrf);
@@ -86,10 +88,10 @@ export function buildM14({ THREE, label, go }) {
   // ---------- Figura 3: niveles 2–4 como esquema flotante sobre el área de expansión (no es una ubicación física) ----------
   const lv = new THREE.Group(); lv.name = 'niveles_figura_3'; g.add(lv);
   const plate = (h, name) => { const m = new THREE.Mesh(new THREE.BoxGeometry(18, 0.2, 40), glass(0x29A9E0, 0.08)); m.position.copy(P(85, 50, h)); m.name = name; lv.add(m); return m; };
-  plate(9, 'nivel_2_automatizacion'); plate(14, 'nivel_3_supervision'); plate(19, 'nivel_4_informacion');
+  plate(8, 'nivel_2_automatizacion'); plate(16, 'nivel_3_supervision'); plate(24, 'nivel_4_informacion');
   const node = (px, py, h, name) => { const m = new THREE.Mesh(new THREE.BoxGeometry(4.5, 1.6, 3), C.node.clone()); m.position.copy(P(px, py, h + 0.9)); m.name = name; lv.add(m); return m; };
-  const N = { ctrl: node(85, 42, 9, 'controlador_central_VRF'), gw: node(85, 58, 9, 'pasarela_BACnet_IP'), scada: node(85, 50, 14, 'SCADA_central'),
-    bim: node(85, 34, 19, 'modelo_BIM_as_built'), cmms: node(85, 50, 19, 'CMMS'), tab: node(85, 66, 19, 'tablero_gemelo_digital') };
+  const N = { ctrl: node(85, 42, 8, 'controlador_central_VRF'), gw: node(85, 58, 8, 'pasarela_BACnet_IP'), scada: node(85, 50, 16, 'SCADA_central'),
+    bim: node(85, 34, 24, 'modelo_BIM_as_built'), cmms: node(85, 50, 24, 'CMMS'), tab: node(85, 66, 24, 'tablero_gemelo_digital') };
   const dash = new THREE.LineDashedMaterial({ color: 0x7FD6FF, dashSize: 1, gapSize: 0.7, transparent: true, opacity: 0.7 });
   const line = pts => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), dash); l.computeLineDistances(); lv.add(l); return l; };
   const c = o => o.position.clone();
@@ -135,15 +137,17 @@ export function buildM14({ THREE, label, go }) {
     silos: label(P(61, 13, 12.5), `${df()}Patio de silos · 4 silos Ø 2.50 m${B}`),
     salas: label(P(15, 23, 5), `${df()}Orden de las salas: plano general<small>(Batista et al., 2026, p. 21) · tamaños ilustrativos</small>`, { cls: 'green' }),
     ou: label(OU.clone().setY(2.6), `${il}Unidad exterior VRF`), oa: label(OA.clone().setY(2.4), `${il}Unidad de aire exterior`, { down: true }),
-    medD: label(c(tabD).setY(2.6), MED('D'), { cls: 'amber' }),
-    medE: label(c(tabE).setY(2.6), MED('E'), { cls: 'amber' }),
+    medD: label(c(tabD).setY(2.6), MED('D'), { cls: 'amber', prio: true }),
+    medE: label(c(tabE).setY(2.6), MED('E'), { cls: 'amber', prio: true }),
     salaElec: label(c(sensC).setY(3.7), `${df()}Sala eléctrica / UPS<small>(Batista et al., 2026, p. 22)</small>`),
-    n2: label(P(94, 30, 9.5), 'Nivel 2 · Automatización del VRF', { cls: 'cyan' }), n3: label(P(94, 30, 14.5), 'Nivel 3 · Supervisión', { cls: 'cyan' }), n4: label(P(94, 30, 19.5), 'Nivel 4 · Gestión de la información', { cls: 'cyan' }),
+    n2: label(P(94, 50, 8.5), 'Nivel 2 · Automatización del VRF<small>controlador central · pasarela BACnet/IP</small>', { cls: 'cyan', prio: true }),
+    n3: label(P(94, 50, 16.5), 'Nivel 3 · Supervisión<small>SCADA central de REFRESH</small>', { cls: 'cyan', prio: true }),
+    n4: label(P(94, 50, 24.5), 'Nivel 4 · Gestión de la información<small>modelo BIM as-built (LOD 500) + COBie · CMMS · tablero / gemelo digital</small>', { cls: 'cyan', prio: true }),
     ctrl: label(c(N.ctrl).setY(11), 'Nivel 2 · Controlador central VRF'), gw: label(c(N.gw).setY(11), 'Nivel 2 · Pasarela BACnet/IP'), scada: label(c(N.scada).setY(16), 'Nivel 3 · SCADA central de REFRESH'),
     bim: label(c(N.bim).setY(21), 'Nivel 4 · Modelo BIM as-built (LOD 500) + COBie'), cmms: label(c(N.cmms).setY(21), 'Nivel 4 · CMMS · órdenes de trabajo'), tab: label(c(N.tab).setY(21), 'Nivel 4 · Tablero / gemelo digital'),
-    esquema: label(P(85, 74, 9), `${il}Esquema de la Figura 3<small>no es una ubicación física</small>`, { down: true }),
-    flujo: label(P(60, 50, 30), '', { cls: 'amber' }),
-    gwConf: label(c(N.gw).setY(7.6), '<span class="st df">Dato de fuente</span>Integración con el SCADA: por confirmar<small>(Batista et al., 2026, p. 13)</small>', { cls: 'red', down: true }),
+    esquema: label(P(85, 74, 8), `${il}Esquema de la Figura 3<small>no es una ubicación física</small>`, { down: true }),
+    flujo: label(P(60, 50, 30), '', { cls: 'amber', prio: true }),
+    gwConf: label(c(N.gw).setY(6.6), '<span class="st df">Dato de fuente</span>Integración con el SCADA: por confirmar<small>(Batista et al., 2026, p. 13)</small>', { cls: 'red', down: true }),
     lod: label(OU.clone().setY(4.2), '', { cls: 'amber' }),
     nD: label(P(15, 33, 4.8), `${df()}Edificio D<small>(Batista et al., 2026, p. 21)</small>`), nC: label(P(15, 52, 6.3), `${df()}Edificio C<small>(Batista et al., 2026, p. 21)</small>`),
     nE: label(P(16, 78, 4.8), `${df()}Edificio E<small>(Batista et al., 2026, p. 21)</small>`),
@@ -162,7 +166,7 @@ export function buildM14({ THREE, label, go }) {
   const PL = {
     M3: pt('M3', c(IU[3]).setY(4.4), ' · aviso de filtro'), iuE: pt('M1', c(IU[2]).setY(4.4), ' M2 M3 C1 C2 · en cada unidad interior'), iuD: pt('M1', c(IU[0]).setY(4.4), ' M2 M3 C1 C2 · en cada unidad interior'),
     ou: pt('M4', OU.clone().setY(1.2).add(v3(1.6, 0, 0)), ' M2 · unidad exterior'), M5: pt('M5', c(tabE).setY(1.2).add(v3(1.2, 0, 0)), ' · energía medida'), M6: pt('M6', c(sensC).setY(2.2), ' · temperatura'),
-    C3: pt('C3', c(N.scada).setY(13).add(v3(4.5, 0, 0)), ' · paro forzado'), C4: pt('C4', OA.clone().setY(0.8).add(v3(1.8, 0, 0)), ' · marcha y paro'),
+    C3: pt('C3', c(N.scada).setY(15).add(v3(4.5, 0, 0)), ' · paro forzado'), C4: pt('C4', OA.clone().setY(0.8).add(v3(1.8, 0, 0)), ' · marcha y paro'),
   };
   let selPt = 'M3';
 
@@ -171,20 +175,21 @@ export function buildM14({ THREE, label, go }) {
   const CAM = {
     planta: W0, coord: [-124, 8.5, 13, -110, 3, 0], lod: [OU.x + 8, 4.8, OU.z + 6.5, OU.x - 0.8, 1.3, OU.z - 2.2], ventajas: W0,
     gemelo: [-80, 92, 128, 2, 22, 0], mep: [-108, 100, 124, 0, 15, 4], propuesta: [-2, 52, 62, -34, 0, 0], cierre: W0, zona: [-2, 52, 62, -34, 0, 0],
-    inspector: [-108, 100, 124, 0, 15, 4], integracion: [2, 30, 52, 35, 13, 6], limites: [-80, 92, 128, 2, 22, 0], mantto: [-52, 34, 58, -33, 2, 8],
+    inspector: [-118, 100, 124, -10, 15, 4], integracion: [2, 30, 52, 35, 13, 6], limites: [-80, 92, 128, 2, 22, 0], mantto: [-52, 34, 58, -33, 2, 8],
     riesgos: [-56, 46, 66, -26, 2, 10], panama: W0, recom: [-62, 78, 96, 12, 8, 4],
   };
 
   const base = [L.naveA, L.naveB, L.edC, L.edD, L.edE];
-  const mepL = [L.ou, L.medD, L.medE, L.salaElec, L.ctrl, L.gw, L.scada, L.bim, L.cmms, L.tab, L.flujo, PL.M3];
-  const mepAll = [...mepL.filter(l => l !== L.flujo), L.oa, L.esquema, PL.iuD, PL.iuE, PL.ou, PL.M5, PL.M6, PL.C3, PL.C4, L.salas];
+  const mepL = [L.ou, L.medD, L.medE, L.salaElec, L.n2, L.n3, L.n4, L.flujo, PL.M3];
+  const mepAll = [...mepL.filter(l => l !== L.flujo), L.oa, L.esquema, PL.iuD, PL.iuE, PL.ou, PL.M5, PL.M6, PL.C3, PL.C4]; // el orden de las salas se muestra en 2.0b
   const LBL = {
     planta: [...base, L.terreno, L.expan, L.silos, L.fach], zona: [L.fach, L.pdD, L.pdE, L.salaElec, L.cable, L.salas, L.ou], coord: [L.coSt, L.coD, L.coB, L.coT, L.coP], lod: [L.lod], ventajas: base, gemelo: [L.twinRot, ...LAY.map((_, i) => L['lay' + i])],
-    mep: mepL, propuesta: [L.sheet, L.ou], cierre: base, inspector: mepAll, integracion: [L.gwConf, L.gw, L.scada, L.ctrl, L.n2, L.n3],
+    mep: mepL, propuesta: [L.sheet, L.ou], cierre: base, inspector: mepAll, integracion: [L.gwConf, L.n2, L.n3],
     limites: [L.twinRot, ...LAY.map((_, i) => L['lay' + i])], mantto: [PL.iuD, PL.iuE], riesgos: [L.fuga, L.ou], panama: base, recom: [L.ou, L.n2],
   };
   const MEP_IDS = ['zona', 'mep', 'inspector', 'integracion', 'mantto', 'riesgos', 'recom', 'propuesta'];
-  const XRAY = [...MEP_IDS, 'lod']; // pasos de la zona de estudio: fachadas de D y E en rayos X
+  const XRAY = [...MEP_IDS, 'lod', 'E2', 'E3', 'E4'];
+  let xr = null; // E1: la escena decide cuándo entra la zona de estudio // pasos de la zona de estudio: fachadas de D y E en rayos X
 
   // ---------- Animaciones ----------
   let lodSel = '100', lodAuto = true;
@@ -205,7 +210,10 @@ export function buildM14({ THREE, label, go }) {
   const nodeBase = 0x23292F, hot = 0xE3A857;
 
   function enter(st) {
-    const id = st.id, mepish = MEP_IDS.includes(id);
+    const id = st.base || st.id;
+    xr = st.id === 'E1' ? false : null; e1fly = 0; document.getElementById('inset').hidden = !st.inset;
+    if (st.id === 'E1') { /* planta opaca; luego la cámara entra a D y E */ }
+    const _ = 0, mepish = MEP_IDS.includes(id);
     site.visible = id !== 'coord'; co.visible = id === 'coord'; twin.visible = id === 'gemelo' || id === 'limites';
     vrf.visible = mepish; lv.visible = ['mep', 'inspector', 'integracion', 'recom'].includes(id); lodG.visible = mepish || id === 'lod';
     sheets.visible = id === 'propuesta'; pulse.visible = false;
@@ -222,8 +230,14 @@ export function buildM14({ THREE, label, go }) {
   function dedup(lbl) { [PL.M3, L.ctrl, L.gw, L.scada, L.tab, L.cmms].forEach(l => { const on = l !== lbl; if (l.on !== on) { l.on = on; if (!on) l.el.hidden = true; } }); }
   function along(path, t, seg) { const k = Math.min(path.length - 2, Math.floor(t / seg)), u = Math.min(1, (t - k * seg) / seg); return { k, p: path[k][0].clone().lerp(path[k + 1][0], u), u }; }
   function tick(dt, t, st) {
-    const id = st.id;
-    { const tgt = XRAY.includes(id) ? 0.1 : 1, a = Math.min(1, dt * 2.2); // fachadas: opacas en la planta, rayos X en la zona de estudio
+    const id = st.base || st.id;
+    if (st.id === 'E1') { // planta completa con fachadas opacas → la cámara entra a D y E en rayos X; bucle de 48 s
+      const u = t % 48, ph = u < 7 ? 1 : u < 40 ? 2 : 1;
+      if (ph !== e1fly) { e1fly = ph; xr = ph === 2; fly(ph === 2 ? CAM.zona : CAM.planta); }
+      vrf.visible = lodG.visible = ph === 2; if (ph === 2) showLOD('400');
+      [L.nmD, L.nmE].forEach(l => l.set(l.el.dataset.base + (ph === 2 ? '<small>zona de estudio</small>' : '')));
+    }
+    { const tgt = (xr !== null ? xr : XRAY.includes(id)) ? 0.1 : 1, a = Math.min(1, dt * 2.2); // fachadas: opacas en la planta, rayos X en la zona de estudio
       C.fac.opacity += (tgt - C.fac.opacity) * a; C.win.opacity += (tgt - C.win.opacity) * a; C.fac.depthWrite = C.win.depthWrite = C.fac.opacity > 0.95; }
     if (id === 'coord') {
       const ph = Math.floor((t % 14) / 2); // 0 estructura, 1 HVAC, 2 eléctrico, 3 plomería, 4 interferencias, 5–6 resuelto
@@ -246,12 +260,10 @@ export function buildM14({ THREE, label, go }) {
         const a = along(FLOW, Math.min(cyc, T1), 1.3); pulse.position.copy(a.p); pulse.material.color.setHex(0xF2C14E);
         const k = cyc >= T1 ? FLOW.length - 1 : (a.u > 0.98 ? a.k + 1 : a.k);
         const nodeAt = [null, N.ctrl, N.gw, N.scada, N.tab, N.cmms][k]; if (nodeAt) nodeAt.material.color.setHex(hot);
-        dedup([PL.M3, L.ctrl, L.gw, L.scada, L.tab, L.cmms][k]);
         L.flujo.set(`<span class="st pr">Propuesta · M14 · Figura 3</span>${FLOW[k][1]}<small>(Daikin Comfort Technologies North America, 2019, pp. 25–26)</small>`); L.flujo.anchor.copy(FLOW[k][0]).add(v3(0, 4, 0));
       } else {
         const t2 = cyc - T1 - 1.5, a = along(STOPF, Math.min(t2, T2), 1.1); pulse.position.copy(a.p); pulse.material.color.setHex(0xE5534B);
         const k = t2 >= T2 ? STOPF.length - 1 : a.k; if (k === STOPF.length - 1) IU.forEach(u => u.material = C.off);
-        dedup([L.scada, L.gw, L.ctrl, null][k]);
         L.flujo.set(`<span class="st pr">Propuesta · M14 · Figura 3</span>${STOPF[k][1]}<small>(Daikin Comfort Technologies North America, 2019, p. 24)</small>`); L.flujo.anchor.copy(STOPF[k][0]).add(v3(0, 4, 0));
       }
     }
@@ -267,14 +279,26 @@ export function buildM14({ THREE, label, go }) {
   // 2.2: recuadro con la planta de D, C y E (plano, p. 21) y la vista de la cámara; la ubicación de la unidad es ilustrativa
   const R2 = (x, y, w, d, t) => `<rect x="${y}" y="${x}" width="${d}" height="${w}" fill="#3A424A" stroke="#C9D1D8" stroke-width=".4"/><text x="${y + d / 2}" y="${x + w / 2 + 1.6}" font-size="5" fill="#F1F4F6" text-anchor="middle">${t}</text>`;
   const INSET = `<span class="st df">Dato de fuente</span>Planta: D, C y E <small>(Batista et al., 2026, p. 21)</small>
-<svg viewBox="8 4 84 30">${R2(9, 11, 12, 25, 'D')}${R2(9, 41, 12, 24, 'C')}${R2(9, 76, 20, 10, 'E')}<circle cx="55.5" cy="25" r="1.6" fill="#E3A857"/><path d="M62 33 L55.8 25.6 M62 33 L58.5 33.6 M62 33 L62.2 29.6" stroke="#29A9E0" stroke-width=".7" fill="none"/><text x="10" y="33" font-size="3.6" fill="#9AA6B1">← N</text></svg>
+<svg viewBox="8 4 92 30">${R2(9, 11, 12, 25, 'D')}${R2(9, 41, 12, 24, 'C')}${R2(9, 76, 20, 10, 'E')}<circle cx="89.3" cy="18" r="1.6" fill="#E3A857"/><path d="M95.8 26 L89.8 18.6 M95.8 26 L92.4 26.4 M95.8 26 L96 22.6" stroke="#29A9E0" stroke-width=".7" fill="none"/><text x="10" y="33" font-size="3.6" fill="#9AA6B1">← N</text></svg>
 <span class="st il">Ilustrativo</span>ubicación de la unidad exterior (●) y dirección de la vista.`;
   // Miniatura para el inicio: la planta completa con la misma geometría; D y E resaltados con sus fachadas
   function mini() {
-    const m = site.clone(true), hi = M(0xF2D49B), win = M(0x2B3A46);
+    const m = site.clone(true), hi = M(0x7FD6FF), win = M(0x2B3A46);
     m.traverse(o => { if (o.isMesh && o.material === C.fac) o.material = hi; else if (o.isMesh && o.material === C.win) o.material = win; });
     m.visible = true; return { group: m };
   }
-  const steps = M14.steps.map(s => ({ ...s, cam: CAM[s.id], labels: LBL[s.id] || [], inset: s.id === 'lod' ? INSET : null }));
-  return { group: g, ...M14.stop, note: M14.note, refs: M14.refs, steps, enter, tick, mini };
+  // ---------- Escenas de la ruta principal ----------
+  const nm = (p, t) => { const l = label(p, t); l.el.dataset.base = t; return l; };
+  Object.assign(L, { nmA: nm(P(52, 24, 12.5), 'Nave A'), nmB: nm(P(52, 59, 9.5), 'Nave B'), nmC: nm(P(15, 53, 6.5), 'Edificio C'), nmD: nm(P(15, 23.5, 5), 'Edificio D'), nmE: nm(P(19, 81, 5), 'Edificio E') });
+  const BASE = { E1: 'planta', E2: 'lod', E3: 'mep', E4: 'propuesta' };
+  Object.assign(CAM, { E1: CAM.planta, E2: CAM.lod, E3: CAM.mep, E4: CAM.propuesta });
+  Object.assign(LBL, { E1: [L.nmA, L.nmB, L.nmC, L.nmD, L.nmE, L.fach], E2: [L.lod], E3: [L.n2, L.n3, L.n4, L.flujo, L.medE, L.ou], E4: [L.sheet, L.ou] });
+  const ROOMN = ['Laboratorio QC, Edificio D', 'Comedor, Edificio D', 'Recepción, Edificio E', 'Oficinas, Edificio E', 'Sala de juntas, Edificio E'];
+  // La ficha va en la columna de tarjetas, debajo del rótulo, para no tapar las etiquetas de los niveles
+  const openFicha = i => { const dk = document.getElementById('dock'); document.getElementById('fichaCard')?.remove(); dk.insertAdjacentHTML('beforeend', `<div class="card" id="fichaCard" data-card>${FICHA(ROOMN[i])}</div>`); IU.forEach((u, j) => u.material = j === i ? C.sensor : C.iu); };
+  function onClick(ray, st) { if (st.id !== 'E3') return; const h = ray.intersectObjects(IU, false)[0]; if (h) openFicha(IU.indexOf(h.object)); }
+  let e1fly = 0;
+  const steps = [...SC14.map(s => ({ ...s, base: BASE[s.id], cam: CAM[s.id], labels: LBL[s.id] || [], inset: s.id === 'E2' ? INSET : null })),
+    ...M14.steps.map(s => ({ ...s, level: 'PR', cam: CAM[s.id], labels: LBL[s.id] || [], inset: s.id === 'lod' ? INSET : null }))];
+  return { group: g, ...M14.stop, note: M14.note, refs: M14.refs, steps, enter, tick, mini, onClick, openFicha };
 }

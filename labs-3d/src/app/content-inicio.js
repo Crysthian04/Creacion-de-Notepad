@@ -11,8 +11,9 @@ export const INICIO = {
   stop: { kicker: 'Inicio', short: 'Inicio', title: 'Laboratorios M6 y M14', lead: 'Dos paradas, una por informe. Cada una tiene su ruta principal y su profundización.' },
   note: 'Modelo conceptual, no a escala. Miniaturas de las paradas: ilustrativas.',
   // Etiquetas de las miniaturas: sello, título y tres hitos de la ruta principal (sin cifras)
-  lbl1: '<span class="st il">Ilustrativo · miniatura de la parada</span>1 · M6 · Ventiladores y distribución<small>TAB y criterio de aceptación</small><small>proporción frente a flujo progresivo</small><small>leyes de los ventiladores y Panamá</small>',
-  lbl2: '<span class="st il">Ilustrativo · miniatura de la parada</span>2 · M14 · BIM y gestión MEP<small>del LOD 100 al as-built</small><small>esquema MEP de REFRESH</small><small>propuesta BIM</small>',
+  // Etiquetas de las miniaturas: sello, título y los títulos de sus 4 escenas (sin cifras)
+  lbl1: '<span class="st il">Ilustrativo · miniatura de la parada</span>1 · M6 · Ventiladores y distribución<small>La red y su criterio</small><small>Cerrar una compuerta mueve a todas</small><small>Abrir compuertas y bajar el ventilador</small><small>Panamá</small>',
+  lbl2: '<span class="st il">Ilustrativo · miniatura de la parada</span>2 · M14 · BIM y gestión MEP<small>De la planta a la zona de estudio</small><small>Cuánto confiar en el modelo: LOD</small><small>Una falla de punta a punta</small><small>Hoy frente a la propuesta</small>',
   steps: [{
     n: '0', level: 'RP', title: 'Inicio',
     start: `<div class="uni">Universidad Tecnológica de Panamá · Facultad de Ingeniería Mecánica · Lic. en Ingeniería de Mantenimiento</div>

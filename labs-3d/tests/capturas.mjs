@@ -1,30 +1,34 @@
 // Capturas de revisión (1366×768 y 1920×1080) en tests/shots/entrega. Uso: node tests/capturas.mjs
 import { chromium } from 'playwright';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-const root = join(dirname(fileURLToPath(import.meta.url)), '..'), out = join(root, 'tests/shots/entrega'); await mkdir(out, { recursive: true });
+const root = join(dirname(fileURLToPath(import.meta.url)), '..'), out = join(root, 'tests/shots/entrega');
+await rm(out, { recursive: true, force: true }); await mkdir(out, { recursive: true });
 const exe = process.env.CHROMIUM_PATH;
 const b = await chromium.launch({ ...(exe ? { executablePath: exe } : {}), args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 for (const [W, H] of [[1366, 768], [1920, 1080]]) {
   const pg = await b.newPage({ viewport: { width: W, height: H } });
   await pg.goto(pathToFileURL(join(root, 'dist/Modelo3D_Labs_M6_M14_offline.html')).href); await pg.waitForTimeout(3000);
   const shot = n => pg.screenshot({ path: join(out, `${W}_${n}.png`) });
-  const go = async (s, id, wait = 2000) => { await pg.evaluate(([s, id]) => window.__labs.go(s, id === null ? 0 : window.__labs.STOPS[s].steps.findIndex(x => x.id === id)), [s, id]); await pg.waitForTimeout(wait); };
-  const cam = async (p, t) => { await pg.evaluate(([p, t]) => { const s = document.querySelector('three-d-stage'); s._camera.position.set(...p); s._controls.target.set(...t); }, [p, t]); await pg.waitForTimeout(700); };
-  await go(0, null, 2500); await shot('0_inicio');
-  await pg.keyboard.press('1'); await pg.waitForTimeout(600); await shot('0_transicion_a_M6'); await pg.waitForTimeout(1800);
-  await go(1, 'previas', 2500); await shot('1.2_antes_del_TAB');
-  await go(1, 'correas'); await shot('P3_correas');
-  await cam([-10.4, 1.0, 5.2], [-10.4, 1.0, 1.25]); await shot('P3_correa_frente');
-  await cam([-6.2, 1.0, 1.25], [-10.4, 1.0, 1.25]); await shot('P3_correa_lado');
-  await go(2, 'planta', 2500); await shot('2.0_planta');
-  await go(2, 'zona', 700); await shot('2.0b_transicion_zona_a'); await pg.waitForTimeout(2300); await shot('2.0b_transicion_zona_b');
-  await go(2, 'lod');
-  for (const n of ['100', '200', '300', '350', '400', '500']) { await pg.click(`[data-lod="${n}"]`); await pg.waitForTimeout(500); await shot(`2.2_LOD${n}`); }
-  await go(2, 'mep', 3500); await shot('2.5_alerta_M3'); await pg.waitForTimeout(6500); await shot('2.5_paro_C3');
-  await go(2, 'inspector'); await shot('P1_inspector');
-  await go(2, 'propuesta', 9000); await shot('2.6_propuesta_D_E');
+  const go = async (s, id, wait = 2200) => { await pg.evaluate(([s, id]) => window.__labs.go(s, window.__labs.STOPS[s].steps.findIndex(x => x.id === id)), [s, id]); await pg.waitForTimeout(wait); };
+  await pg.evaluate(() => window.__labs.go(0, 0)); await pg.waitForTimeout(2500); await shot('0_inicio');
+  // Escenas del M6
+  await go(1, 'E1', 14000); await shot('M6_E1_red_y_criterio');
+  await go(1, 'E2'); await shot('M6_E2_simulacion');
+  await pg.evaluate(() => window.__labs.STOPS[1].sim.set(3, 2)); await pg.waitForTimeout(1500); await shot('M6_E2_compuerta_cerrada');
+  await pg.click('#cmpBtn'); await pg.waitForTimeout(9000); await shot('M6_E2_comparar_metodos');
+  await go(1, 'E3', 17000); await shot('M6_E3_compuertas_y_velocidad');
+  await go(1, 'E4', 5000); await shot('M6_E4_panama');
+  // Escenas del M14
+  await go(2, 'E1', 2500); await shot('M14_E1_a_planta'); await pg.waitForTimeout(8000); await shot('M14_E1_b_zona_de_estudio');
+  await go(2, 'E2'); for (const n of ['100', '500']) { await pg.click(`[data-lod="${n}"]`); await pg.waitForTimeout(600); await shot(`M14_E2_LOD${n}`); }
+  await go(2, 'E3', 3500); await shot('M14_E3_falla');
+  await pg.evaluate(() => window.__labs.STOPS[2].openFicha(3)); await pg.waitForTimeout(500); await shot('M14_E3_ficha_de_activo');
+  await go(2, 'E4', 9000); await shot('M14_E4_hoy_y_propuesta');
+  if (W === 1366) { // verificación de las correcciones de la ronda 3
+    for (const [s, id, n, w] of [[1, 'marco', '1.1'], [1, 'proporcion', '1.3', 6000], [1, 'progresivo', '1.4', 6000], [1, 'panama', '1.7'], [2, 'planta', '2.0'], [2, 'zona', '2.0b', 3500], [2, 'mep', '2.5', 3500], [2, 'inspector', 'P1']]) { await go(s, id, w || 2200); await shot(`detalle_${n}`); }
+  }
   await pg.close();
 }
 await b.close();

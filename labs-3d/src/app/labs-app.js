@@ -12,13 +12,13 @@ const scene = stage._scene, cam = stage._camera, ctl = stage._controls;
 // ---------- Etiquetas ----------
 const host = document.getElementById('labels'), labels = [];
 const v = new THREE.Vector3();
-function label(anchor, html, { cls = '', down = false, onClick = null, id = '' } = {}) {
+function label(anchor, html, { cls = '', down = false, onClick = null, id = '', prio = false } = {}) {
   const el = document.createElement('div');
   el.className = 'lbl ' + cls + (onClick ? ' click' : '');
   el.innerHTML = down ? `<div class="dot"></div><div class="stem"></div><div class="box">${html}</div>` : `<div class="box">${html}</div><div class="stem"></div><div class="dot"></div>`;
   if (onClick) el.addEventListener('click', onClick);
-  el.dataset.id = id; el.hidden = true; host.appendChild(el);
-  const L = { el, anchor, on: false, set(h) { el.querySelector('.box').innerHTML = h; } };
+  el.dataset.id = id; el.dataset.i = labels.length; el.hidden = true; host.appendChild(el);
+  const L = { el, anchor, prio, on: false, set(h) { el.querySelector('.box').innerHTML = h; } };
   labels.push(L); return L;
 }
 function placeLabels() {
@@ -41,7 +41,7 @@ function placeLabels() {
   const ins = document.getElementById('inset'); if (ins && !ins.hidden) cards.push(zone(ins.getBoundingClientRect()));
   document.querySelectorAll('.bottom > *').forEach(e => cards.push(zone(e.getBoundingClientRect()))); // nota y barra ← →
   const placed = [], H = r.height;
-  vis.sort((a, b) => b.y - a.y);
+  vis.sort((a, b) => (b.L.prio ? 1 : 0) - (a.L.prio ? 1 : 0) || b.y - a.y); // las etiquetas prioritarias (niveles) se colocan primero
   for (const o of vis) {
     const box = o.L.el.querySelector('.box'), w = box.offsetWidth, h = box.offsetHeight;
     const nat = o.L.el.firstElementChild.classList.contains('dot'); // true = la caja va debajo del punto
@@ -73,13 +73,22 @@ const S1 = buildM6(ctx), S2 = buildM14(ctx);
 const STOPS = [buildInicio({ ...ctx, m6: S1, m14: S2 }), S1, S2]; // el inicio usa miniaturas con la geometría de las paradas
 STOPS.forEach(s => root.add(s.group));
 stage.setObject(root);
+STOPS[0].group.traverse(o => { if (o.isMesh) o.castShadow = false; }); // sin sombras sueltas bajo los pedestales
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 cam.near = 0.1; cam.far = 1500; cam.updateProjectionMatrix();
 ctl.maxPolarAngle = Math.PI * 0.495; ctl.minDistance = 2; ctl.maxDistance = 400;
 if (stage._toolbar) stage._toolbar.style.display = 'none';
 
 // ---------- Tarjetas ----------
-const STAMP = { df: 'Dato de fuente', il: 'Ilustrativo' }, POPS = [];
+const STAMP = { df: 'Dato de fuente', il: 'Ilustrativo', pr: 'Propuesta' }, POPS = [];
+// Rótulo de una escena: frase (≤ 25 palabras), cifra opcional (≤ 12), cita, sello, referencia y chips «Detalle»
+function rotHTML(r, chips) {
+  const st = (k, txt) => `<span class="st ${k}">${txt || STAMP[k]}</span>`;
+  return `<div class="card rot" data-card><div class="ch"><span class="ref">${r.ref}</span>${st(r.stamp, r.stampText)}</div>
+<p class="frase">${r.f} <span class="cite">(${r.fc})</span></p>${r.c ? `<p class="cifra">${r.cs ? st(r.cs) + ' ' : ''}${r.c}${r.cc ? ` <span class="cite">(${r.cc})</span>` : ''}</p>` : ''}
+${r.extra ? `<p class="small">${r.extra}</p>` : ''}${r.ui || ''}
+<div class="chips"><span>Detalle:</span>${chips.map(c => `<button class="btn chip" data-chip="${c.i}" title="${c.t}">${c.n}</button>`).join('')}</div></div>`;
+}
 export function cardHTML(c) {
   const stamp = c.stamp ? `<span class="st ${c.stamp}">${STAMP[c.stamp]}</span>${c.cite ? `<span class="cite">(${c.cite})</span>` : ''}` : '';
   const ref = c.ref ? `<span class="ref">${c.ref}</span>` : '';
@@ -98,6 +107,7 @@ function openFig(f, src) {
 dock.addEventListener('click', e => {
   const img = e.target.closest('img[data-fig]'); if (img) return openFig(img.closest('.fig'), img.src);
   const fb = e.target.closest('[data-figsrc]'); if (fb) return openFig(fb.closest('.fig'), fb.dataset.figsrc);
+  const ch = e.target.closest('[data-chip]'); if (ch) return go(cur, +ch.dataset.chip, { back: step });
   const pb = e.target.closest('[data-pop]');
   if (pb) { document.getElementById('figbody').innerHTML = POPS[+pb.dataset.pop]; document.getElementById('figbox').hidden = false; }
 });
@@ -106,10 +116,11 @@ document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e
 function closeOverlays() { document.querySelectorAll('.overlay').forEach(o => o.hidden = true); }
 
 // ---------- Navegación ----------
-let cur = -1, step = 0, deepNav = false, t0 = performance.now();
+let cur = -1, step = 0, deepNav = false, t0 = performance.now(), backTo = null;
 const $ = id => document.getElementById(id);
 const order = s => deepNav ? s.steps : s.steps.filter(x => x.level === 'RP');
-function go(si, idx = 0) {
+function go(si, idx = 0, opt = {}) {
+  backTo = opt.back !== undefined ? { si, idx: opt.back } : null;
   const s = STOPS[si];
   if (si !== cur) { STOPS.forEach((x, i) => { x.group.visible = i === si; }); cur = si; buildAside(s); }
   step = Math.max(0, Math.min(idx, s.steps.length - 1));
@@ -117,7 +128,9 @@ function go(si, idx = 0) {
   labels.forEach(L => { L.on = false; L.el.hidden = true; });
   (st.labels || []).forEach(L => { L.on = true; });
   POPS.length = 0;
-  dock.innerHTML = (st.cards || []).map(cardHTML).join('');
+  const chips = (st.chips || []).map(id => { const i = s.steps.findIndex(x => x.id === id); return { i, n: s.steps[i].n, t: s.steps[i].title }; });
+  dock.innerHTML = (st.rot ? rotHTML(st.rot, chips) : '') + (st.cards || []).map(cardHTML).join('');
+  $('back').hidden = !backTo; if (backTo) $('back').textContent = `← Volver a la escena ${s.steps[backTo.idx].n}`;
   dock.scrollTop = 0;
   $('start').hidden = !st.start; if (st.start) $('start').innerHTML = st.start;
   $('inset').hidden = !st.inset; if (st.inset) $('inset').innerHTML = st.inset;
@@ -163,6 +176,7 @@ function showRefs() {
   $('refbox').hidden = false;
 }
 $('prev').onclick = () => move(-1); $('next').onclick = () => move(1);
+$('back').onclick = () => { if (backTo) go(backTo.si, backTo.idx); };
 $('deepBtn').onclick = () => setDeep(!deepNav);
 document.querySelectorAll('#tabs [data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab)); $('refBtn').onclick = showRefs;
 // Desde el inicio, la cámara entra en la miniatura antes de pasar a la parada
@@ -181,6 +195,10 @@ addEventListener('keydown', e => {
 // ---------- Cámara ----------
 let fly = null;
 function flyTo([x, y, z, tx, ty, tz]) {
+  // A 1366 el área libre (a la derecha de las tarjetas) es más angosta: la cámara se aleja en proporción
+  const w = stage.clientWidth, h = stage.clientHeight, dw = dock.childElementCount ? dock.offsetWidth + 18 : 0;
+  const k = w && h ? Math.max(1, 1.12 / ((w - dw) / h)) : 1;
+  x = tx + (x - tx) * k; y = ty + (y - ty) * k; z = tz + (z - tz) * k;
   fly = { a: cam.position.clone(), b: new THREE.Vector3(x, y, z), at: ctl.target.clone(), bt: new THREE.Vector3(tx, ty, tz), t: 0, t0: performance.now() };
 }
 let last = performance.now();
@@ -206,9 +224,11 @@ STOPS.forEach(s => s.setRestart && s.setRestart(() => { t0 = performance.now(); 
   const cv = stage.shadowRoot.querySelector('canvas');
   cv.addEventListener('pointerdown', e => { down0 = [e.clientX, e.clientY]; });
   cv.addEventListener('pointerup', e => {
-    if (cur !== 0 || !down0 || Math.hypot(e.clientX - down0[0], e.clientY - down0[1]) > 5 || !STOPS[0].pick) return;
+    if (!down0 || Math.hypot(e.clientX - down0[0], e.clientY - down0[1]) > 5) return;
     const q = cv.getBoundingClientRect(); ndc.set((e.clientX - q.left) / q.width * 2 - 1, -(e.clientY - q.top) / q.height * 2 + 1);
-    ray.setFromCamera(ndc, cam); const k = STOPS[0].pick(ray); if (k) enterStop(k);
+    ray.setFromCamera(ndc, cam);
+    if (cur === 0 && STOPS[0].pick) { const k = STOPS[0].pick(ray); if (k) enterStop(k); }
+    else if (STOPS[cur].onClick) STOPS[cur].onClick(ray, STOPS[cur].steps[step]);
   });
 }
 window.__labs = { go, move, setDeep, get cur() { return cur; }, get step() { return step; }, STOPS };

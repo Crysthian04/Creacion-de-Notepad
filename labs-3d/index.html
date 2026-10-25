@@ -166,7 +166,7 @@
   .card .fig.link .figbtn { padding: 6px 8px; font-size: 11px; border-color: rgba(214,224,232,.3); }
   .card .fig.link .ft { margin: 0; font-size: 11px; font-weight: 500; }
   .card .fig.link .cr { display: none; }
-  @media (max-height: 820px) { .card { font-size: 12.3px; line-height: 1.36; padding: 8px 10px 9px; } .card h4 { font-size: 13.5px; } .card .counter b.n { font-size: 18px; } #dock { gap: 8px; bottom: 64px; } .card table { font-size: 11px; } .card th, .card td { padding: 3px 4px; } }
+  @media (max-height: 820px) { .lbl .box { font-size: 10px; } .lbl .box small { font-size: 9px; } .card.rot .frase { font-size: 14px; } .card { font-size: 12.3px; line-height: 1.36; padding: 8px 10px 9px; } .card h4 { font-size: 13.5px; } .card .counter b.n { font-size: 18px; } #dock { gap: 8px; bottom: 64px; } .card table { font-size: 11px; } .card th, .card td { padding: 3px 4px; } }
   .card .popbtn { margin: 4px 0 2px; padding: 6px 9px; font-size: 11px; border-color: rgba(214,224,232,.3); }
   .card .counter { font: 500 15px "IBM Plex Mono", monospace; margin-bottom: 4px; } .card .counter b.n { font-size: 22px; }
   .laws { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 8px; }
@@ -211,6 +211,16 @@
   .tabs { align-self: flex-start; } .tabs .btn { padding: 6px 10px; font-size: 11.5px; }
   details.card summary { cursor: pointer; font-weight: 600; color: #F1F4F6; font-size: 14px; } details.card[open] summary { margin-bottom: 6px; }
   .steps.deep li { font-size: 12.5px; }
+  .steps { overflow-y: auto; max-height: calc(100vh - 330px); scrollbar-width: thin; }
+  .card.rot { width: clamp(300px, 26vw, 420px); } .card.rot .frase { font-size: 15.5px; line-height: 1.38; color: #F1F4F6; margin-bottom: 6px; } .card.rot .cifra { font: 500 13px/1.4 "IBM Plex Mono", monospace; color: #F2C14E; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 8px; border-top: 1px solid rgba(214,224,232,.14); padding-top: 7px; } .chips span { font: 500 10.5px "IBM Plex Mono", monospace; color: #8E9AA5; margin-right: 2px; }
+  .card .small .st, .st.wrap { white-space: normal; line-height: 1.3; }
+  .cmp { display: flex; flex-direction: column; gap: 5px; margin: 6px 0 2px; } .cmp .btn { align-self: flex-start; padding: 6px 9px; font-size: 11px; border-color: rgba(214,224,232,.3); }
+  .cmprow { display: grid; grid-template-columns: 112px 1fr 64px; gap: 8px; align-items: center; font: 500 11px "IBM Plex Mono", monospace; color: #C9D1D8; }
+  .cmprow i { display: block; height: 9px; width: 0; background: #E3A857; border-radius: 1px; transition: width .3s; } .cmprow b { color: #F2C14E; text-align: right; }
+  .lodu { margin: 4px 0; font-size: 13px; } .lodu b { color: #F2C14E; font-family: "IBM Plex Mono", monospace; }
+  .chip { padding: 4px 7px; font-size: 11px; border-color: rgba(227,168,87,.5); color: #F2C14E; }
+  #back { border-color: #E3A857; color: #F2C14E; }
   #extra { display: flex; flex-direction: column; gap: 10px; } #extra:empty { display: none; } #extra .card { width: auto; }
   .tools { display: flex; gap: 6px; flex-wrap: wrap; }
   .overlay { position: absolute; inset: 0; background: rgba(12,14,16,.82); display: grid; place-items: center; padding: 24px; z-index: 5; }
@@ -256,6 +266,7 @@
         <button class="btn" id="prev">←</button>
         <span class="pos" id="pos"></span>
         <button class="btn next" id="next">→</button>
+        <button class="btn" id="back" hidden>← Volver a la escena</button>
       </div>
     </div>
     <div class="overlay" id="figbox" hidden><div class="panel"><button class="btn x" data-close>✕ Cerrar</button><div id="figbody"></div></div></div>

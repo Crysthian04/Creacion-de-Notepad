@@ -153,3 +153,33 @@ No se copia `lib/three.min.js` (r128) ni ningún código que dependa de él. Las
 - **M14 · 2.5:** el flujo M3 y el paro C3 llevan «Propuesta · M14 · Figura 3». Cada nodo lleva su nivel en el nombre para que quepan los cuatro niveles. La tarjeta del medidor marca la propuesta.
 - **M14 · 2.6:** el modelo coordinado se muestra solo sobre D y E, con el sello de propuesta.
 - **Sin cambios:** 2.1 (cielo raso genérico, caso Khanzode) y 2.4 (marco general con el rótulo de propuesta) siguen sin presentarse como REFRESH.
+
+
+---
+
+## Ronda 4 (24/10/2026) · Ruta principal de 4 escenas por parada
+
+La ruta principal muestra el mecanismo con rótulos breves, y el texto completo queda en la profundización. No se borró ningún contenido: todos los pasos anteriores conservan su numeración en la pestaña «Profundización».
+
+| Parada | Escena | Rótulo (resumen) | Sello | Referencia al informe | Chips «Detalle» |
+|---|---|---|---|---|---|
+| M6 | E1 · La red y su criterio | ±5 % del caudal de diseño | Dato de fuente | El TAB y su marco normativo | 1.0, 1.1, 1.2, P1, P2, P3, P4 |
+| M6 | E2 · Cerrar una compuerta mueve a todas (interactiva) | cada ajuste cambia a los demás; 14 contra 10 pasos | Dato de fuente + «Simulación ilustrativa · ΔP = R·Q² · sin valores» | Métodos de balanceo · Tabla 1 | 1.3, 1.4, P5 |
+| M6 | E3 · Abrir compuertas y bajar el ventilador | último ajuste en el ventilador; −20 % = −50 % | Dato de fuente | Del balanceo al consumo de energía · Figura 7 | 1.5, 1.6, P6 |
+| M6 | E4 · Panamá | 72.90 %; −14.10 % en la simulación | Dato de fuente | Aplicación al contexto panameño · Figura 11 | 1.7, 1.8, P7, P8, P9 |
+| M14 | E1 · De la planta a la zona de estudio | USD 15,824 millones; zona de estudio D y E | Dato de fuente | Introducción · Sistema MEP integrado | 2.0, 2.0b |
+| M14 | E2 · Cuánto confiar en el modelo: LOD | LOD 500 = lo verificado | Dato de fuente | Niveles de desarrollo (LOD) · Tabla 1 | 2.2 |
+| M14 | E3 · Una falla de punta a punta (ficha de activo) | de calendario a condición | Propuesta · M14 · Figura 3 | Sistema MEP integrado · Figura 3 | 2.4, 2.5, P1, P2, P3, P4 |
+| M14 | E4 · Hoy frente a la propuesta | planos independientes → modelo coordinado + COBie; 2 de 233 RFI | Propuesta + Dato de fuente | Propuesta de aplicación · Tabla 2 | 2.1, 2.3, 2.6, 2.7, P5, P6, P7 |
+
+**Simulación E2 (M6, ilustrativa).** La red es serie-paralelo:
+- Tiene resistencias en los tramos del ducto principal, en los ramales, en los terminales y en las compuertas (abierta, media, cerrada), con ΔP = R·Q² en cada uno.
+- La curva del ventilador es P = P0·(1 − (Q/Qmax)²) y el punto de operación se resuelve por iteración.
+- El caudal de «diseño» es el de todas las compuertas abiertas.
+- No muestra valores.
+
+**Otros cambios de la ronda 4:**
+- La unidad exterior pasó al sur del Edificio E, del lado contrario a C (ATEX).
+- Los niveles de la Figura 3 se rotulan uno por franja (4 → 3 → 2).
+- En P1, el rótulo «Orden de las salas» se quitó; ese dato está en 2.0b.
+- En el inicio, las miniaturas llevan los títulos de las escenas y D y E van en cian.

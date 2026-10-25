@@ -8,7 +8,10 @@ import { dirname, join, resolve } from 'node:path';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const file = resolve(process.argv[2] || join(root, 'dist/Modelo3D_Labs_M6_M14_offline.html'));
 const shots = join(root, 'tests/shots'); await mkdir(shots, { recursive: true });
-const fails = [];
+const fails = [], notes = [];
+// (a) Excepciones aprobadas: etiquetas que pueden verse a 1920 y no a 1366 (o al revés). Formato: 'parada:paso:texto inicial'.
+const EXCEPTIONS = [];
+const visByStep = {};
 // Términos prohibidos (contenido del recorrido del Edificio 2 / Investigación 3). Búsqueda sin mayúsculas ni tildes.
 const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
 const BANNED = ['Edificio 2', '155 TR', 'Henríquez Espinosa', 'Hosamo']; // F. Henríquez (Gollini-Mihalopoulos et al., 2023) sí puede aparecer en el M6
@@ -64,8 +67,46 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
       });
       if (outside.length) fails.push(`${where}: etiquetas fuera del visor ${outside.join('; ')}`);
       if (k === 0 && /octubre|entrega|2026/i.test(await pg.evaluate(() => document.getElementById('vp').innerText + document.querySelector('aside').innerText))) fails.push(`${where}: el inicio muestra una fecha`);
+      // (a) mismo conjunto de etiquetas visibles a 1366 y a 1920
+      const vset = await pg.evaluate(() => [...document.querySelectorAll('#labels .lbl:not([hidden])')].map(l => l.dataset.i + '|' + l.querySelector('.box').innerText.replace(/\s+/g, ' ').slice(0, 34)));
+      const key = `${k}:${i}`, sid = await pg.evaluate(([k, i]) => window.__labs.STOPS[k].steps[i].n, [k, i]);
+      if (W === 1920) visByStep[key] = vset;
+      else {
+        const ids = v => v.map(x => x.split('|')[0]), a = visByStep[key] || [], miss = a.filter(x => !ids(vset).includes(x.split('|')[0])), extra = vset.filter(x => !ids(a).includes(x.split('|')[0]));
+        for (const x of [...miss.map(x => ['solo a 1920', x]), ...extra.map(x => ['solo a 1366', x])]) {
+          const txt = x[1].split('|')[1], exc = EXCEPTIONS.some(e => e === `${k}:${sid}:${txt.slice(0, 20)}`);
+          (exc ? notes : fails).push(`parada ${k} paso ${sid}: «${txt}» ${x[0]}${exc ? ' (excepción aprobada)' : ''}`);
+        }
+      }
       await pg.screenshot({ path: join(shots, `${W}_p${k}_${String(i).padStart(2, '0')}.png`) });
     }
+  }
+  // (d) rótulos y (e) chips: datos de las escenas
+  if (W === 1920) {
+    const data = await pg.evaluate(() => window.__labs.STOPS.slice(1).map(s => ({ short: s.short, steps: s.steps.map(x => ({ id: x.id, n: x.n, level: x.level, rot: x.rot, chips: x.chips })) })));
+    const words = h => (h || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+    for (const s of data) {
+      const scenes = s.steps.filter(x => x.level === 'RP');
+      if (scenes.length !== 4) fails.push(`${s.short}: la ruta principal tiene ${scenes.length} escenas, no 4`);
+      for (const e of scenes) {
+        const r = e.rot || {};
+        if (words(r.f) > 25) fails.push(`${s.short} ${e.n}: la frase tiene ${words(r.f)} palabras (máximo 25)`);
+        if (r.c && words(r.c) > 12) fails.push(`${s.short} ${e.n}: la cifra tiene ${words(r.c)} palabras (máximo 12)`);
+        if (!r.f || !r.fc || !r.stamp || !r.ref) fails.push(`${s.short} ${e.n}: al rótulo le falta frase, cita, sello o referencia`);
+        notes.push(`Rótulo ${s.short} ${e.n}: frase ${words(r.f)} palabras${r.c ? `, cifra ${words(r.c)}` : ''}`);
+      }
+      for (const d of s.steps.filter(x => x.level === 'PR')) {
+        const n = scenes.filter(e => (e.chips || []).includes(d.id)).length;
+        if (n !== 1) fails.push(`${s.short} paso ${d.n}: enlazado desde ${n} escenas (debe ser 1)`);
+      }
+    }
+  }
+  // (c) simulación de la E2 del M6: cerrar la compuerta i baja Qi y sube los demás; reabrirla devuelve todo (±1 %)
+  if (W === 1920) {
+    const sim = await pg.evaluate(() => { const s = window.__labs.STOPS[1].sim, out = []; s.reset();
+      for (let i = 0; i < 8; i++) { const a = s.flows(); s.set(i, 2); const b = s.flows(); s.set(i, 0); const c = s.flows(); out.push({ i, down: b[i] < a[i], up: b.every((v, j) => j === i || v > a[j]), back: c.every((v, j) => Math.abs(v - a[j]) <= 0.01 * a[j]) }); }
+      return out; });
+    for (const r of sim) if (!r.down || !r.up || !r.back) fails.push(`E2 M6: al cerrar la compuerta ${r.i}: baja=${r.down}, suben las demás=${r.up}, regresa=${r.back}`);
   }
   // Navegación: 0 = inicio; → desde el inicio entra a la parada 1; ← regresa; la nota «no a escala» siempre visible
   await pg.keyboard.press('0'); await pg.waitForTimeout(400);
@@ -113,8 +154,21 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   await pg.keyboard.press('Escape');
   await step2('mep'); await pg.waitForTimeout(1800);
   { const vl = await visLabels(); if (!/medidor de energía propuesto/i.test(vl) || !/Propuesta · M14 · Figura 3/i.test(vl)) fails.push(`${W}x${H} 2.5: el rótulo del medidor propuesto (con su sello de propuesta) no se ve en la escena`); }
-  { const dup = await pg.evaluate(() => [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => b.innerText.replace(/\s+/g, ' ').toLowerCase()).filter(t => t.includes('controlador central vrf')).length);
-    if (dup > 1) fails.push(`${W}x${H} 2.5: «Controlador central VRF» aparece ${dup} veces`); }
+  // Niveles de la Figura 3: de arriba abajo deben leerse 4 → 3 → 2 (2.5, P1 y E3)
+  for (const id of ['mep', 'inspector', 'E3']) {
+    await step2(id); await pg.waitForTimeout(1600);
+    const ord = await pg.evaluate(() => [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => ({ t: b.innerText.trim(), y: b.getBoundingClientRect().top })).filter(o => /^Nivel [234]/.test(o.t)).sort((a, b) => a.y - b.y).map(o => o.t[6]).join(''));
+    if (ord !== '432') fails.push(`${W}x${H} ${id}: los niveles se leen ${ord || '(ninguno)'} de arriba abajo, no 432`);
+  }
+  // Ficha de activo (E3 del M14): campos vacíos y nota de COBie
+  await step2('E3'); await pg.waitForTimeout(800); await pg.evaluate(() => window.__labs.STOPS[2].openFicha(3)); await pg.waitForTimeout(300);
+  { const f = await txt('#fichaCard'); if (!/Fabricante: —/.test(f) || !/COBie/.test(f) || !/PROPUESTA|Propuesta/.test(f)) fails.push(`${W}x${H} E3 M14: la ficha de activo no muestra los campos vacíos y la nota de COBie`); }
+  // Chip «Detalle» y botón «← Volver a la escena»
+  await pg.evaluate(() => window.__labs.go(1, 0)); await pg.waitForTimeout(600);
+  await pg.click('[data-chip]'); await pg.waitForTimeout(500);
+  if (await pg.evaluate(() => document.getElementById('back').hidden)) fails.push(`${W}x${H}: al entrar por un chip no aparece «← Volver a la escena»`);
+  await pg.click('#back'); await pg.waitForTimeout(500);
+  if ((await pg.evaluate(() => window.__labs.step)) !== 0) fails.push(`${W}x${H}: «← Volver a la escena» no regresa a E1`);
   await step2('gemelo'); await pg.waitForTimeout(1800);
   if (!(await visLabels()).includes('Marco general (Hu et al., 2026); en REFRESH es una propuesta')) fails.push(`${W}x${H} 2.4: falta el rótulo del marco general en la escena`);
   await step2('lod'); await pg.waitForTimeout(600);
@@ -129,5 +183,6 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   await pg.close();
 }
 await browser.close();
-if (fails.length) { console.error('FALLAS:\n' + fails.join('\n')); process.exit(1); }
+if (fails.length) { if (notes.length) console.log('NOTAS:\n' + notes.join('\n')); console.error('FALLAS:\n' + fails.join('\n')); process.exit(1); }
+if (notes.length) console.log('NOTAS:\n' + notes.join('\n'));
 console.log('OK: sin errores; capturas en ' + shots);

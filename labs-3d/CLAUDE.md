@@ -8,7 +8,7 @@ Modelo 3D en el navegador (three.js r184, sin framework) de los laboratorios M6 
 | 1 | M6 · Mantenimiento de Ventiladores y Sistemas de Distribución | M6 |
 | 2 | M14 · Digitalización, BIM y Gestión Inteligente de Instalaciones (MEP) | M14 |
 
-Cada parada tiene **ruta principal** y **profundización**; ← → avanzan dentro de la parada.
+Cada parada tiene **ruta principal** (4 escenas E1–E4 con rótulo breve: frase ≤ 25 palabras, cifra ≤ 12, cita, sello y referencia, más chips «Detalle») y **profundización** (todos los pasos con texto completo). ← → recorren E1–E4; con «Profundización en ← →: sí» siguen por los pasos.
 
 Especificación: `docs/Plan_Modelo3D_Labs_M6_M14.md`. Trazabilidad: `docs/MATRIZ_TRAZABILIDAD.md` (validarla antes de cambiar escenas).
 

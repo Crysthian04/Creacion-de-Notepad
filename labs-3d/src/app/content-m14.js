@@ -42,6 +42,23 @@ const T2 = [
   ['Costo en la fase de operación y mantenimiento', 'USD&nbsp;9,093 millones', 'Gallaher et al. (2004, p. ES-7)'],
 ];
 
+// Ruta principal: 4 escenas con rótulo breve; los pasos de siempre quedan en la profundización (chips «Detalle»)
+export const SC14 = [
+  { id: 'E1', n: 'E1', level: 'RP', title: 'De la planta a la zona de estudio', chips: ['planta', 'zona'],
+    rot: { ref: 'M14 · Introducción · Sistema MEP integrado', stamp: 'df', f: 'La falta de interoperabilidad costó USD&nbsp;15,824 millones en 2002; cerca de dos terceras partes recayeron en propietarios y operadores', fc: 'Gallaher et al., 2004, p. ES-6',
+      c: 'Zona de estudio: Edificios D y E de REFRESH S.A.', cc: 'Batista et al., 2026' } },
+  { id: 'E2', n: 'E2', level: 'RP', title: 'Cuánto confiar en el modelo: LOD', chips: ['lod'],
+    rot: { ref: 'M14 · Niveles de desarrollo (LOD) · Tabla 1', stamp: 'df', f: 'El LOD indica cuánto confiar en la geometría; el LOD 500 no es un nivel superior: es lo verificado en obra', fc: 'BIMForum, 2024, pp. 12–13',
+      ui: `<div class="lodbtns">${LOD.map(l => `<button class="btn" data-lod="${l.n}">${l.n}</button>`).join('')}</div><p class="lodu"><b>LOD <span data-lodn>100</span></b> · <span data-lodf="u"></span></p><p class="small">Utilidad para mantenimiento (Tabla 1; BIMForum, 2024). <span class="st il">Ilustrativo</span> geometría de cada nivel.</p>` } },
+  { id: 'E3', n: 'E3', level: 'RP', title: 'Una falla de punta a punta', chips: ['gemelo', 'mep', 'inspector', 'integracion', 'limites', 'mantto'],
+    rot: { ref: 'M14 · Sistema MEP integrado · Figura 3', stamp: 'pr', stampText: 'Propuesta · M14 · Figura 3', f: 'Con el aviso de filtro y las alarmas en el SCADA, el mantenimiento pasa de un calendario fijo a la condición del equipo', fc: 'Daikin Comfort Technologies North America, 2019; Hu et al., 2026',
+      extra: 'Clic en una unidad interior: ficha de activo.' } },
+  { id: 'E4', n: 'E4', level: 'RP', title: 'Hoy frente a la propuesta', chips: ['coord', 'ventajas', 'propuesta', 'cierre', 'riesgos', 'panama', 'recom'],
+    rot: { ref: 'M14 · Propuesta de aplicación · Tabla 2', stamp: 'pr', stampText: 'Propuesta · M14 · Propuesta de aplicación', f: 'REFRESH hoy se documenta con planos independientes; la propuesta es un modelo coordinado de D y E, entregado con COBie', fc: 'Batista et al., 2026; BIMForum, 2024',
+      c: 'Caso real: 2 de 233 RFI y 0 órdenes de cambio', cs: 'df', cc: 'Khanzode et al., 2008, p. 336' } },
+];
+// Ficha de activo (E3): campos vacíos a propósito; muestran la información que hoy falta
+export const FICHA = k => `<span class="st pr">Propuesta · M14 · Propuesta de aplicación</span><b style="display:block;margin:5px 0 3px">Ficha de activo · unidad interior (${k})</b>Fabricante: —<br>Modelo: —<br>Garantía: —<p class="small" style="margin:5px 0 0">«Llegarían con COBie en el modelo as-built» (BIMForum, 2024, p. 11).</p>`;
 export const M14 = {
   stop: { kicker: 'Parada 2 · M14', short: 'M14', title: 'Digitalización, BIM y Gestión Inteligente de Instalaciones (MEP)', lead: 'BIM, niveles de desarrollo, gemelo digital y un esquema MEP integrado para la planta REFRESH S.A.' },
   note: 'Modelo conceptual, no a escala, salvo las dimensiones en planta de REFRESH (Batista et al., 2026).',
@@ -56,7 +73,7 @@ export const M14 = {
     ] },
     { id: 'zona', n: '2.0b', level: 'RP', title: 'Zona de estudio: Edificios D y E', ref: 'M14 · Sistema MEP integrado · Figura 3', cards: [
       { ref: 'M14 · Sistema MEP integrado para la planta REFRESH S.A.', stamp: 'df', cite: 'Batista et al., 2026', title: 'Dónde se aplica la propuesta',
-        body: '<p>Los Edificios D (laboratorio de control de calidad, comedor, baños y taller) y E (recepción, oficinas y sala de juntas) concentran los espacios ocupados que requieren climatización. La sala eléctrica / UPS del Edificio C entra solo como punto de monitoreo de temperatura (M6, Figura 3).</p>' },
+        body: '<p>Los Edificios D (laboratorio de control de calidad, comedor, baños y taller) y E (recepción, oficinas y sala de juntas) concentran los espacios ocupados que requieren climatización. La sala eléctrica / UPS del Edificio C entra solo como punto de monitoreo de temperatura (punto M6 de la Figura 3).</p>' },
       { ref: 'M14 · Figura 3 (tableros de D y E)', stamp: 'df', cite: 'Batista et al., 2026, p. 25', title: 'Paneles PD-D y PD-E',
         body: '<p>Del diagrama unifilar de REFRESH se toman solo los paneles de distribución de los Edificios D y E. <span class="st il">Ilustrativo</span> su ubicación dentro de cada edificio y el recorrido del cable.</p>' },
       { stamp: 'il', title: 'Fachadas en rayos X',
