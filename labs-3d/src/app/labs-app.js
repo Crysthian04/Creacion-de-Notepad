@@ -1,10 +1,12 @@
-// Motor del modelo: paradas (0 inicio, 1 M6, 2 M14), pasos de ruta principal y profundización,
+// Motor del modelo: paradas (0 inicio, 1 M6, 2 M14, 3 M8, 4 M11), pasos de ruta principal y profundización,
 // cámara, etiquetas 3D, tarjetas con sello, figuras y vista de referencias.
 // El texto vive en content-*.js; la geometría y las animaciones, en scene-*.js.
 import * as THREE from 'three';
 import { buildInicio } from 'app/scene-inicio.js';
 import { buildM6 } from 'app/scene-m6.js';
 import { buildM14 } from 'app/scene-m14.js';
+import { buildM8 } from 'app/scene-m8.js';
+import { buildM11 } from 'app/scene-m11.js';
 
 const stage = document.querySelector('three-d-stage');
 await stage.ready;
@@ -69,10 +71,12 @@ function placeLabels() {
 
 const root = new THREE.Group(); root.name = 'labs_m6_m14';
 const ctx = { THREE, scene, cam, label, go: (s, i) => go(s, i), fly: c => flyTo(c) };
-const S1 = buildM6(ctx), S2 = buildM14(ctx);
-const STOPS = [buildInicio({ ...ctx, m6: S1, m14: S2 }), S1, S2]; // el inicio usa miniaturas con la geometría de las paradas
-STOPS.forEach(s => root.add(s.group));
-stage.setObject(root);
+const S1 = buildM6(ctx), S2 = buildM14(ctx), S3 = buildM8(ctx), S4 = buildM11(ctx);
+const STOPS = [buildInicio({ ...ctx, m6: S1, m14: S2, m8: S3, m11: S4 }), S1, S2, S3, S4]; // el inicio usa miniaturas con la geometría de las paradas
+S1.author = S2.author = 'Cristian Batista'; // autor de cada parada (encabezado); content-m6.js y content-m14.js quedan como en la v1.0
+STOPS.slice(0, 3).forEach(s => root.add(s.group));
+stage.setObject(root); // el suelo y las sombras se ajustan como en la v1.0 (inicio, M6 y M14)
+STOPS.slice(3).forEach(s => { root.add(s.group); s.group.traverse(o => { if (o.isMesh) { o.castShadow = !o.userData.noShadow; o.receiveShadow = true; } }); }); // las paradas 3 y 4 no cambian ese ajuste
 STOPS[0].group.traverse(o => { if (o.isMesh) o.castShadow = false; }); // sin sombras sueltas bajo los pedestales
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 cam.near = 0.1; cam.far = 1500; cam.updateProjectionMatrix();
@@ -80,12 +84,12 @@ ctl.maxPolarAngle = Math.PI * 0.495; ctl.minDistance = 2; ctl.maxDistance = 400;
 if (stage._toolbar) stage._toolbar.style.display = 'none';
 
 // ---------- Tarjetas ----------
-const STAMP = { df: 'Dato de fuente', il: 'Ilustrativo', pr: 'Propuesta' }, POPS = [];
+const STAMP = { df: 'Dato de fuente', il: 'Ilustrativo', pr: 'Propuesta', si: 'Síntesis del informe' }, POPS = [];
 // Rótulo de una escena: frase (≤ 25 palabras), cifra opcional (≤ 12), cita, sello, referencia y chips «Detalle»
 function rotHTML(r, chips) {
   const st = (k, txt) => `<span class="st ${k}">${txt || STAMP[k]}</span>`;
   return `<div class="card rot" data-card><div class="ch"><span class="ref">${r.ref}</span>${st(r.stamp, r.stampText)}</div>
-<p class="frase">${r.f} <span class="cite">(${r.fc})</span></p>${r.c ? `<p class="cifra">${r.cs ? st(r.cs) + ' ' : ''}${r.c}${r.cc ? ` <span class="cite">(${r.cc})</span>` : ''}</p>` : ''}
+<p class="frase">${r.f}${r.fc ? ` <span class="cite">(${r.fc})</span>` : ''}</p>${r.c ? `<p class="cifra">${r.cs ? st(r.cs) + ' ' : ''}${r.c}${r.cc ? ` <span class="cite">(${r.cc})</span>` : ''}</p>` : ''}
 ${r.extra ? `<p class="small">${r.extra}</p>` : ''}${r.ui || ''}${r.replay ? '<button class="btn replay" data-replay>↺ Repetir</button>' : ''}
 <div class="chips"><span>Detalle:</span>${chips.map(c => `<button class="btn chip" data-chip="${c.i}" title="${c.t}">${c.n}</button>`).join('')}</div></div>`;
 }
@@ -135,7 +139,7 @@ function go(si, idx = 0, opt = {}) {
   dock.scrollTop = 0;
   $('start').hidden = !st.start; if (st.start) $('start').innerHTML = st.start;
   $('inset').hidden = !st.inset; if (st.inset) $('inset').innerHTML = st.inset;
-  $('note').innerHTML = s.note;
+  $('note').innerHTML = s.note; $('autor').textContent = s.author || 'Cristian Batista y Manuel Jiménez';
   document.querySelectorAll('#stops [data-stop]').forEach(b => b.classList.toggle('on', +b.dataset.stop === si));
   document.querySelectorAll('.steps li').forEach(li => li.classList.toggle('on', +li.dataset.i === step));
   showTab(st.level === 'PR' ? 'deep' : 'main');
@@ -186,7 +190,7 @@ document.querySelectorAll('#stops [data-stop]').forEach(b => b.onclick = () => e
 addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;
   if (e.key === 'Escape') return closeOverlays();
-  if ('012'.includes(e.key) && e.key.length === 1) { closeOverlays(); enterStop(+e.key); }
+  if ('01234'.includes(e.key) && e.key.length === 1) { closeOverlays(); enterStop(+e.key); }
   else if (e.key === 'ArrowRight') { closeOverlays(); move(1); }
   else if (e.key === 'ArrowLeft') { closeOverlays(); move(-1); }
   else if (e.key === 'p' || e.key === 'P') setDeep(!deepNav);
