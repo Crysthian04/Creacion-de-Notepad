@@ -1,6 +1,6 @@
-# Cifras en pantalla — Modelo 3D M6 + M14
+# Cifras en pantalla — Modelo 3D de los laboratorios del Grupo A (M6, M14, M8, M11)
 
-Generado el 25/10/2026 (hora de Panamá), ronda 5, a partir de `src/app/content-*.js` y de las etiquetas de `src/app/scene-*.js`.
+Paradas 1 y 2: generado el 25/10/2026 (hora de Panamá), ronda 5, y sin cambios en la versión 2. Paradas 0, 3 y 4: versión 2, 28/10/2026. Todo se obtiene a partir de `src/app/content-*.js` y de las etiquetas de `src/app/scene-*.js`.
 
 Criterio (ronda 4): la columna «Escena» indica desde qué escena de la ruta principal se llega al paso (chips «Detalle»). La referencia al informe va por sección, figura o tabla, sin páginas del informe (decisión del 24/10). La página corresponde a la **fuente original**. Si la página dice "—", ni el Word ni la ficha la indican. No se listan los números de navegación (pasos, teclas, "1 de 9") ni los números de figura o tabla.
 
@@ -16,12 +16,15 @@ Criterio (ronda 4): la columna «Escena» indica desde qué escena de la ruta pr
 | USD 15,824 millones en 2002; cerca de dos terceras partes | M14 · E1 | M14 · Introducción | Gallaher et al. (2004), p. ES-6 |
 | LOD 100, 200, 300, 350, 400, 500 (botones y nombre del nivel) | M14 · E2 | M14 · Niveles de desarrollo (LOD) · Tabla 1 | BIMForum (2024), pp. 12–13 |
 | Caso real: 2 de 233 RFI y 0 órdenes de cambio | M14 · E4 | M14 · Tabla 2 | Khanzode et al. (2008), p. 336 |
+| 50 % compresor · 20 % evaporador · 10 % secador, mangueras y condensador (y etiquetas 3D: compresor 50 %, evaporador 20 %, condensador 10 %, filtro secador 10 %, mangueras y líneas 10 %) | M11 · E3 | M11 · Aditivos nanotecnológicos | Prayogo et al. (2024), p. 401 (**pendiente de verificación**: ver `VERIFICACION_FUENTES_M8_M11.md`) |
+
+Los rótulos de M8 E1–E4 y de M11 E1, E2 y E4 no tienen cifras.
 
 La simulación de la E2 del M6 no muestra valores ni unidades (sello «Simulación ilustrativa · sin valores»; en texto, «ΔP = R·Q² (Pedranzini et al., 2013, p. 323)»). Sus 6 posiciones de compuerta y el caudal de diseño son ilustrativos y no se muestran como cifras. La ficha de activo de la E3 del M14 muestra los campos vacíos («—») a propósito.
 
 ## Parada 0 · Inicio
 
-Sin cifras: el inicio no muestra fechas ni datos (decisión de la ronda 3).
+Sin cifras: el inicio no muestra fechas ni datos (decisión de la ronda 3). En la versión 2, los únicos números son el orden de las paradas (1–4) y los códigos de módulo (M6, M14, M8, M11).
 
 ## Parada 1 · M6
 
@@ -88,6 +91,34 @@ Sin cifras: el inicio no muestra fechas ni datos (decisión de la ronda 3).
 | LOD 500 (etiqueta del modelo BIM as-built) | 2.5, P1 | E3 | M14 · Figura 3 | BIMForum (2024), p. 13 |
 | 2022 (diagnóstico regional) | 2.7, P6 | E4 | M14 · Conclusiones | Soto y Manríquez (2023), pp. 17–18 |
 | CC BY-NC-ND 4.0; CC BY 4.0; Artículo 113997; 288 | 2.2, 2.4 (créditos) | E2, E3 | M14 · Figuras 1 y 2 | Créditos del Word |
+
+## Parada 3 · M8 (Manuel Jiménez)
+
+**Ninguna cifra en pantalla.** La prueba de humo busca dígitos en la columna de tarjetas, las etiquetas visibles, el panel derecho y el encabezado de la parada 3, en los 10 pasos y en sus estados. Falla si queda alguno después de quitar las citas (año y página), los números de paso (3.0–3.5), E1–E4 y el código M8.
+
+Cifras del Word que **no** se muestran y cómo quedaron en pantalla:
+
+| Cifra del Word | En pantalla |
+|---|---|
+| Agua fría «entre 4 °C y 7 °C»; retorno «12 °C a 16 °C»; «aproximadamente 5 °C»; «cercana a 14 °C» | «agua fría» / «regresa más caliente»; azul y rojo, sin escala de temperatura |
+| Reducción del consumo «entre un 20 % y un 50 %» | No se usa (sin cita en el Word) |
+| COP «entre 3 y 5» y «superior a 6» | No se usa (sección sin cita) |
+| Vida útil «15–20 años» y «25–40 años» (tabla) | No se usa (tabla sin cita) |
+| «las 24 horas» (Ciudad de la Salud) | «refrigeración continua» |
+| TR y MWt | Se nombran las unidades, sin valores (3.0) |
+
+## Parada 4 · M11 (Manuel Jiménez)
+
+**Única cifra en pantalla:** el reparto del lubricante (50, 20, 10, 10 y 10 %; Prayogo et al., 2024, p. 401) en el rótulo y en las etiquetas de E3 y en la tarjeta 4.2. La prueba de humo falla con cualquier otro dígito en la parada 4 (mismas exclusiones que en la parada 3, con 4.0–4.5 y M11). Los subíndices de TiO₂, SiO₂ y Al₂O₃ no son cifras.
+
+| Cifra del Word | En pantalla |
+|---|---|
+| «0.8 mm» de incrustación; consumo «hasta en un 10 %–12 %» | «el compresor consume más» |
+| «entre 20 kHz y 40 kHz» | «ondas ultrasónicas de baja frecuencia» (texto del Word), sin valores |
+| Recuperación «92 %–98 %»; descarga «5 %–8 %»; ahorro «10 %–18 %» y «10 %–20 %» | No se usan (sin cita en el Word) |
+| Clima: «superiores a 30 °C», «supera frecuentemente el 80 %» | No se usa |
+| ROI «menos de 6 a 8 meses»; «más de tres años de uso» | «recuperar la capacidad de enfriamiento sin reemplazar los equipos» |
+| Frecuencia de mantenimiento (tabla) | No se usa |
 
 ## Geometría con dato que no se muestra como cifra
 

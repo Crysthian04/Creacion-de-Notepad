@@ -1,6 +1,6 @@
-# Matriz de trazabilidad — Modelo 3D M6 + M14
+# Matriz de trazabilidad — Modelo 3D de los laboratorios del Grupo A (M6, M14, M8, M11)
 
-Estado actual: **aprobada en la ronda 5, 25/10/2026** (hora de Panamá, UTC−5). Modelo congelado en la versión `labs-3d-v1.0`. La primera aprobación de la matriz fue el 24/10/2026, con las correcciones de la revisión 3 incorporadas.
+Estado actual: Paradas 1 y 2 (Cristian Batista) **aprobadas en la ronda 5, 25/10/2026** (hora de Panamá, UTC−5), congeladas en `labs-3d-v1.0`. Paradas 3 y 4 (Manuel Jiménez): **en revisión** (versión candidata `labs-3d-v2.0-rc`, 28/10/2026). La primera aprobación de la matriz fue el 24/10/2026, con las correcciones de la revisión 3 incorporadas.
 
 Fuentes: Word final del M6 (`M06_Mantenimiento_Ventiladores_Distribucion.docx`, 17 págs.), Word final del M14 (`M14_Digitalizacion_BIM_Gestion_MEP.docx`), las dos fichas de `docs/` y el PDF del Proyecto Final Integrador de REFRESH S.A. (33 págs.).
 
@@ -94,6 +94,50 @@ Escena base: la planta REFRESH S.A. con las dimensiones del PDF (terreno 100 × 
 **Cobertura:** las 7 secciones del Desarrollo del M6, sus 11 figuras y su Tabla 1, y las 6 secciones del Desarrollo del M14, sus Figuras 1–3 y sus Tablas 1 y 2, tienen cada una al menos un elemento.
 
 ---
+
+## Parada 3 · M8 — Aplicaciones Avanzadas de Refrigeración y Aire Acondicionado: District Cooling (tecla 3)
+
+Autor: **Manuel Jiménez**. Fuente única: Word del M8 (`M08_Aplicaciones_Avanzadas_Refrigeracion_AA.docx`). Las citas van con la forma del Word: (ASHRAE, 2024), (IDEA, 2023), (TRABEED, 2024), (EMPOWER, 2024). **Ninguna cifra del Word se muestra** (temperaturas de suministro y retorno, ahorro del 20–50 %, COP, vida útil). Sin figuras ni infografías del Word, sin marcas comerciales. Escena base: ciudad genérica con sello «Ilustrativo» (no es Panamá real, ni REFRESH, ni la UTP).
+
+> **Ruta principal:** escenas E1–E4. La numeración 3.0–3.5 corresponde a la profundización.
+
+| Informe | Sección | Elemento del 3D | Nivel | Sello | Cita |
+|---|---|---|---|---|---|
+| M8 | Fundamentos · Componentes | **E1 · Una planta para muchos edificios.** Planta central con chillers, torres de enfriamiento, bombas, tanque de almacenamiento térmico y sala de control. Rótulo: «Una planta central enfría agua con chillers y la distribuye por una red de tuberías a varios edificios». Chips 3.0, 3.1 | RP | DF (rótulo) · IL (objetos) | (ASHRAE, 2024)* |
+| M8 | Red de distribución | **E2 · Frío que sale, calor que vuelve.** Red enterrada: suministro azul, retorno rojo; el agua cambia de color en cada estación; flujo en bucle; sin temperaturas. Rótulo: «El agua fría viaja por tuberías aisladas y regresa más caliente a la planta, donde se enfría de nuevo». Chip 3.2 | RP | DF · IL | (ASHRAE, 2024; IDEA, 2023)* |
+| M8 | Fundamentos · Estaciones de intercambio | **E3 · La estación de cada edificio.** Corte del podio comercial: intercambiador de placas, válvulas de control, medidor de energía térmica, circuito del edificio y fan coil; el aire de la sala se enfría (bucle). Rótulo: «En cada edificio, el agua fría absorbe el calor en un intercambiador y retorna a la planta». Chip 3.3 | RP | DF · IL | (ASHRAE, 2024)* |
+| M8 | Potencial de implementación en Panamá | **E4 · ¿Y en Panamá?** La misma ciudad genérica con cuatro zonas que aparecen una a una y se quedan (↺ Repetir): Área Bancaria, Ciudad de la Salud, Tocumen y Ciudad del Saber. Rótulo: «El informe propone zonas de alta densidad y demanda continua…». Chips 3.4, 3.5 | RP | «Propuesta · M8» | Sin cita (propuesta del informe) |
+| M8 | Fundamentos del District Cooling | **3.0 Fundamentos.** Definición, intercambio en cada edificio, retorno a la planta, unidades TR y MWt (sin valores) | PR | DF | (ASHRAE, 2024)* |
+| M8 | Componentes principales · Planta central | **3.1 Componentes de la planta.** Chillers centrífugos, torres, bombas, almacenamiento térmico, control | PR | Sin sello DF (la sección no tiene cita en el Word) · IL (objetos) | — |
+| M8 | Red de distribución | **3.2 Red de distribución.** Tuberías aisladas que llevan agua fría y retornan el agua caliente. Sin la lista de temperaturas | PR | DF | (IDEA, 2023) |
+| M8 | Sistema de control | **3.3 SCADA.** Regular caudales, monitorear temperaturas, detectar fugas, optimizar el consumo | PR | DF | (TRABEED, 2024) |
+| M8 | Casos de estudio · Dubái | **3.4 Dubái.** Uno de los mayores sistemas del mundo; refrigeración a miles de edificios. Sin el nombre comercial en el texto y sin cifras | PR | DF | (EMPOWER, 2024) |
+| M8 | Potencial de implementación en Panamá | **3.5 Panamá.** Condiciones favorables y cuatro zonas con su razón (sin «24 horas»: «refrigeración continua») | PR | Propuesta | Sin cita |
+
+\* La cita del Word está al final de la sección, no en el mismo párrafo de la frase: ver `docs/VERIFICACION_FUENTES_M8_M11.md`, sección 4.
+
+**Fuera, por falta de cita en el Word o porque son cifras:** la tabla comparativa con HVAC convencional; «reducir el consumo entre un 20 % y un 50 %»; «Ventajas energéticas y ambientales» (COP, emisiones, refrigerantes, espacio); Singapur y Estocolmo; las cinco etapas con temperaturas; la imagen del Word.
+
+## Parada 4 · M11 — Métodos Innovadores de Mantenimiento de Sistemas de A/A y Refrigeración (tecla 4)
+
+Autor: **Manuel Jiménez**. Fuente única: Word del M11 (`M11_Metodos_Innovadores_Mantenimiento.docx`). En pantalla, «industry, M. E. (2024)» se cita como **(Prayogo et al., 2024)** y «YAO, 2015» / «review, 2015» como **(Yao, 2016)**: son las obras reales detrás de esas entradas. (ASHRAE, 2021) y (DIRECT, 2023) van como en el Word. **La única cifra en pantalla** es el reparto del lubricante. Fuera: 0.8 mm, 10–12 %, 20–40 kHz, 92–98 %, 5–8 %, 10–18 %, 10–20 %, el clima, el ROI y «tres años».
+
+> **Ruta principal:** escenas E1–E4. La numeración 4.0–4.5 corresponde a la profundización.
+
+| Informe | Sección | Elemento del 3D | Nivel | Sello | Cita |
+|---|---|---|---|---|---|
+| M11 | Cavitación ultrasónica | **E1 · El sarro aísla.** Corte ampliado de un tubo del condensador: la capa de sarro, óxido y biofilm crece una vez y se queda (↺ Repetir). Indicador de consumo del compresor sin escala ni valores. Chip 4.0 | RP | DF (rótulo) · IL (corte e indicador) | (ASHRAE, 2021; DIRECT, 2023) |
+| M11 | Cavitación ultrasónica | **E2 · Cavitación ultrasónica.** Transductores, ondas y microburbujas que implosionan junto a la pared; los depósitos se desprenden y siguen con el agua; al final el tubo queda limpio (↺ Repetir). Sin frecuencias. Chip 4.1 | RP | DF (rótulo) · IL (animación) | (Yao, 2016)* |
+| M11 | Aditivos nanotecnológicos | **E3 · Dónde está el aceite.** Compresor, condensador, filtro secador, válvula de expansión y evaporador; el aceite en ámbar con su porcentaje; nanopartículas en el lubricante; una fracción del aceite circula con el refrigerante. Cifra: «50 % compresor · 20 % evaporador · 10 % secador, mangueras y condensador». Chips 4.2, 4.3 | RP | DF | (Prayogo et al., 2024, p. 401)* |
+| M11 | Comparación · Conclusiones | **E4 · Dos métodos, dos lados.** Vista dividida: lado del agua (transductores en la tubería de condensación) y lado del refrigerante (nanolubricante). Chips 4.4, 4.5 | RP | «Síntesis del informe» | Sin cita |
+| M11 | Cavitación ultrasónica | **4.0 El problema del fouling.** Aislante térmico; sube la temperatura y la presión de condensación; el compresor consume más | PR | DF | (ASHRAE, 2021; DIRECT, 2023) |
+| M11 | Cavitación ultrasónica | **4.1 Cavitación acústica y microcorrientes.** Microchorros, ondas de choque, mezcla local, menor resistencia de la capa límite; película de lubricante y depósitos | PR | DF | (Yao, 2016)* |
+| M11 | Aditivos nanotecnológicos | **4.2 Nanolubricantes.** Conductividad térmica, fricción y desgaste, potencia del compresor, COP (sin valores); TiO₂, SiO₂ y Al₂O₃; reparto del lubricante | PR | DF | (Prayogo et al., 2024, p. 401)* |
+| M11 | Desafíos en el uso de nanolubricantes | **4.3 Desafíos.** Estabilidad de la dispersión, aglomeración y sedimentación, compatibilidad, uso prolongado, costo, falta de estándares | PR | DF | (Prayogo et al., 2024, pp. 390–406)* |
+| M11 | Comparación de rendimiento | **4.4 Comparación.** Punto de aplicación, mecanismo e impacto en el mantenimiento (sin ahorro ni frecuencia) | PR | Síntesis del informe | Sin cita |
+| M11 | Aplicación práctica al caso panameño | **4.5 Panamá.** Incrustaciones por la calidad del agua de las torres; operación continua de Split, VRF y Rooftop (sin clima ni ROI) | PR | Propuesta | Sin cita |
+
+\* Pendiente de verificación o con la cita fuera del párrafo: ver `docs/VERIFICACION_FUENTES_M8_M11.md`.
 
 ## Lo que propongo dejar fuera y por qué
 
@@ -209,3 +253,14 @@ La ruta principal muestra el mecanismo con rótulos breves, y el texto completo 
   - Las fases «Modelo coordinado de D y E» y «Modelo as-built + COBie» llevan el sello de propuesta.
 - **Unidad de aire exterior:** junto a la unidad exterior, al sur del Edificio E, lejos de C (ATEX). Aparece en el recuadro de planta (■).
 - **P1:** se quitaron dos etiquetas repetidas: «M3 · aviso de filtro» (M3 ya está en «M1 M2 M3 C1 C2 · en cada unidad interior») y la segunda copia de esa etiqueta en el Edificio E. El inspector conserva los 10 puntos.
+
+---
+
+## Versión 2 (28/10/2026) · Paradas 3 y 4
+
+- Rama `labs-3d-v2`, creada desde la etiqueta `labs-3d-v1.0`. `content-m6.js`, `scene-m6.js`, `content-m14.js` y `scene-m14.js` no cambian.
+- **Encabezado e inicio:** «Laboratorios del Grupo A · Modelo 3D». El encabezado muestra el autor de la parada (1–2: Cristian Batista; 3–4: Manuel Jiménez). El inicio tiene 4 miniaturas reales en el orden 1 M6, 2 M14, 3 M8, 4 M11, con sus 4 títulos de escena, el autor y sin cifras. Teclas 0–4; las flechas pasan de la Parada 2 a la 3 y de la 3 a la 4.
+- **Paradas 1 y 2 idénticas a la v1.0:** la prueba de humo compara una huella tomada del HTML v1.0 aprobado (`tests/fixtures/v1_paradas_1_2.json`). La huella incluye etiquetas visibles con su texto y posición, columna de tarjetas (rótulo, chips, sellos), panel derecho, nota, barra ← →, recuadro y tamaño del visor, en los 35 pasos y en 26 estados interactivos, a 1366 y 1920, con el reloj de la página detenido.
+- El suelo y las sombras del escenario se calculan con el inicio, el M6 y el M14, como en la v1.0. Las paradas 3 y 4 se agregan después para no cambiar ese ajuste.
+- **Sello nuevo:** «Síntesis del informe» (M11 E4 y 4.4).
+- **Conteo de palabras de los rótulos:** los signos sueltos (%, ·, =) ya no cuentan como palabra. Los límites (25 y 12) siguen iguales.
