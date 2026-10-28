@@ -28,7 +28,7 @@ const ALLOWED = {
   4: [/\b50\s?%/g, /\b20\s?%/g, /\b10\s?%/g], // Prayogo et al. (2024, p. 401)
 };
 const strayDigits = (k, txt) => {
-  let t = txt.replace(/\u00a0/g, ' ').replace(/\([^()]*\b(19|20)\d\d\b[^()]*\)/g, ' ').replace(new RegExp(`\\b${k}\\.[0-5]\\b`, 'g'), ' ').replace(/\bE[1-4]\b/g, ' ').replace(/\bM(8|11)\b/g, ' ').replace(new RegExp(`Parada ${k}\\b`, 'g'), ' ');
+  let t = txt.replace(/\u00a0/g, ' ').replace(/\([^()]*\b(19|20)\d\d\b[^()]*\)/g, ' ').replace(new RegExp(`\\b${k}\\.[0-5]\\b`, 'g'), ' ').replace(/\bE[1-4]\b/g, ' ').replace(/\bM(8|11)\b/g, ' ').replace(new RegExp(`Parada ${k}\\b`, 'gi'), ' '); // el panel la muestra en mayúsculas (CSS)
   for (const r of ALLOWED[k]) t = t.replace(r, ' ');
   return [...new Set(t.match(/[^\s]*[0-9][^\s]*/g) || [])];
 };
