@@ -156,7 +156,7 @@ export function buildM8({ THREE, label }) {
     E1: [-13, 19, 5, -25.5, 2.2, -12], E2: [14, 57, 57, 5, -1, 0], E3: [17.6, 10.5, -1.0, 23.8, 1.5, -10.6], E4: [12, 64, 57, 3, 0, 3],
     fund: [16, 59, 63, 6, 0, 0], dubai: [16, 59, 63, 6, 0, 0],
   };
-  Object.assign(CAM, { planta: CAM.E1, red: CAM.E2, control: [-12, 9.5, 4, -22, 1.8, -8.5], panama: CAM.E4 });
+  Object.assign(CAM, { planta: CAM.E1, red: CAM.E2, control: [-12, 9.5, 4, -22, 1.8, -8.5], panama: [6, 64, 57, -4, 0, 3] }); // 3.5: la tarjeta es larga; la ciudad se corre a la derecha
   const LBL = {
     E1: [L.chillers, L.torres, L.bombas, L.tanque, L.control], E2: [L.sum, L.ret, L.red, L.comN, L.hospN, L.uniN, L.resN, L.plantaN], E3: [L.hx, L.valv, L.med, L.circ, L.aire], E4: [L.zBan, L.zSal, L.zToc, L.zSab],
     fund: [L.plantaN, L.comN, L.hospN, L.uniN, L.resN], dubai: [], control: [L.scada, L.bombas],

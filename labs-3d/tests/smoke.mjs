@@ -44,9 +44,9 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
   await pg.goto(pathToFileURL(file).href);
   await pg.waitForFunction(() => document.querySelector('three-d-stage')?.shadowRoot?.querySelector('canvas'), null, { timeout: 30000 });
   await pg.waitForTimeout(3000);
-  // Texto en pantalla de las paradas 3 y 4 (columna de tarjetas, etiquetas visibles y panel derecho, sin la vista de referencias)
+  // Texto en pantalla de las paradas 3 y 4: columna de tarjetas, etiquetas visibles y panel derecho (sin la vista de referencias)
   const scan34 = async (k, where) => {
-    const txt = await pg.evaluate(() => [document.getElementById('dock').innerText, ...[...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => b.innerText), document.querySelector('aside').innerText, document.querySelector('.hd').innerText].join('\n'));
+    const txt = await pg.evaluate(() => [document.getElementById('dock').innerText, ...[...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => b.innerText), document.querySelector('aside').innerText].join('\n')); // sin el encabezado ni la barra ← → (navegación, no contenido)
     const bad = strayDigits(k, txt); if (bad.length) fails.push(`${where}: cifras no permitidas en la parada ${k}: ${bad.join(', ')}`);
     for (const b of BRANDS) if (new RegExp(`\\b${b}\\b`).test(txt)) fails.push(`${where}: aparece la marca «${b}»`);
     if (/\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(txt)) fails.push(`${where}: aparece una fecha`);
