@@ -132,20 +132,20 @@ export function buildM11({ THREE, label }) {
   // ---------- Etiquetas ----------
   const il = '<span class="st il">Ilustrativo</span>', si = '<span class="st si">Síntesis del informe</span>';
   const L = {
-    lupa: label(v3(XC, 9.2, 3.6), `${il}Corte ampliado de un tubo del condensador`, { prio: true }),
+    lupa: label(v3(XC - 3.0, 8.9, 3.6), `${il}Corte ampliado de un tubo del condensador`, { prio: true }),
     capas: label(v3(XC - 2.6, 6.2, 4.4), 'Sarro, óxido y biofilm', { down: true }),
     cond: label(v3(XC - 2.2, 2.85, 0.9), 'Condensador de tubos y coraza', { down: true }),
-    gauge: label(v3(XC + 5.6, 6.2, 1.2), `${il}Consumo del compresor<small>sin escala ni valores</small>`),
-    torre: label(v3(XC, 6.2, -9), 'Torre de enfriamiento'),
+    gauge: label(v3(XC + 5.6, 3.05, 1.2), `${il}Consumo del compresor<small>sin escala ni valores</small>`, { down: true }),
+    torre: label(v3(XC + 2.25, 4.9, -6.75), 'Torre de enfriamiento'),
     xd: label(v3(XC + 2.2, 9.0, 2.6), 'Transductores'),
-    ondas: label(v3(XC - 1.0, 6.6, 4.6), 'Ondas y microburbujas que implosionan junto a la pared', { down: true }),
-    sueltos: label(v3(XC + 2.8, 7.0, 4.8), 'Depósitos que se desprenden y siguen con el agua', { down: true }),
-    pComp: label(v3(XR - 3.5, 2.3, 2), 'Compresor<small>la mayor parte del aceite</small>', { cls: 'amber', prio: true }), pEvap: label(v3(XR + 2.2, 2.45, -3.0), 'Evaporador', { cls: 'amber' }),
-    pCond: label(v3(XR + 1, 4.75, 3.2), 'Condensador', { cls: 'amber' }), pDrier: label(v3(XR + 4.2, 2.0, 1.2), 'Filtro secador', { cls: 'amber' }),
+    ondas: label(v3(XC - 2.0, 6.5, 4.5), 'Ondas y microburbujas que implosionan junto a la pared', { down: true }),
+    sueltos: label(v3(XC + 3.4, 6.6, 4.8), 'Depósitos que se desprenden y siguen con el agua', { down: true }),
+    pComp: label(v3(XR - 3.5, 2.3, 2), 'Compresor<small>cerca de la mitad del aceite</small>', { cls: 'amber', prio: true }), pEvap: label(v3(XR + 2.2, 2.45, -3.0), 'Evaporador', { cls: 'amber' }),
+    pCond: label(v3(XR + 2.6, 4.75, 3.2), 'Condensador', { cls: 'amber' }), pDrier: label(v3(XR + 4.2, 2.0, 1.2), 'Filtro secador', { cls: 'amber' }),
     pLin: label(v3(XR - 3.5, 1.35, -1.0), 'Mangueras y líneas<small>aceite que circula con el refrigerante</small>', { cls: 'amber', down: true }),
     nano: label(v3(XR - 3.5, 0.3, 2.6), `${il}Nanopartículas en el lubricante<small>TiO₂ · SiO₂ · Al₂O₃</small>`, { down: true }),
-    agua: label(v3(XC + 4.2, 7.8, -1), `${si}Lado del agua<small>cavitación ultrasónica en los intercambiadores</small>`, { cls: 'cyan' }),
-    refr: label(v3(XR - 1.5, 6.4, -1), `${si}Lado del refrigerante<small>nanolubricante en el circuito hermético</small>`, { cls: 'amber' }),
+    agua: label(v3(XC + 3.2, 8.4, -1), `${si}Lado del agua<small>cavitación ultrasónica en los intercambiadores</small>`, { cls: 'cyan' }),
+    refr: label(v3(XR + 0.5, 6.4, -1), `${si}Lado del refrigerante<small>nanolubricante en el circuito hermético</small>`, { cls: 'amber' }),
   };
   const CAM = { E1: [0, 11, 22, XC + 1, 4.6, 1.2], E2: [-4, 10.6, 16.5, XC + 0.4, 6.6, 3.6], E3: [20, 9, 15, XR + 0.8, 1.8, 0], E4: [0.5, 17, 34, 0.5, 2.6, -1] };
   Object.assign(CAM, { fouling: CAM.E1, cavitacion: CAM.E2, nano: CAM.E3, desafios: CAM.E3, comparacion: CAM.E4, panama: CAM.E4 });
