@@ -1,5 +1,7 @@
 # Verificación de fuentes — M8 y M11 (Manuel Jiménez)
 
+> **Cerrada el 29/10/2026 por decisión de Cristian.** Manda el compendio, las citas van tal como están en él y las Paradas 3 y 4 no muestran cifras, así que nada de esta verificación entra a la pantalla y no hace falta abrir los dominios. El documento queda como registro. Las citas «Prayogo et al., 2024» y «Yao, 2016» ya no se usan en pantalla.
+
 Fecha: 28/10/2026 (hora de Panamá). Este informe **no cambia la pantalla**: las cifras que se verifiquen aquí no se agregan al modelo hasta que Cristian las apruebe.
 
 ## Resultado en una línea

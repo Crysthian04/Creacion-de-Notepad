@@ -22,7 +22,7 @@ Especificación: `docs/Plan_Modelo3D_Labs_M6_M14.md`. Trazabilidad: `docs/MATRIZ
 npm install
 npm run dev     # http://localhost:5173
 npm run build   # dist/Modelo3D_Labs_M6_M14_offline.html (UN archivo, sin internet)
-npm run check   # build + prueba de humo (paradas 0–4, identidad v1.0, cifras permitidas, sin red, sin desborde)
+npm run check   # build + prueba de humo (paradas 0–4, identidad v1.0, sin cifras en 3–4, sin red, sin desborde)
 ```
 
 Si Playwright no encuentra navegador, exporta `CHROMIUM_PATH` con la ruta a un Chromium ya instalado (en el contenedor: `/opt/pw-browsers/chromium`).
@@ -48,7 +48,7 @@ Si una ficha y su Word no coinciden, manda el Word. Si el simulador de REFRESH y
 9. Nota visible: "Modelo conceptual, no a escala", salvo las dimensiones de REFRESH.
 10. Del recorrido se reutiliza solo lo visual y técnico. **Nada** del Edificio 2 de la UTP ni de las investigaciones (evita autoplagio con la Investigación 3). La prueba de humo falla si aparecen "Edificio 2", "155 TR", "Henríquez Espinosa" o "Hosamo" (sin distinguir mayúsculas ni tildes). El crédito de F. Henríquez (coautor de Gollini-Mihalopoulos et al., 2023) en la Figura 11 del M6 es correcto y se mantiene.
 11. **Referencias al informe por sección, figura o tabla** ("M6 · Tabla 1"), nunca por página del informe. Las páginas solo se citan para las fuentes originales.
-12. **Paradas 3 y 4 (M8 y M11):** solo las cifras aprobadas (hoy, únicamente el reparto del lubricante del M11: 50/20/10/10/10 %, Prayogo et al., 2024, p. 401). Cualquier otra cifra de esos Word se expresa sin número; la prueba de humo busca dígitos en esas paradas. Una frase solo se usa si el Word la cita en ese párrafo; sin figuras ni infografías de los Word; sin marcas comerciales. El M8 y el M11 no se mezclan entre sí ni con REFRESH, la UTP, el M6 o el M14. Citas: «industry, M. E. (2024)» = (Prayogo et al., 2024) y «YAO / review (2015)» = (Yao, 2016); las demás, como en el Word. Pendientes de verificar: `docs/VERIFICACION_FUENTES_M8_M11.md`.
+12. **Paradas 3 y 4 (M8 y M11), decisión del 29/10:** manda el compendio, es decir, el Word del 28/10. Una cita solo cubre el párrafo que cierra; lo que no tiene cita sale o lleva sello («Ilustrativo», «Síntesis del informe» o «Propuesta») y no aparece como referenciado. Las citas y referencias van tal como están en el compendio: (ASHRAE, 2021) (DIRECT, 2023), (YAO, 2015), (review, 2015), (industry, 2024), (ASHRAE, 2024), (IDEA, 2023), (TRABEED, 2024), (EMPOWER, 2024); nunca «Prayogo et al.», «Yao, 2016» ni IPCC. **Ninguna cifra**: la prueba de humo busca dígitos y veta «%», «°C» y «kHz» en esas paradas. Sin figuras ni infografías de los Word y sin marcas comerciales. El M8 y el M11 no se mezclan entre sí ni con REFRESH, la UTP, el M6 o el M14. El 3D dice lo mismo que las diapositivas de Manuel.
 
 ## Restricciones técnicas
 
