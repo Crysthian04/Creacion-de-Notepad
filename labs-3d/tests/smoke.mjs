@@ -77,6 +77,16 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
         return out;
       });
       if (ovl.length) fails.push(`${where}: etiquetas encimadas ${ovl.join('; ')}`);
+      // Paradas 3 y 4: ninguna caja sobre el tallo o el punto de otra etiqueta (las paradas 1 y 2 quedan como en la v1.0)
+      if (k >= 3) {
+        const cross = await pg.evaluate(() => {
+          const ls = [...document.querySelectorAll('#labels .lbl:not([hidden])')].map(l => ({ t: l.querySelector('.box').innerText.replace(/\s+/g, ' ').slice(0, 30), box: l.querySelector('.box').getBoundingClientRect(), stem: l.querySelector('.stem').getBoundingClientRect(), dot: l.querySelector('.dot').getBoundingClientRect() }));
+          const near = (a, c, m) => a.left < c.right + m && a.right > c.left - m && a.top < c.bottom + m && a.bottom > c.top - m;
+          const out = []; for (const a of ls) for (const c of ls) if (a !== c && (near(a.box, c.stem, 2) || near(a.box, c.dot, 3))) out.push(`«${a.t}» sobre el tallo o el punto de «${c.t}»`);
+          return out;
+        });
+        if (cross.length) fails.push(`${where}: ${cross.join('; ')}`);
+      }
       const under = await pg.evaluate(() => {
         const cs = [...document.querySelectorAll('#dock > *')].map(c => c.getBoundingClientRect());
         return [...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].filter(b => { const r = b.getBoundingClientRect(); return r.width > 0 && cs.some(q => r.left < q.right && r.right > q.left && r.top < q.bottom && r.bottom > q.top); }).map(b => b.innerText.replace(/\s+/g, ' ').slice(0, 40));
