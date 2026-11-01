@@ -21,12 +21,11 @@ const banned = (txt, where) => { const t = norm(txt); for (const b of BANNED) if
 banned((await readFile(file, 'utf8')).replace(/&nbsp;/g, ' '), 'HTML');
 // En los informes no se usa la palabra «según» en ningún sentido
 for (const f of (await readdir(join(root, 'src/app'))).filter(f => /^(content|scene)-.*\.js$/.test(f))) if (/seg[uú]n\b/i.test(norm(await readFile(join(root, 'src/app', f), 'utf8')))) fails.push(`src/app/${f}: aparece la palabra «según»`);
-// Paradas 3 y 4 (M8 y M11): solo las cifras permitidas. Se quitan del texto las citas (paréntesis con año), los números
-// de paso (3.0–3.5, 4.0–4.5), E1–E4, los códigos M8/M11 y, en la Parada 4, el reparto del lubricante; si queda un dígito, falla.
-const ALLOWED = {
-  3: [],
-  4: [/\b50\s?%/g, /\b20\s?%/g, /\b10\s?%/g], // Prayogo et al. (2024, p. 401)
-};
+// Paradas 3 y 4 (M8 y M11): ninguna cifra (decisión del 29/10). Se quitan del texto las citas (paréntesis con año), los
+// números de paso (3.0–3.5, 4.0–4.5), E1–E4 y los códigos M8/M11; si queda un dígito, falla.
+const ALLOWED = { 3: [], 4: [] };
+// Términos vetados en las Paradas 3 y 4 (pantalla y referencias): citas que ya no se usan, IPCC, «según» y unidades
+const VETO34 = ['Prayogo', 'Yao, 2016', 'IPCC', 'según', '%', '°C', 'kHz'];
 const strayDigits = (k, txt) => {
   let t = txt.replace(/\u00a0/g, ' ').replace(/\([^()]*\b(19|20)\d\d\b[^()]*\)/g, ' ').replace(new RegExp(`\\b${k}\\.[0-5]\\b`, 'g'), ' ').replace(/\bE[1-4]\b/g, ' ').replace(/\bM(8|11)\b/g, ' ').replace(new RegExp(`Parada ${k}\\b`, 'gi'), ' '); // el panel la muestra en mayúsculas (CSS)
   for (const r of ALLOWED[k]) t = t.replace(r, ' ');
@@ -49,6 +48,7 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     const txt = await pg.evaluate(() => [document.getElementById('dock').innerText, ...[...document.querySelectorAll('#labels .lbl:not([hidden]) .box')].map(b => b.innerText), document.querySelector('aside').innerText].join('\n')); // sin el encabezado ni la barra ← → (navegación, no contenido)
     const bad = strayDigits(k, txt); if (bad.length) fails.push(`${where}: cifras no permitidas en la parada ${k}: ${bad.join(', ')}`);
     for (const b of BRANDS) if (new RegExp(`\\b${b}\\b`).test(txt)) fails.push(`${where}: aparece la marca «${b}»`);
+    for (const v of VETO34) if (txt.includes(v)) fails.push(`${where}: aparece «${v}» (vetado en las paradas 3 y 4)`);
     if (/\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(txt)) fails.push(`${where}: aparece una fecha`);
   };
   // Todas las paradas y todos los pasos: sin desborde (tarjetas, dock y panel derecho), sin términos prohibidos
@@ -114,7 +114,7 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
         const r = e.rot || {};
         if (words(r.f) > 25) fails.push(`${s.short} ${e.n}: la frase tiene ${words(r.f)} palabras (máximo 25)`);
         if (r.c && words(r.c) > 12) fails.push(`${s.short} ${e.n}: la cifra tiene ${words(r.c)} palabras (máximo 12)`);
-        if (!r.f || (!r.fc && !['pr', 'si'].includes(r.stamp)) || !r.stamp || !r.ref) fails.push(`${s.short} ${e.n}: al rótulo le falta frase, cita, sello o referencia`); // la propuesta y la síntesis del informe no llevan cita
+        if (!r.f || (!r.fc && !['il', 'pr', 'si'].includes(r.stamp)) || !r.stamp || !r.ref) fails.push(`${s.short} ${e.n}: al rótulo le falta frase, cita, sello o referencia`); // lo ilustrativo, la propuesta y la síntesis del informe no llevan cita
         notes.push(`Rótulo ${s.short} ${e.n}: frase ${words(r.f)} palabras${r.c ? `, cifra ${words(r.c)}` : ''}`);
       }
       for (const d of s.steps.filter(x => x.level === 'PR')) {
@@ -233,11 +233,12 @@ for (const [W, H] of [[1920, 1080], [1366, 768]]) {
     if (W === 1366 && how === 'tecla') await pg.screenshot({ path: join(shots, `${W}_p1_referencias.png`) });
     await pg.keyboard.press('Escape');
   }
-  // Paradas 3 y 4: referencias del Word (M8: 4; M11: 4, con Prayogo et al. y Yao)
-  for (const [k, n, must] of [[3, 4, ['TRABEED. (2024)', 'IDEA. (2023)', 'ASHRAE. (2024)', 'EMPOWER. (2024)']], [4, 4, ['Prayogo, G. S.', 'Yao, Y. (2016)', 'ASHRAE. (2021)', 'DIRECT, S. (2023']]]) {
+  // Paradas 3 y 4: referencias tal como están en el compendio (M8: 4; M11: 5), sin términos vetados
+  for (const [k, n, must] of [[3, 4, ['TRABEED. (2024)', 'IDEA. (2023)', 'ASHRAE. (2024)', 'EMPOWER. (2024)']], [4, 5, ['ASHRAE. (2021).', 'DIRECT, S. (2023, OCTUBRE)', 'industry, M. E. (2024)', 'review, S. R. (2015)', 'YAO, Y. (2015, DICIEMBRE)']]]) {
     await pg.keyboard.press(String(k)); await pg.waitForTimeout(400); await pg.keyboard.press('r'); await pg.waitForTimeout(300);
     const rf = await pg.evaluate(() => ({ h: document.querySelector('#refbody h3')?.textContent, n: document.querySelectorAll('#refbody p').length, t: document.getElementById('refbody').innerText }));
     if (!new RegExp(`M${k === 3 ? 8 : 11}`).test(rf.h || '') || rf.n !== n || !must.every(m => rf.t.includes(m))) fails.push(`${W}x${H} parada ${k}: referencias incompletas (${rf.n}: ${must.filter(m => !rf.t.includes(m)).join(', ')})`);
+    for (const v of VETO34) if (rf.t.includes(v)) fails.push(`${W}x${H} parada ${k}: «${v}» en las referencias`);
     if (W === 1366) await pg.screenshot({ path: join(shots, `${W}_p${k}_referencias.png`) });
     await pg.keyboard.press('Escape');
   }
