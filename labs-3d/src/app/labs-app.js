@@ -86,15 +86,16 @@ if (stage._toolbar) stage._toolbar.style.display = 'none';
 // ---------- Tarjetas ----------
 const STAMP = { df: 'Dato de fuente', il: 'Ilustrativo', pr: 'Propuesta', si: 'Síntesis del informe' }, POPS = [];
 // Rótulo de una escena: frase (≤ 25 palabras), cifra opcional (≤ 12), cita, sello, referencia y chips «Detalle»
+const cites = c => (Array.isArray(c) ? c : [c]).map(x => `(${x})`).join(' '); // varias citas: «(ASHRAE, 2021) (DIRECT, 2023)», como en el compendio
 function rotHTML(r, chips) {
   const st = (k, txt) => `<span class="st ${k}">${txt || STAMP[k]}</span>`;
   return `<div class="card rot" data-card><div class="ch"><span class="ref">${r.ref}</span>${st(r.stamp, r.stampText)}</div>
-<p class="frase">${r.f}${r.fc ? ` <span class="cite">(${r.fc})</span>` : ''}</p>${r.c ? `<p class="cifra">${r.cs ? st(r.cs) + ' ' : ''}${r.c}${r.cc ? ` <span class="cite">(${r.cc})</span>` : ''}</p>` : ''}
+<p class="frase">${r.f}${r.fc ? ` <span class="cite">${cites(r.fc)}</span>` : ''}</p>${r.c ? `<p class="cifra">${r.cs ? st(r.cs) + ' ' : ''}${r.c}${r.cc ? ` <span class="cite">(${r.cc})</span>` : ''}</p>` : ''}
 ${r.extra ? `<p class="small">${r.extra}</p>` : ''}${r.ui || ''}${r.replay ? '<button class="btn replay" data-replay>↺ Repetir</button>' : ''}
 <div class="chips"><span>Detalle:</span>${chips.map(c => `<button class="btn chip" data-chip="${c.i}" title="${c.t}">${c.n}</button>`).join('')}</div></div>`;
 }
 export function cardHTML(c) {
-  const stamp = c.stamp ? `<span class="st ${c.stamp}">${STAMP[c.stamp]}</span>${c.cite ? `<span class="cite">(${c.cite})</span>` : ''}` : '';
+  const stamp = c.stamp ? `<span class="st ${c.stamp}">${STAMP[c.stamp]}</span>${c.cite ? `<span class="cite">${cites(c.cite)}</span>` : ''}` : '';
   const ref = c.ref ? `<span class="ref">${c.ref}</span>` : '';
   const fig = !c.fig ? '' : c.fig.link
     ? `<div class="fig link"><button class="btn figbtn" data-figsrc="${c.fig.src}">Ver figura</button><div class="ft">${c.fig.title}</div><div class="cr">${c.fig.credit}</div></div>`
