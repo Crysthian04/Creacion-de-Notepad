@@ -50,8 +50,21 @@ var FDD = (function () {
     var M = FDD_MODELO, nC = M.clases.length, nA = M.arboles.length;
     var x = new Array(M.columnas_entrada.length), i, k;
     for (i = 0; i < M.columnas_entrada.length; i++) {
+      // FALLO RUIDOSO, NO SILENCIOSO.
+      //
+      // `Math.fround(null)` vale 0 y `Math.fround(undefined)` vale NaN. Los
+      // nodos de la malla sin estado estacionario llevan TODOS sus residuos en
+      // `null`, así que sin esta comprobación entraban al bosque como un vector
+      // de ceros —es decir, como una máquina perfectamente sana— y el bosque
+      // devolvía `sano` con aire de certeza. Un punto donde el modelo no tiene
+      // solución física no se clasifica: se rechaza.
+      var v = residuos[M.columnas_entrada[i]];
+      if (typeof v !== "number" || !isFinite(v)) {
+        throw new Error("residuo no finito en `" + M.columnas_entrada[i] + "`: "
+                        + v + ". El bosque no clasifica un punto incompleto.");
+      }
       // float32, como hace scikit-learn antes de recorrer los árboles
-      x[i] = Math.fround(residuos[M.columnas_entrada[i]]);
+      x[i] = Math.fround(v);
     }
     var acum = new Array(nC);
     for (k = 0; k < nC; k++) acum[k] = 0.0;
@@ -170,14 +183,26 @@ var FDD = (function () {
   }
 
   // Diagnóstico completo: consulta la malla y clasifica sus residuos.
+  //
+  // RECHAZA los puntos sin estado estacionario en lugar de clasificarlos. La
+  // malla trae 189 nodos con `convergio = 0`; clasificarlos devolvía `sano` con
+  // confianza 0,348, que es el peor resultado posible: el punto donde el modelo
+  // no sabe nada se presentaba como la máquina en buen estado. No están todos en
+  // la zona de carga baja —18 de ellos están a carga plena—, así que la
+  // comprobación no se puede sustituir por un aviso sobre una banda de carga.
   function diagnosticar(tAmb, carga, clase, severidad) {
     var estado = consultar(tAmb, carga, clase, severidad);
+    if (!estado.convergio) {
+      return {estado: estado, residuos: null, diagnostico: null,
+              motivo: "sin estado estacionario: el modelo no tiene solución en este punto"};
+    }
     var residuos = {};
     for (var k = 0; k < FDD_MODELO.columnas_entrada.length; k++) {
       var col = FDD_MODELO.columnas_entrada[k];
       residuos[col] = estado[col];
     }
-    return {estado: estado, residuos: residuos, diagnostico: predecir(residuos)};
+    return {estado: estado, residuos: residuos, diagnostico: predecir(residuos),
+            motivo: ""};
   }
 
   return {predecir: predecir, probabilidades: probabilidades, consultar: consultar,
