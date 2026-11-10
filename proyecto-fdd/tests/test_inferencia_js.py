@@ -188,3 +188,123 @@ def test_probabilidades_acepta_una_fila_completa_de_ceros():
     assert "error" not in r, r
     assert r["ok"]["n"] == 11
     assert abs(r["ok"]["suma"] - 1.0) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# 3. Fuera de la malla: borde + bandera dentro de un paso, rechazo más allá
+# ---------------------------------------------------------------------------
+def test_la_malla_declara_el_margen_de_extrapolacion():
+    """La regla viaja como DATO, igual que `celda_bilineal`."""
+    from src.exportador_web import CARGAS, SEVERIDADES, TEMPERATURAS, margenes_extrapolacion
+    esperado = margenes_extrapolacion({"temperaturas": list(TEMPERATURAS),
+                                       "cargas": list(CARGAS),
+                                       "severidades": list(SEVERIDADES)})
+    r = evaluar("return FDD_MALLA.margen_extrapolacion;")
+    assert "error" not in r, r
+    m = r["ok"]
+    assert m["temperaturas_C"] == esperado["temperaturas_C"]
+    assert m["cargas"] == esperado["cargas"]
+    assert m["severidades"] == esperado["severidades"]
+    # Un paso de nodo a cada lado, con el eje de cargas NO uniforme.
+    assert m["temperaturas_C"] == [22.0, 38.0]
+    assert m["cargas"] == [0.25, 1.05]
+
+
+def test_dentro_del_dominio_no_hay_bandera():
+    r = evaluar("""
+      const e = FDD.consultar(30, 0.70, 'condensador_sucio', 0.55);
+      return {extrapolado: e._extrapolado, ejes: e._fuera_de_malla.ejes,
+              dmax: e._fuera_de_malla.distancia_max};
+    """)
+    assert "error" not in r, r
+    assert r["ok"]["extrapolado"] is False
+    assert r["ok"]["ejes"] == []
+    assert r["ok"]["dmax"] == 0.0
+
+
+@pytest.mark.parametrize("tAmb,carga,eje,lado", [
+    (23.0, 0.70, "temperaturas_C", -1),   # un paso por debajo en temperatura
+    (37.0, 0.70, "temperaturas_C", 1),
+    (30.0, 0.27, "cargas", -1),           # dentro del paso bajo (0,03)
+    (30.0, 1.03, "cargas", 1),            # dentro del paso alto (0,05)
+])
+def test_dentro_de_un_paso_devuelve_el_borde_marcado(tAmb, carga, eje, lado):
+    """Se sirve el nodo del borde, pero MARCADO. Antes no había marca alguna."""
+    r = evaluar(f"""
+      const e = FDD.consultar({tAmb}, {carga}, 'sano', 0);
+      const M = FDD_MALLA;
+      const iT = {lado} < 0 && '{eje}' === 'temperaturas_C' ? 0
+               : {lado} > 0 && '{eje}' === 'temperaturas_C' ? M.temperaturas_C.length - 1
+               : null;
+      const borde = FDD.consultar(
+        iT === null ? {tAmb} : M.temperaturas_C[iT],
+        '{eje}' === 'cargas' ? ({lado} < 0 ? M.cargas[0] : M.cargas[M.cargas.length - 1])
+                             : {carga},
+        'sano', 0);
+      return {{extrapolado: e._extrapolado, ejes: e._fuera_de_malla.ejes,
+               dmax: e._fuera_de_malla.distancia_max,
+               igual_al_borde: e.T4_C === borde.T4_C && e.m_r === borde.m_r}};
+    """)
+    assert "error" not in r, r
+    o = r["ok"]
+    assert o["extrapolado"] is True, "la consulta fuera del dominio no quedó marcada"
+    assert [x["eje"] for x in o["ejes"]] == [eje]
+    assert o["ejes"][0]["lado"] == lado
+    assert o["dmax"] > 0.0
+    assert o["igual_al_borde"], "el valor servido debería ser exactamente el del borde"
+
+
+@pytest.mark.parametrize("tAmb,carga", [
+    (50.0, 2.00),    # el caso de la auditoría: antes devolvía T4_C = 4,5046 sin aviso
+    (21.0, 0.70),    # más de un paso por debajo en temperatura
+    (39.0, 0.70),
+    (30.0, 0.20),    # más de un paso por debajo en carga
+    (30.0, 1.10),
+])
+def test_mas_de_un_paso_fuera_se_rechaza(tAmb, carga):
+    r = evaluar(f"return FDD.consultar({tAmb}, {carga}, 'sano', 0);")
+    assert "error" not in r, r
+    assert r["ok"] is None, (
+        f"consultar({tAmb}, {carga}) debería devolver null y devolvió un estado")
+
+
+def test_diagnosticar_rechaza_una_consulta_fuera_de_la_malla():
+    r = evaluar("""
+      const d = FDD.diagnosticar(50, 2.0, 'sano', 0);
+      return {estado: d.estado, diagnostico: d.diagnostico, motivo: d.motivo};
+    """)
+    assert "error" not in r, r
+    assert r["ok"]["estado"] is None
+    assert r["ok"]["diagnostico"] is None
+    assert "fuera de la malla" in r["ok"]["motivo"]
+
+
+def test_la_severidad_fuera_del_rango_se_marca_pero_no_se_rechaza():
+    """El eje de severidad es vecino más próximo por diseño: se marca, no se corta."""
+    r = evaluar("""
+      const e = FDD.consultar(30, 0.70, 'condensador_sucio', 0.05);
+      return {nulo: e === null, extrapolado: e._extrapolado,
+              ejes: e._fuera_de_malla.ejes.map(x => x.eje)};
+    """)
+    assert "error" not in r, r
+    assert r["ok"]["nulo"] is False
+    assert r["ok"]["extrapolado"] is True
+    assert r["ok"]["ejes"] == ["severidades"]
+
+
+@pytest.mark.parametrize("severidad", ["-0.1", "1.5"])
+def test_una_severidad_imposible_falla_ruidosamente(severidad):
+    r = evaluar(f"return FDD.consultar(30, 0.70, 'condensador_sucio', {severidad});")
+    assert "error" in r, r
+    assert "severidad fuera de [0, 1]" in r["error"]
+
+
+def test_la_clase_sana_no_se_marca_por_la_severidad():
+    """`sano` ignora la severidad por construcción, así que no debe marcarse."""
+    r = evaluar("""
+      const e = FDD.consultar(30, 0.70, 'sano', 0.0);
+      return {extrapolado: e._extrapolado, ejes: e._fuera_de_malla.ejes};
+    """)
+    assert "error" not in r, r
+    assert r["ok"]["extrapolado"] is False
+    assert r["ok"]["ejes"] == []

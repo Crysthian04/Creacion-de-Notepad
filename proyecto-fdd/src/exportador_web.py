@@ -514,6 +514,45 @@ def decidir_celdas(malla: dict) -> np.ndarray:
     return celdas
 
 
+def margenes_extrapolacion(malla: dict) -> dict:
+    """Hasta dónde se admite una consulta FUERA del dominio de la malla.
+
+    La regla es «un paso de nodo»: dentro de ese margen se devuelve el valor del
+    borde CON una bandera; más allá, `consultar` devuelve `null`. El margen viaja
+    como DATO y no se reimplementa en JavaScript, por la misma razón que
+    `celda_bilineal`: que Python y JavaScript no puedan divergir.
+
+    El paso se toma de la celda del BORDE de cada lado, no de un paso medio,
+    porque el eje de cargas no es uniforme: vale 0,03 en el extremo bajo
+    (0,28 -> 0,31) y 0,05 en el alto (0,95 -> 1,00).
+
+    El eje de severidad es vecino más próximo POR DISEÑO —la malla solo trae
+    cinco niveles y así está declarado—, así que ahí no hay rechazo duro: una
+    severidad fuera de [0,15, 0,95] se marca y se sirve el nivel más cercano.
+    Una severidad fuera de [0, 1] no es una severidad y sí se rechaza.
+    """
+    def limites(eje) -> list[float]:
+        e = [float(x) for x in eje]
+        if len(e) < 2:
+            raise ValueError("un eje de la malla necesita al menos dos nodos")
+        # Se redondea para que el límite no arrastre el ruido del binario
+        # (0,28 − 0,03 daba 0,25000000000000006 en el archivo exportado).
+        return [round(e[0] - (e[1] - e[0]), 6), round(e[-1] + (e[-1] - e[-2]), 6)]
+
+    sev = [float(x) for x in malla["severidades"]]
+    return {
+        "temperaturas_C": limites(malla["temperaturas"]),
+        "cargas": limites(malla["cargas"]),
+        "severidades": [sev[0], sev[-1]],
+        "regla": ("Dentro del dominio, interpolacion normal. Fuera del dominio pero "
+                  "dentro de un paso de nodo (los limites de este bloque), se devuelve "
+                  "el nodo del borde y se marca en `_fuera_de_malla`. Mas alla, "
+                  "`consultar` devuelve null. El eje de severidad es vecino mas proximo "
+                  "por diseno: fuera de su rango se marca pero no se rechaza; una "
+                  "severidad fuera de [0, 1] si se rechaza."),
+    }
+
+
 def exportar_malla(malla: dict, p, ruta: Path | None = None) -> Path:
     ruta = ruta or (DIR_DATOS / "fdd_malla.js")
     dec = {"m_r": 6, "y_capacidad": 6, "COP": 6, "fraccion_marcha": 6}
@@ -552,6 +591,7 @@ def exportar_malla(malla: dict, p, ruta: Path | None = None) -> Path:
               f'controlado->saturado SI se interpola: es un codo, no un salto. En los '
               f'demas casos, vecino mas proximo. Los campos discretos son SIEMPRE vecino.",\n'
               f'  "campos_discretos": {json.dumps(list(CAMPOS_DISCRETOS))},\n'
+              f'  "margen_extrapolacion": {json.dumps(margenes_extrapolacion(malla))},\n'
               f'  "celda_bilineal": {_arr(celdas)},\n'
               f'  "indice_celda": "idxCelda = ((i_T * (nCargas-1) + i_carga) * nClases + i_clase) * nSeveridades + i_sev",\n'
               f'  "discretos": {{{disc_js}}},\n'
@@ -687,24 +727,37 @@ def validar_malla(p, malla: dict, muestras_por_celda: int = 9, casos=None,
 # ---------------------------------------------------------------------------
 # Orquestación
 # ---------------------------------------------------------------------------
-def exportar_todo(sufijo: str = "", validar: bool = True, verbose: bool = True) -> dict:
-    import joblib
+def exportar_todo(sufijo: str = "", validar: bool = True, verbose: bool = True,
+                  solo_malla: bool = False) -> dict:
+    """Exporta los cuatro archivos `.js` del visualizador.
+
+    `solo_malla` regenera ÚNICAMENTE `fdd_malla.js` y, con ello, NO carga
+    `resultados/modelo_rf*.joblib`. Existe porque ese artefacto está excluido del
+    repositorio —pesaba 244 MB frente al límite de 100 MB de GitHub— y sin esta
+    vía la malla no se podría regenerar en un clon limpio sin reentrenar antes.
+    La malla no depende del modelo: solo del solver y de los parámetros.
+    """
     from config.params import ParametrosEquipo
     from src.calibracion import aplicar_calibracion
 
     p = aplicar_calibracion(ParametrosEquipo())
-    paquete = joblib.load(DIR_RESULTADOS / f"modelo_rf{sufijo}.joblib")
-    metricas = json.loads((DIR_RESULTADOS / f"metricas{sufijo}.json").read_text("utf-8"))
-    ruta_des = DIR_RESULTADOS / "desacuerdo_100_vs_300.json"
-    desacuerdo = json.loads(ruta_des.read_text("utf-8")) if ruta_des.exists() else None
+    rutas: dict[str, Path] = {}
 
-    if paquete["topologia"] != p.topologia.nombre:
-        raise SystemExit(f"El modelo se entrenó con la topología {paquete['topologia']} "
-                         f"y la configuración activa es {p.topologia.nombre}")
+    if not solo_malla:
+        import joblib
+        paquete = joblib.load(DIR_RESULTADOS / f"modelo_rf{sufijo}.joblib")
+        metricas = json.loads(
+            (DIR_RESULTADOS / f"metricas{sufijo}.json").read_text("utf-8"))
+        ruta_des = DIR_RESULTADOS / "desacuerdo_100_vs_300.json"
+        desacuerdo = json.loads(ruta_des.read_text("utf-8")) if ruta_des.exists() else None
 
-    rutas = {"modelo": exportar_modelo(paquete),
-             "fisica": exportar_fisica(p),
-             "metricas": exportar_metricas(metricas, desacuerdo=desacuerdo)}
+        if paquete["topologia"] != p.topologia.nombre:
+            raise SystemExit(f"El modelo se entrenó con la topología {paquete['topologia']} "
+                             f"y la configuración activa es {p.topologia.nombre}")
+
+        rutas = {"modelo": exportar_modelo(paquete),
+                 "fisica": exportar_fisica(p),
+                 "metricas": exportar_metricas(metricas, desacuerdo=desacuerdo)}
     malla = generar_malla(p, verbose=verbose)
     rutas["malla"] = exportar_malla(malla, p)
     if validar:
@@ -727,5 +780,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Exporta el modelo FDD a JavaScript plano.")
     ap.add_argument("--sufijo", default="")
     ap.add_argument("--sin-validar", action="store_true")
+    ap.add_argument("--solo-malla", action="store_true",
+                    help="regenera solo fdd_malla.js; no necesita el .joblib del modelo")
     args = ap.parse_args()
-    exportar_todo(args.sufijo, not args.sin_validar)
+    exportar_todo(args.sufijo, not args.sin_validar, solo_malla=args.solo_malla)

@@ -95,16 +95,48 @@ var FDD = (function () {
   // ---------------------------------------------------------------------
   // Consulta de la malla
   // ---------------------------------------------------------------------
-  function buscarCelda(eje, v) {
-    if (v <= eje[0]) return {i: 0, t: 0.0};
-    if (v >= eje[eje.length - 1]) return {i: eje.length - 2, t: 1.0};
+  // Localiza la celda de un eje y DICE si la consulta se salió del dominio.
+  //
+  // Antes esta función saturaba en silencio: cualquier valor fuera de rango se
+  // colapsaba sobre el nodo del borde y devolvía exactamente la misma estructura
+  // que un punto interior, sin bandera ni centinela. Una consulta a 50 °C y
+  // carga 2,0 devolvía un estado con la misma apariencia de validez que una
+  // dentro de rango.
+  //
+  // `fuera`      -1 por debajo, 0 dentro, +1 por encima.
+  // `distancia`  cuánto se salió, en unidades del eje (0 si está dentro).
+  // `rechazado`  se salió MÁS de un paso de nodo. El margen lo fija el
+  //              exportador y viaja en `FDD_MALLA.margen_extrapolacion`.
+  function buscarCelda(eje, v, limites) {
+    var n = eje.length;
+    var fuera = (v < eje[0]) ? -1 : (v > eje[n - 1]) ? 1 : 0;
+    var distancia = (fuera === -1) ? eje[0] - v : (fuera === 1) ? v - eje[n - 1] : 0.0;
+    var rechazado = (fuera !== 0) && !!limites && (v < limites[0] || v > limites[1]);
+    if (v <= eje[0]) {
+      return {i: 0, t: 0.0, fuera: fuera, distancia: distancia, rechazado: rechazado};
+    }
+    if (v >= eje[n - 1]) {
+      return {i: n - 2, t: 1.0, fuera: fuera, distancia: distancia, rechazado: rechazado};
+    }
     var i = 0;
-    while (i < eje.length - 2 && eje[i + 1] < v) i++;
-    return {i: i, t: (v - eje[i]) / (eje[i + 1] - eje[i])};
+    while (i < n - 2 && eje[i + 1] < v) i++;
+    return {i: i, t: (v - eje[i]) / (eje[i + 1] - eje[i]),
+            fuera: 0, distancia: 0.0, rechazado: false};
+  }
+
+  function margenes() {
+    var m = FDD_MALLA.margen_extrapolacion;
+    if (!m) {
+      throw new Error("la malla no declara `margen_extrapolacion`: regenérala con "
+                      + "`python -m src.exportador_web --solo-malla`");
+    }
+    return m;
   }
 
   // Entrada canónica a la malla: la fracción de carga.
-  function indicePorCarga(q) { return buscarCelda(FDD_MALLA.cargas, q); }
+  function indicePorCarga(q) {
+    return buscarCelda(FDD_MALLA.cargas, q, margenes().cargas);
+  }
 
   // Conveniencia documentada. NO es válida bajo falla de caudal de agua: con
   // caudal degradado, la misma carga produce un retorno más alto y esta relación
@@ -138,12 +170,42 @@ var FDD = (function () {
   // comparten régimen; si no, vecino más próximo. Interpolar entre regímenes
   // distintos produce estados que la máquina no tiene. Los campos discretos son
   // siempre vecino más próximo.
+  // RECHAZO DURO fuera del dominio: dentro de un paso de nodo se devuelve el
+  // valor del borde CON la bandera `_fuera_de_malla`; más allá se devuelve
+  // `null`. Un valor del borde disfrazado de cálculo es un error ilegible; una
+  // consulta que no devuelve nada es un error legible.
   function consultar(tAmb, carga, clase, severidad) {
-    var cT = buscarCelda(FDD_MALLA.temperaturas_C, tAmb);
+    var lim = margenes();
+    var cT = buscarCelda(FDD_MALLA.temperaturas_C, tAmb, lim.temperaturas_C);
     var cQ = indicePorCarga(carga);
     var iC = FDD_MALLA.clases.indexOf(clase);
     if (iC < 0) throw new Error("clase desconocida: " + clase);
+    if (!(typeof severidad === "number" && severidad >= 0 && severidad <= 1)) {
+      throw new Error("severidad fuera de [0, 1]: " + severidad);
+    }
+    if (cT.rechazado || cQ.rechazado) return null;
     var iS = (clase === "sano") ? 0 : indiceSeveridad(severidad);
+
+    // El eje de severidad es vecino más próximo POR DISEÑO —cinco niveles, así
+    // declarado—, así que fuera de su rango se MARCA pero no se rechaza.
+    var sev = FDD_MALLA.severidades;
+    var ejesFuera = [];
+    if (cT.fuera !== 0) {
+      ejesFuera.push({eje: "temperaturas_C", lado: cT.fuera, distancia: cT.distancia});
+    }
+    if (cQ.fuera !== 0) {
+      ejesFuera.push({eje: "cargas", lado: cQ.fuera, distancia: cQ.distancia});
+    }
+    if (clase !== "sano" && (severidad < sev[0] || severidad > sev[sev.length - 1])) {
+      ejesFuera.push({eje: "severidades",
+                      lado: (severidad < sev[0]) ? -1 : 1,
+                      distancia: (severidad < sev[0]) ? sev[0] - severidad
+                                                      : severidad - sev[sev.length - 1]});
+    }
+    var distanciaMax = 0.0;
+    for (var z = 0; z < ejesFuera.length; z++) {
+      if (ejesFuera[z].distancia > distanciaMax) distanciaMax = ejesFuera[z].distancia;
+    }
 
     var e = [indicePlano(cT.i, cQ.i, iC, iS), indicePlano(cT.i + 1, cQ.i, iC, iS),
              indicePlano(cT.i, cQ.i + 1, iC, iS), indicePlano(cT.i + 1, cQ.i + 1, iC, iS)];
@@ -161,9 +223,15 @@ var FDD = (function () {
                    * FDD_MALLA.nSeveridades + iS;
     var uniforme = FDD_MALLA.celda_bilineal[idxCelda] === 1;
 
+    // `_interpolacion` NO se degrada a "vecino" por estar fuera del dominio: con
+    // `t` exactamente 0 o 1 la bilineal se reduce al nodo del borde en ese eje,
+    // y si el OTRO eje está dentro, su interpolación sigue siendo legítima.
+    // Quien quiera saber si el punto es extrapolado mira `_extrapolado`.
     var salida = {_interpolacion: (uniforme && todosConv) ? "bilineal" : "vecino",
                   _regimen: FDD_MALLA.regimenes[reg[vecino]],
-                  _sin_estado_estacionario: !conv[vecino]};
+                  _sin_estado_estacionario: !conv[vecino],
+                  _extrapolado: ejesFuera.length > 0,
+                  _fuera_de_malla: {ejes: ejesFuera, distancia_max: distanciaMax}};
     var campos = FDD_MALLA.datos, c;
     for (c in campos) {
       if (!Object.prototype.hasOwnProperty.call(campos, c)) continue;
@@ -192,6 +260,10 @@ var FDD = (function () {
   // comprobación no se puede sustituir por un aviso sobre una banda de carga.
   function diagnosticar(tAmb, carga, clase, severidad) {
     var estado = consultar(tAmb, carga, clase, severidad);
+    if (estado === null) {
+      return {estado: null, residuos: null, diagnostico: null,
+              motivo: "fuera de la malla: mas de un paso de nodo fuera del dominio"};
+    }
     if (!estado.convergio) {
       return {estado: estado, residuos: null, diagnostico: null,
               motivo: "sin estado estacionario: el modelo no tiene solución en este punto"};
