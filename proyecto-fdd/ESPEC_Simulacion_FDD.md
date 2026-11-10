@@ -32,6 +32,30 @@ resuelve en el levantamiento de campo.
 El modelo de **expansión directa aire-aire se conserva** como topología seleccionable: si el acceso
 a la enfriadora se complica, el proyecto cambia de equipo de estudio con una línea de configuración.
 
+> **Alcance de esa promesa — corregido el 10 de noviembre de 2026.** «Una línea de configuración»
+> vale para un equipo de **aire acondicionado aire-aire**, que es el equipo para el que se escribió
+> la frase: temperaturas de evaporación de A/C, intercambio sensible y ningún desescarche. **NO vale
+> para un congelador de baja temperatura con desescarche**, y la diferencia está medida en
+> `AUDITORIA_FDD_10NOV.md`, sección 6:
+>
+> - `src/ciclo.py:417` fija `te_min = max(T_triple + 5, −25,0)`. Para R-404A manda el literal
+>   −25,0 °C, así que con el espacio a −25 °C el intervalo de búsqueda queda invertido
+>   (`te_max = −25,5 < te_min = −25,0`) y **no existe solución posible**. El rango declarado del
+>   equipo nuevo, −40 a 0 °F, es −40 a −17,8 °C: la mitad inferior es inalcanzable por construcción.
+> - Bajando ese piso a mano, el modelo converge pero entrega **817 W de un serpentín de 17 584 W**
+>   con 0,22 K de sobrecalentamiento, en régimen hambriento. No es un modelo de congelador: es un
+>   modelo de A/C de 5 TR muy fuera de su diseño.
+> - Faltan, además, cuatro piezas de física: **calor latente y escarcha** (hoy el intercambio es
+>   sensible puro, sección 2.2.a), el **ciclo de desescarche eléctrico** —intrínsecamente
+>   transitorio, y el modelo es estacionario—, el **régimen de marcha y parada por termostato** (el
+>   preset DX tiene `y_min = 1,0`, es decir sin modulación, y toda la maquinaria
+>   `controlado / saturado / ciclado` es de válvula deslizante de enfriadora), y una clase de falla
+>   que hoy no existe en el catálogo: **evaporador escarchado / desescarche fallido**.
+>
+> Esfuerzo estimado: **59 a 118 horas**. Por eso el proyecto decidió, el 10 de noviembre de 2026,
+> **conservar la enfriadora de agua como sistema de estudio del módulo FDD** aunque el sitio de las
+> otras fases haya cambiado a un congelador de expansión directa.
+
 | `TIPO_SISTEMA` | Evaporador | Condensador | Clases | Residuos |
 |---|---|---|---|---|
 | `chiller_cond_aire` | agua | aire | 11 | 11 |
@@ -350,6 +374,19 @@ mapa de firmas.
 | 10 | **Discrepancia modelo-planta** y su barrido | Sin ella el único error es el ruido de sensor y la separación entre clases es trivial por construcción |
 | 11 | Conjunto de prevalencia de 3 000 a **10 000** muestras e **intervalos de Wilson** | Con 3 000 muestras la clase más rara dejaba nueve casos y su precisión era ruido estadístico |
 | 12 | Clase nueva **`caudal_agua_bajo`** | Es una de las fallas más frecuentes en sistemas hidrónicos y no estaba contemplada |
+
+### 13 bis. Cambios del 10 de noviembre de 2026
+
+Posteriores a la versión 2, derivados de la auditoría de solo lectura
+(`AUDITORIA_FDD_10NOV.md`).
+
+| # | Cambio | Motivo |
+|---|---|---|
+| 13 | **Alcance acotado de la promesa de «una línea de configuración»** (sección 1) | La promesa vale para A/C aire-aire, no para un congelador de baja temperatura con desescarche. Medido: el piso de −25 °C de `src/ciclo.py:417` deja inalcanzable la mitad del rango del equipo nuevo, y bajándolo el modelo entrega 817 W de un serpentín de 17 584 W |
+| 14 | **La enfriadora se conserva como sistema de estudio del módulo FDD** | El sitio de estudio de las otras fases cambió a un congelador de expansión directa, pero adaptar el gemelo cuesta 59–118 h y requiere física que no existe: latente, escarcha, desescarche y marcha-parada por termostato |
+| 15 | `diagnosticar()` **rechaza** los puntos sin estado estacionario | `Math.fround(null)` vale 0, así que los 189 nodos sin solución física entraban al bosque como once ceros y devolvían `sano` con confianza 0,348 |
+| 16 | `consultar()` **marca y rechaza** las consultas fuera del dominio de la malla | Saturaba en silencio: una consulta a 50 °C y carga 2,0 devolvía un estado con la misma apariencia de validez que una dentro de rango |
+| 17 | Bloque **`res_ruidoso_*`**: la malla trae los residuos con ruido de sensor y discrepancia, y es el que se clasifica | La malla limpia no es comparable con un clasificador entrenado con ruido. Medido: 0,7364 de acierto con los limpios frente a 0,6752 con los ruidosos, 6,1 puntos de optimismo |
 
 ---
 

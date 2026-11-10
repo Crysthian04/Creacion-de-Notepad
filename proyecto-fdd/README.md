@@ -10,6 +10,16 @@ campo.
 **Sistema de estudio:** enfriadora de agua de 100 TR que da servicio a un edificio de oficinas, con
 distribución hidrónica. El modelo de expansión directa se conserva como topología de respaldo.
 
+> **Decisión del proyecto, 10 de noviembre de 2026.** El sitio de estudio de las otras fases pasó a
+> ser un congelador de expansión directa (condensadora Heatcraft MOH019L63CF, R-404A, −40 a 0 °F,
+> evaporador de aire con desescarche eléctrico). **El módulo FDD NO se adapta a ese equipo: conserva
+> la enfriadora de agua como sistema de estudio.** El motivo está medido en
+> `AUDITORIA_FDD_10NOV.md`, sección 6: no es un cambio de parámetros. A −25 °C el solver no
+> converge, porque `src/ciclo.py:417` fija un piso de −25,0 °C a la temperatura de evaporación; y
+> bajando ese piso a mano el modelo converge entregando 817 W de un serpentín de 17 584 W, con
+> 0,22 K de sobrecalentamiento. Adaptarlo cuesta entre 59 y 118 horas, porque faltan el calor
+> latente, la escarcha, el ciclo de desescarche y el régimen de marcha y parada por termostato.
+
 **Lo que se demuestra es que el método funciona y es implementable, no que ya esté implementado.**
 
 ---
@@ -67,6 +77,11 @@ entorno.
 ---
 
 ## 4. Cómo correr el pipeline completo
+
+En un clon limpio, cinco pruebas de `tests/test_exportador.py` dan error porque
+`resultados/modelo_rf.joblib` está excluido del repositorio. El paso 3 lo regenera; hasta
+entonces el conteo esperado es **189 pasan, 5 errores** de 194. Ver «Qué se puede correr en un clon
+limpio» en la sección 7 bis.
 
 ```bash
 # 0. VERIFICACIÓN FÍSICA — obligatoria antes de generar nada (~4 min)
@@ -196,17 +211,46 @@ como `null` y bloquean `fetch()`, así que un `.json` haría que el visualizador
 del evaluador.
 
 ```bash
-python -m src.exportador_web          # genera web/datos/*.js y resultados/malla_error.json
-pytest tests/test_exportador.py       # equivalencia exacta JS <-> scikit-learn
+python -m src.exportador_web               # los cuatro .js + resultados/malla_error.json
+python -m src.exportador_web --solo-malla  # solo la malla; NO necesita el .joblib
+pytest tests/test_inferencia_js.py         # contrato del visualizador (sin .joblib)
+pytest tests/test_exportador.py            # equivalencia exacta JS <-> scikit-learn
 # y abrir web/verificacion.html con doble clic
 ```
 
 | Archivo | Constante | Tamaño |
 |---|---|---|
 | `web/datos/fdd_modelo.js` | `FDD_MODELO` | 3,61 MB — el bosque de 100 árboles, recorrible |
-| `web/datos/fdd_malla.js` | `FDD_MALLA` | 1,58 MB — mapa de operación, 4 620 puntos |
-| `web/datos/fdd_fisica.js` | `FDD_FISICA` | 0,01 MB — equipo, fallas, campana de saturación |
+| `web/datos/fdd_malla.js` | `FDD_MALLA` | 2,05 MB — mapa de operación, 4 620 puntos, dos bloques de residuos |
 | `web/datos/fdd_metricas.js` | `FDD_METRICAS` | 0,03 MB — confusión y Wilson |
+| `web/datos/fdd_fisica.js` | `FDD_FISICA` | 0,01 MB — equipo, fallas, campana de saturación |
+| `web/js/fdd_inferencia.js` | `FDD` | 0,02 MB — inferencia de referencia |
+| `web/verificacion.html` | — | autoprueba de carga local, 11 comprobaciones |
+
+Total: **5,72 MB (5,46 MiB) en 6 archivos, cero dependencias externas** — ningún CDN, ninguna fuente web,
+ningún `fetch`, ningún módulo ES6.
+
+### Qué se puede correr en un clon limpio, y qué no
+
+`resultados/modelo_rf.joblib` **está excluido del repositorio** (`.gitignore`): el modelo
+serializado pesaba 244 MB, por encima del límite de 100 MB de GitHub. Consecuencia práctica:
+
+| | En un clon limpio |
+|---|---|
+| `pytest tests/` menos `test_exportador.py` | **corre** |
+| `pytest tests/test_inferencia_js.py` | **corre** — el contrato del visualizador se verifica siempre |
+| `pytest tests/test_exportador.py` (5 pruebas) | **NO corre**: `FileNotFoundError` del `.joblib` |
+| `python -m src.exportador_web` | **NO corre**: carga el `.joblib` antes de nada |
+| `python -m src.exportador_web --solo-malla` | **corre**: la malla depende del solver, no del modelo |
+
+Las cinco pruebas que no corren son precisamente las que verifican la **equivalencia exacta entre el
+JavaScript y scikit-learn**. Ese resultado se obtuvo y está declarado más abajo, pero **no es
+reproducible desde el repositorio sin reentrenar primero**:
+
+```bash
+python -m src.modelo                  # regenera resultados/modelo_rf.joblib
+pytest tests/test_exportador.py       # ahora sí
+```
 
 ### Equivalencia exacta con scikit-learn
 
@@ -234,6 +278,50 @@ bit a bit, diferencia máxima 0,000e+00**, y cero pares (muestra, umbral) a meno
   JavaScript no puedan divergir. Los campos discretos (`regimen_cod`, `ciclado`,
   `capacidad_saturada`, `retorno_liquido`) son **siempre** vecino más próximo: interpolar un código
   de régimen produce valores que no existen en ningún estado de la máquina.
+- **Fuera del dominio:** `consultar()` devuelve el valor del borde **marcado** mientras la consulta
+  no se salga más de un paso de nodo, y **`null`** más allá. El margen lo calcula el exportador y
+  viaja en `FDD_MALLA.margen_extrapolacion`: `[22, 38] °C` y `[0,25, 1,05]` de carga. El paso se
+  toma de la celda del borde de cada lado porque el eje de cargas no es uniforme —0,03 abajo y 0,05
+  arriba—. Todo estado devuelto lleva `_extrapolado` y `_fuera_de_malla: {ejes, distancia_max}`,
+  presentes también cuando la consulta está dentro del dominio. El eje de severidad se **marca pero
+  no se rechaza**, porque es vecino más próximo por diseño; una severidad fuera de `[0, 1]` sí falla
+  ruidosamente.
+- **Puntos sin estado estacionario:** los 189 nodos con `convergio = 0` llevan sus residuos en
+  `null` y **`diagnosticar()` los rechaza**. `Math.fround(null)` vale 0, así que sin esa
+  comprobación entraban al bosque como un vector de once ceros —una máquina perfectamente sana— y
+  devolvían `sano` con confianza 0,348. Dieciocho de los 189 están a carga plena, así que no es un
+  problema de la banda de carga baja.
+
+### Dos bloques de residuos: `res_*` y `res_ruidoso_*`
+
+La malla trae los residuos **dos veces**, y no son intercambiables:
+
+| Bloque | Cómo se calcula | Para qué |
+|---|---|---|
+| `res_*` | limpio: sin ruido de sensor y sin discrepancia modelo-planta | diagrama P-h, validación de la malla |
+| `res_ruidoso_*` | con ruido de sensor y con `theta_modelo = theta_planta·(1+epsilon)`, igual que el dataset de entrenamiento | **lo que clasifica `diagnosticar()`** |
+
+El clasificador se entrenó con ruido y con un gemelo desafinado al 5 %, así que alimentarlo con
+residuos limpios lo hace parecer mejor de lo que es. **Medido sobre los 4 431 nodos utilizables:
+acierto 0,7364 con el bloque limpio frente a 0,6752 con el ruidoso** — 6,1 puntos de optimismo, del
+mismo orden que la cota del barrido de discrepancia (F1 macro 0,8198 con discrepancia nula frente a
+0,7572 en el caso base).
+
+- El ruido se calcula en **Python**, no en el navegador. Los residuos son funciones no lineales de
+  las mediciones —pasan por temperaturas de saturación de CoolProp—, así que sumar ruido a un
+  residuo no equivale a sumar ruido a la medición. Python sigue siendo el único lugar donde se
+  calculan residuos.
+- Semilla propia y exportada: `SEMILLA_MALLA = 20261110`, en `FDD_MALLA.ruido_malla` junto al factor
+  de ruido y al nivel y modo de discrepancia. `diagnosticar()` los devuelve en cada respuesta. No se
+  deriva de `SEMILLA_MAESTRA` para no tocar el árbol de semillas con el que se generaron los
+  datasets ya reportados.
+- Un epsilon por **condición** (T_amb, carga), como en el dataset; una semilla de ruido por **nodo**,
+  derivada del índice y no del orden de ejecución, para que la malla no dependa del número de
+  núcleos.
+- **El bloque ruidoso NUNCA se interpola** (`FDD_MALLA.campos_siempre_vecino`). El ruido de dos
+  nodos vecinos es independiente: una bilineal de cuatro nodos reduciría la desviación típica a la
+  mitad y desharía en silencio justo el efecto que el bloque existe para representar.
+- 189 nodos no tienen bloque ruidoso: exactamente los mismos que no tienen estado estacionario.
 
 ### Límites medidos de la malla
 
@@ -259,8 +347,20 @@ lo que hace ciclar— pero el solver la rechaza y conserva la solución no acota
 
 Consecuencia: `fraccion_marcha` vale 1,000 en toda la zona de ciclado en lugar de la proporción real
 de tiempo encendido, así que **el arranque matutino todavía no se puede reconstruir con la malla**.
-El resto de la malla (carga ≥ 0,34) no está afectado. La causa está localizada en la selección de
-régimen de `src/ciclo.py`, entre la guarda de validez de capacidad y el reintento a `y_min`.
+La causa está localizada en la selección de régimen de `src/ciclo.py:571`–`581`: `ciclado` se fija
+antes de reintentar a `y_min`, y si el reintento no mejora el residuo se conserva la solución no
+acotada con la bandera ya puesta.
+
+**Alcance exacto, contado sobre la malla exportada.** De los 4 620 nodos, 623 están marcados como
+`ciclado` y **519 de ellos son estados imposibles** (`y_capacidad < y_min = 0,25` sosteniendo el
+setpoint). De esos 519:
+
+- **490 están en la banda `carga < 0,34`** (nodos 0,28 y 0,31);
+- **29 están en `carga = 0,34` exactamente**, con `y_capacidad` entre 0,2431 y 0,2500 —hasta 0,007
+  por debajo del mínimo— en 9 de las 11 clases y a 24 y 26 °C.
+
+Es decir: **`carga > 0,34` no está afectado; `carga = 0,34` sí lo está marginalmente.** Una versión
+anterior de esta nota decía «carga ≥ 0,34 no está afectado», que es falso en la frontera.
 
 ## 8. Estructura
 
@@ -279,7 +379,13 @@ proyecto-fdd/
 ├── web/datos/*.js              # los cuatro archivos del visualizador
 ├── web/js/fdd_inferencia.js    # inferencia de referencia en JavaScript
 ├── web/verificacion.html       # autoprueba de carga local (no es el visualizador)
-├── tests/                      # 154 pruebas sobre las tres topologías
+├── tests/                      # 194 pruebas sobre las tres topologías
+│   ├── test_ciclo.py           #   solver, unidades, dominio físico
+│   ├── test_firmas.py          #   batería de firmas físicas (va primero)
+│   ├── test_features.py        #   lista blanca y residuos
+│   ├── test_particion.py       #   partición por grupos, sin fuga
+│   ├── test_inferencia_js.py   #   contrato del visualizador — SIN .joblib
+│   └── test_exportador.py      #   equivalencia JS <-> sklearn — NECESITA el .joblib
 ├── data/  figuras/  resultados/
 ├── ESPEC_Simulacion_FDD.md     # especificación v2, con registro de cambios
 ├── requirements.txt  README.md
