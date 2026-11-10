@@ -124,6 +124,21 @@ var FDD = (function () {
             fuera: 0, distancia: 0.0, rechazado: false};
   }
 
+  // Campos que NO se interpolan NUNCA, aunque la celda sea uniforme. Hoy son
+  // los del bloque `res_ruidoso_*`: el ruido de dos nodos vecinos es
+  // independiente, así que una bilineal de cuatro nodos reduciría la desviación
+  // típica a la mitad y desharía en silencio justo el efecto que el bloque
+  // existe para representar. La lista la decide el exportador y viaja como dato.
+  var _siempreVecino = null;
+  function esSiempreVecino(c) {
+    if (_siempreVecino === null) {
+      _siempreVecino = {};
+      var lst = FDD_MALLA.campos_siempre_vecino || [];
+      for (var k = 0; k < lst.length; k++) _siempreVecino[lst[k]] = true;
+    }
+    return _siempreVecino[c] === true;
+  }
+
   function margenes() {
     var m = FDD_MALLA.margen_extrapolacion;
     if (!m) {
@@ -236,7 +251,7 @@ var FDD = (function () {
     for (c in campos) {
       if (!Object.prototype.hasOwnProperty.call(campos, c)) continue;
       var v = campos[c];
-      if (uniforme && todosConv) {
+      if (uniforme && todosConv && !esSiempreVecino(c)) {
         salida[c] = (1 - cT.t) * (1 - cQ.t) * v[e[0]] + cT.t * (1 - cQ.t) * v[e[1]]
                   + (1 - cT.t) * cQ.t * v[e[2]] + cT.t * cQ.t * v[e[3]];
       } else {
@@ -250,7 +265,11 @@ var FDD = (function () {
     return salida;
   }
 
-  // Diagnóstico completo: consulta la malla y clasifica sus residuos.
+  // Diagnóstico completo: consulta la malla y clasifica el bloque de residuos
+  // CON RUIDO (`res_ruidoso_*`), que es el único comparable con los datos con
+  // los que se entrenó el bosque. Los limpios se devuelven aparte, en
+  // `residuos_limpios`, para el diagrama P-h. Clasificar los limpios daba unos
+  // 6 puntos de F1 macro más de lo que dice el informe.
   //
   // RECHAZA los puntos sin estado estacionario en lugar de clasificarlos. La
   // malla trae 189 nodos con `convergio = 0`; clasificarlos devolvía `sano` con
@@ -268,13 +287,36 @@ var FDD = (function () {
       return {estado: estado, residuos: null, diagnostico: null,
               motivo: "sin estado estacionario: el modelo no tiene solución en este punto"};
     }
-    var residuos = {};
-    for (var k = 0; k < FDD_MODELO.columnas_entrada.length; k++) {
-      var col = FDD_MODELO.columnas_entrada[k];
-      residuos[col] = estado[col];
+    var ruido = FDD_MALLA.ruido_malla, mapa = FDD_MALLA.residuo_ruidoso;
+    if (!mapa || !ruido) {
+      throw new Error("la malla no declara el bloque `res_ruidoso_*`: regenérala "
+                      + "con `python -m src.exportador_web --solo-malla`");
     }
-    return {estado: estado, residuos: residuos, diagnostico: predecir(residuos),
-            motivo: ""};
+    var cols = FDD_MODELO.columnas_entrada;
+    var residuos = {}, limpios = {}, faltan = [], col, v, k;
+    for (k = 0; k < cols.length; k++) {
+      col = cols[k];
+      v = estado[mapa[col]];
+      if (typeof v !== "number" || !isFinite(v)) faltan.push(col);
+      residuos[col] = v;
+      limpios[col] = estado[col];
+    }
+    var comun = {estado: estado, residuos_limpios: limpios,
+                 semilla: ruido.semilla, factor_ruido: ruido.factor_ruido,
+                 nivel_discrepancia: ruido.nivel_discrepancia,
+                 modo_discrepancia: ruido.modo_discrepancia};
+    if (faltan.length > 0) {
+      // Ocurre cuando la referencia sana del gemelo DESAFINADO no converge en
+      // esa condición: hay estado, pero no hay residuo comparable.
+      comun.residuos = null;
+      comun.diagnostico = null;
+      comun.motivo = "sin residuos con ruido en este punto: " + faltan.join(", ");
+      return comun;
+    }
+    comun.residuos = residuos;
+    comun.diagnostico = predecir(residuos);
+    comun.motivo = "";
+    return comun;
   }
 
   return {predecir: predecir, probabilidades: probabilidades, consultar: consultar,

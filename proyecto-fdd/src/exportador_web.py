@@ -59,6 +59,30 @@ CARGAS = (0.28, 0.31, 0.34, 0.37, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 1.00
 TEMPERATURAS = (24.0, 26.0, 28.0, 30.0, 32.0, 34.0, 36.0)
 HR_FIJA = 80.0   # sin efecto con condensador de aire; ver README
 
+# ---------------------------------------------------------------------------
+# Bloque de residuos CON ruido de sensor y CON discrepancia modelo-planta
+# ---------------------------------------------------------------------------
+# La malla limpia sirve para el diagrama P-h; el CLASIFICADOR no puede comerse
+# residuos limpios, porque se entrenó con ruido y con un gemelo desafinado al
+# 5 %. Alimentado con residuos limpios acierta unos 6 puntos de F1 macro más de
+# lo que dice el informe (0,82 frente a 0,76), y el diagnóstico de fallas
+# incipientes sube de 0,48 a 0,64.
+#
+# El ruido se calcula en PYTHON y viaja como un segundo bloque de columnas, en
+# lugar de generarse en el navegador. Motivo: los residuos son funciones NO
+# lineales de las mediciones —pasan por temperaturas de saturación de CoolProp—,
+# así que sumar ruido a un residuo no equivale a sumar ruido a la medición.
+# Hacerlo bien en JavaScript exigiría llevar allí las curvas de saturación y
+# medir un segundo error de interpolación. Python sigue siendo el único lugar
+# donde se calculan residuos, y así Python y JavaScript no pueden divergir.
+SEMILLA_MALLA = 20261110          # propia y EXPORTADA; ver nota de abajo
+FACTOR_RUIDO_MALLA = 1.0          # el mismo del caso base del informe
+PREFIJO_RUIDOSO = "res_ruidoso_"
+DECIMALES_RUIDOSO = 6             # dos más que los campos de visualización
+# `SEMILLA_MALLA` NO se deriva de `SEMILLA_MAESTRA`: añadir un flujo al árbol de
+# semillas del generador cambiaría las semillas con las que se generaron los
+# datasets ya reportados. Esta malla tiene su propio árbol.
+
 
 # ---------------------------------------------------------------------------
 # Serialización
@@ -340,12 +364,42 @@ CAMPOS_DISCRETOS = ("convergio", "regimen_cod", "ciclado", "capacidad_saturada",
                     "retorno_liquido")
 
 
-def _estado_punto(t_amb: float, carga: float, clase: str, f: float, p) -> dict | None:
-    """Estado completo del ciclo en un punto de la malla, sin ruido de sensor.
+def columnas_ruidosas(topo) -> tuple[str, ...]:
+    """Nombres del bloque con ruido, en el mismo orden que la lista blanca."""
+    from src.features import columnas_residuos
+    return tuple(PREFIJO_RUIDOSO + c[len("res_"):] for c in columnas_residuos(topo))
 
-    Los residuos se calculan contra la predicción sana del MISMO juego de
-    parámetros: la malla no lleva discrepancia modelo-planta ni ruido. Esa
-    decisión está documentada en `FDD_FISICA.nota_ruido`.
+
+def mapa_residuo_ruidoso(topo) -> dict[str, str]:
+    """`res_SH_evap` -> `res_ruidoso_SH_evap`.
+
+    Se exporta como dato para que JavaScript no tenga que recomponer nombres a
+    base de cortar cadenas: `res_COP` y `res_kW_TR` no siguen el patrón de los
+    demás y una regla textual se rompería ahí.
+    """
+    from src.features import columnas_residuos
+    return dict(zip(columnas_residuos(topo), columnas_ruidosas(topo)))
+
+
+def _estado_punto(t_amb: float, carga: float, clase: str, f: float, p,
+                  eps: dict | None = None, semilla_ruido=None,
+                  factor_ruido: float = FACTOR_RUIDO_MALLA) -> dict | None:
+    """Estado completo del ciclo en un punto de la malla.
+
+    Devuelve DOS bloques de residuos:
+
+    `res_*`            limpios. Contra la predicción sana del MISMO juego de
+                       parámetros: sin ruido de sensor y sin discrepancia
+                       modelo-planta. Son los que alimentan el diagrama P-h y la
+                       validación de la malla.
+    `res_ruidoso_*`    con ruido de sensor y con discrepancia modelo-planta, como
+                       los del dataset de entrenamiento. Son los que alimentan al
+                       CLASIFICADOR. Solo se calculan si se pasa `eps`.
+
+    El cálculo del bloque ruidoso replica `src.generador._fila` paso por paso: el
+    estado degradado se resuelve con los parámetros de la PLANTA, la referencia
+    sana con `theta_modelo = theta_planta·(1 + epsilon)`, y el ruido se suma a las
+    MEDICIONES —no a los residuos— antes de derivarlas.
     """
     from src.ciclo import AjustesCiclo, CondicionContorno, resolver_ciclo
     from src.fallas import ajustes_de_falla
@@ -391,6 +445,23 @@ def _estado_punto(t_amb: float, carga: float, clase: str, f: float, p) -> dict |
     }
     fila.update({f"med_{k}": med[k] for k in variables_medibles(topo)})
     fila.update(res)
+
+    if eps is not None:
+        from src.generador import aplicar_discrepancia, aplicar_ruido, rng_desde
+        p_modelo = aplicar_discrepancia(p, eps)
+        # La referencia sana del gemelo DESAFINADO. Si no converge, la condición
+        # no tiene bloque ruidoso: se deja en NaN (que se exporta como `null`) y
+        # `diagnosticar` la rechaza, igual que un punto sin estado estacionario.
+        sano_modelo = resolver_ciclo(cond, p_modelo, AjustesCiclo())
+        if sano_modelo.convergio:
+            rng = rng_desde(semilla_ruido)
+            medido = aplicar_ruido(deg.dict_medible(), rng, factor_ruido)
+            res_r = calcular_residuos(
+                derivadas_desde_medicion(medido, p),
+                derivadas_desde_medicion(sano_modelo.dict_medible(), p_modelo), topo)
+            fila.update({PREFIJO_RUIDOSO + k[len("res_"):]: v for k, v in res_r.items()})
+        else:
+            fila.update({c: float("nan") for c in columnas_ruidosas(topo)})
     return fila
 
 
@@ -401,6 +472,7 @@ def _fila_vacia(p) -> dict:
             "capacidad_saturada": 0, "retorno_liquido": 0}
     fila.update({c: float("nan") for c in CAMPOS_ESTADO})
     fila.update({f"med_{k}": float("nan") for k in variables_medibles(p.topologia)})
+    fila.update({c: float("nan") for c in columnas_ruidosas(p.topologia)})
     fila.update({c: float("nan") for c in columnas_residuos(p.topologia)})
     return fila
 
@@ -420,17 +492,39 @@ def generar_malla(p, temperaturas=TEMPERATURAS, cargas=CARGAS,
         print(f"Malla: {nT} T_amb × {nQ} cargas × {nC} clases × {nS} severidades "
               f"= {len(tareas)} puntos")
 
-    def calcular(i, j, c, s):
+    # --- ruido y discrepancia del bloque `res_ruidoso_*` -------------------
+    from config.params import MODO_DISCREPANCIA, NIVEL_DISCREPANCIA
+    from src.generador import muestrear_discrepancia
+
+    raiz = np.random.SeedSequence(SEMILLA_MALLA)
+    sem_eps, sem_ruido = raiz.spawn(2)
+    # Un epsilon por CONDICIÓN (T_amb, carga), como en el dataset: todas las
+    # clases y severidades de una condición ven el MISMO gemelo desafinado.
+    eps_por_cond = muestrear_discrepancia(p, sem_eps, nT * nQ,
+                                          nivel=NIVEL_DISCREPANCIA,
+                                          modo=MODO_DISCREPANCIA)
+    # Una semilla de ruido por NODO, derivada del índice y no del orden de
+    # ejecución: la malla se calcula en paralelo y el resultado debe ser el mismo
+    # con cualquier número de núcleos. Es la única diferencia declarada respecto
+    # del dataset, donde las muestras de una condición consumen un solo
+    # generador en secuencia. Los sorteos son i.i.d. en ambos casos.
+    sem_por_nodo = sem_ruido.spawn(len(tareas))
+
+    def calcular(k, i, j, c, s):
         clase = nombres[c]
         f = 0.0 if clase == "sano" else severidades[s]
-        return _estado_punto(temperaturas[i], cargas[j], clase, f, p)
+        return _estado_punto(temperaturas[i], cargas[j], clase, f, p,
+                             eps=eps_por_cond[i * nQ + j],
+                             semilla_ruido=sem_por_nodo[k],
+                             factor_ruido=FACTOR_RUIDO_MALLA)
 
     crudo = Parallel(n_jobs=-1, verbose=5 if verbose else 0)(
-        delayed(calcular)(*t) for t in tareas)
+        delayed(calcular)(k, *t) for k, t in enumerate(tareas))
 
     campos = (list(CAMPOS_ESTADO)
               + [f"med_{k}" for k in variables_medibles(topo)]
-              + list(columnas_residuos(topo)))
+              + list(columnas_residuos(topo))
+              + list(columnas_ruidosas(topo)))
     datos = {c: np.full(len(tareas), np.nan) for c in campos}
     discretos = {c: np.zeros(len(tareas), dtype=int) for c in CAMPOS_DISCRETOS}
     regimenes: list[str] = []
@@ -451,15 +545,23 @@ def generar_malla(p, temperaturas=TEMPERATURAS, cargas=CARGAS,
         for c in campos:
             datos[c][k] = fila.get(c, np.nan)
 
+    sin_ruidoso = int(np.isnan(datos[columnas_ruidosas(topo)[0]]).sum())
     if verbose:
         print(f"  puntos sin estado estacionario: {sin_estado} "
               f"({100 * sin_estado / len(tareas):.2f} %)")
         print(f"  puntos en ciclado: {int(discretos['ciclado'].sum())} "
               f"({100 * discretos['ciclado'].mean():.1f} %)")
+        print(f"  puntos sin bloque `res_ruidoso_*`: {sin_ruidoso} "
+              f"({100 * sin_ruidoso / len(tareas):.2f} %)")
     return {"temperaturas": list(temperaturas), "cargas": list(cargas),
             "severidades": list(severidades), "clases": list(nombres),
             "campos": campos, "datos": datos, "discretos": discretos,
-            "regimenes": regimenes, "sin_estado": sin_estado, "n": len(tareas)}
+            "regimenes": regimenes, "sin_estado": sin_estado, "n": len(tareas),
+            "sin_ruidoso": sin_ruidoso,
+            "ruido": {"semilla": SEMILLA_MALLA,
+                      "factor_ruido": FACTOR_RUIDO_MALLA,
+                      "nivel_discrepancia": NIVEL_DISCREPANCIA,
+                      "modo_discrepancia": MODO_DISCREPANCIA}}
 
 
 def decidir_celdas(malla: dict) -> np.ndarray:
@@ -556,6 +658,9 @@ def margenes_extrapolacion(malla: dict) -> dict:
 def exportar_malla(malla: dict, p, ruta: Path | None = None) -> Path:
     ruta = ruta or (DIR_DATOS / "fdd_malla.js")
     dec = {"m_r": 6, "y_capacidad": 6, "COP": 6, "fraccion_marcha": 6}
+    # El bloque ruidoso alimenta al clasificador, no a una etiqueta de pantalla:
+    # lleva dos decimales más que los campos de visualización.
+    dec.update({c: DECIMALES_RUIDOSO for c in columnas_ruidosas(p.topologia)})
     celdas = malla.get("celda_bilineal")
     if celdas is None:
         celdas = decidir_celdas(malla)
@@ -592,6 +697,18 @@ def exportar_malla(malla: dict, p, ruta: Path | None = None) -> Path:
               f'demas casos, vecino mas proximo. Los campos discretos son SIEMPRE vecino.",\n'
               f'  "campos_discretos": {json.dumps(list(CAMPOS_DISCRETOS))},\n'
               f'  "margen_extrapolacion": {json.dumps(margenes_extrapolacion(malla))},\n'
+              f'  "campos_siempre_vecino": {json.dumps(list(columnas_ruidosas(p.topologia)))},\n'
+              f'  "nota_siempre_vecino": "El bloque `res_ruidoso_*` NO se interpola nunca. '
+              f'El ruido de dos nodos vecinos es independiente, asi que promediar cuatro '
+              f'nodos reduciria la desviacion tipica a la mitad y desharia en silencio el '
+              f'efecto que el bloque existe para representar.",\n'
+              f'  "residuo_ruidoso": {json.dumps(mapa_residuo_ruidoso(p.topologia))},\n'
+              f'  "ruido_malla": {json.dumps(malla.get("ruido", {}))},\n'
+              f'  "nota_ruido_malla": "`res_*` son limpios y sirven para el diagrama P-h. '
+              f'`res_ruidoso_*` llevan ruido de sensor y discrepancia modelo-planta, como '
+              f'los datos con los que se entreno el clasificador, y son los que '
+              f'`diagnosticar()` clasifica. Alimentar el bosque con los limpios da unos 6 '
+              f'puntos de F1 macro mas de lo que dice el informe.",\n'
               f'  "celda_bilineal": {_arr(celdas)},\n'
               f'  "indice_celda": "idxCelda = ((i_T * (nCargas-1) + i_carga) * nClases + i_clase) * nSeveridades + i_sev",\n'
               f'  "discretos": {{{disc_js}}},\n'

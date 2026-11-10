@@ -53,6 +53,48 @@ los cuatro archivos de datos cargan con doble clic bajo <code>file://</code>, si
        'diagnóstico: ' + d.diagnostico.clase + ' (confianza '
        + d.diagnostico.confianza.toFixed(3) + ')');
 
+  // El clasificador se entrenó CON ruido de sensor y CON un gemelo desafinado:
+  // clasificar los residuos limpios de la malla daría más acierto del que
+  // reporta el informe. `diagnosticar` usa el bloque `res_ruidoso_*` y declara
+  // con qué semilla, factor de ruido y nivel de discrepancia se generó.
+  var cols = FDD_MODELO.columnas_entrada;
+  comp('Clasifica los residuos CON ruido',
+       d.residuos[cols[0]] === e[FDD_MALLA.residuo_ruidoso[cols[0]]]
+       && d.residuos_limpios[cols[0]] !== undefined,
+       'semilla ' + d.semilla + ', factor de ruido ' + d.factor_ruido
+       + ', discrepancia ' + d.nivel_discrepancia + ' (' + d.modo_discrepancia + ')');
+
+  // Defecto corregido: antes, cualquier consulta fuera del dominio se servía con
+  // el valor del borde y sin marca alguna.
+  var borde = FDD.consultar(37, 0.70, 'sano', 0);
+  var lejos = FDD.consultar(50, 2.00, 'sano', 0);
+  comp('Fuera de la malla: marca y rechazo',
+       borde !== null && borde._extrapolado === true && lejos === null,
+       'a 37 °C se sirve el borde marcado (' + borde._fuera_de_malla.ejes[0].eje
+       + ', distancia ' + borde._fuera_de_malla.distancia_max.toFixed(2)
+       + '); a 50 °C y carga 2,0 se rechaza');
+
+  // Defecto corregido: `Math.fround(null)` vale 0, así que los nodos sin estado
+  // estacionario entraban al bosque como una máquina perfectamente sana.
+  var sinEstado = null, nSinEstado = 0;
+  (function () {
+    var M = FDD_MALLA, nQ = M.cargas.length, nC = M.nClases, nS = M.nSeveridades;
+    for (var i = 0; i < M.discretos.convergio.length; i++) {
+      if (M.discretos.convergio[i] !== 0) continue;
+      nSinEstado++;
+      if (sinEstado !== null) continue;
+      var s = i % nS, cl = Math.floor(i / nS) % nC;
+      var q = Math.floor(i / (nS * nC)) % nQ, t = Math.floor(i / (nS * nC * nQ));
+      sinEstado = FDD.diagnosticar(M.temperaturas_C[t], M.cargas[q],
+                                   M.clases[cl], M.severidades[s]);
+    }
+  })();
+  comp('Sin estado estacionario: se rechaza',
+       sinEstado !== null && sinEstado.diagnostico === null,
+       nSinEstado + ' nodos sin solución física; el primero devuelve '
+       + (sinEstado && sinEstado.diagnostico === null ? 'null' : 'una clase')
+       + ' («' + (sinEstado ? sinEstado.motivo : '') + '»)');
+
   var s = FDD.consultar(30, 0.30, 'sano', 0);
   comp('Zona de ciclado documentada', typeof s.fraccion_marcha === 'number',
        'carga 0,30: ciclado=' + s.ciclado + ', fracción de marcha='
@@ -67,9 +109,13 @@ los cuatro archivos de datos cargan con doble clic bajo <code>file://</code>, si
       : '<span class="mal">' + f.length + ' comprobaciones fallan: ' + f.join(', ') + '</span>')
     + '</h2><table><tr><th>Comprobación</th><th>Resultado</th><th>Detalle</th></tr>'
     + filas.join('') + '</table>'
-    + '<p class="nota">La equivalencia exacta con scikit-learn se verifica aparte, con '
+    + '<p class="nota">La equivalencia exacta con scikit-learn se verificó aparte, con '
     + '<code>pytest tests/test_exportador.py</code>: 1997 muestras, clase idéntica sin '
-    + 'tolerancia y probabilidades iguales bit a bit.</p>';
+    + 'tolerancia y probabilidades iguales bit a bit. <strong>Esa comprobación no es '
+    + 'reproducible desde un clon limpio</strong>: necesita '
+    + '<code>resultados/modelo_rf.joblib</code>, que está excluido del repositorio por '
+    + 'tamaño. El contrato de comportamiento que se ve arriba sí se verifica siempre, con '
+    + '<code>pytest tests/test_inferencia_js.py</code>, que no necesita ese artefacto.</p>';
 })();
 </script>
 </body>

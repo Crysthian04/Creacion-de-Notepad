@@ -308,3 +308,240 @@ def test_la_clase_sana_no_se_marca_por_la_severidad():
     assert "error" not in r, r
     assert r["ok"]["extrapolado"] is False
     assert r["ok"]["ejes"] == []
+
+
+# ---------------------------------------------------------------------------
+# 4. Bloque `res_ruidoso_*`: lo que clasifica el visualizador
+# ---------------------------------------------------------------------------
+# El clasificador se entrenó CON ruido de sensor y CON un gemelo desafinado al
+# 5 %. La malla limpia no es comparable con eso. Estas pruebas no necesitan
+# `modelo_rf.joblib`: verifican que los residuos ruidosos que viajan en la malla
+# son los que el pipeline de entrenamiento habría calculado, y que JavaScript los
+# usa sin promediarlos.
+NODOS_DE_MUESTRA = [(2, 7, "condensador_sucio", 3),    # 28 °C, carga 0,70, sev 0,75
+                    (5, 11, "sano", 0),                 # 34 °C, carga 1,00
+                    (0, 4, "txv_restringida", 1)]       # 24 °C, carga 0,40, sev 0,35
+
+
+@pytest.fixture(scope="module")
+def contexto_malla():
+    """Parámetros, semillas y epsilon tal como los deriva `generar_malla`."""
+    import numpy as np
+
+    from config.params import MODO_DISCREPANCIA, NIVEL_DISCREPANCIA, ParametrosEquipo
+    from src.calibracion import aplicar_calibracion
+    from src.exportador_web import CARGAS, SEMILLA_MALLA, SEVERIDADES, TEMPERATURAS
+    from src.fallas import clases
+    from src.generador import muestrear_discrepancia
+
+    p = aplicar_calibracion(ParametrosEquipo())
+    nT, nQ = len(TEMPERATURAS), len(CARGAS)
+    nC, nS = len(clases(p.topologia)), len(SEVERIDADES)
+    raiz = np.random.SeedSequence(SEMILLA_MALLA)
+    sem_eps, sem_ruido = raiz.spawn(2)
+    eps = muestrear_discrepancia(p, sem_eps, nT * nQ,
+                                 nivel=NIVEL_DISCREPANCIA, modo=MODO_DISCREPANCIA)
+    sem_nodo = sem_ruido.spawn(nT * nQ * nC * nS)
+    return {"p": p, "eps": eps, "sem_nodo": sem_nodo, "nT": nT, "nQ": nQ,
+            "nC": nC, "nS": nS, "clases": list(clases(p.topologia))}
+
+
+def test_la_tolerancia_del_solver_coincide_con_la_del_generador():
+    """Si divergieran, el bloque ruidoso no sería comparable con el dataset."""
+    import inspect
+
+    from config.params import TOL_BALANCE
+    from src.ciclo import resolver_ciclo
+
+    por_defecto = inspect.signature(resolver_ciclo).parameters["tol"].default
+    assert por_defecto == TOL_BALANCE, (
+        f"`resolver_ciclo` usa tol={por_defecto} por defecto y el generador "
+        f"usa TOL_BALANCE={TOL_BALANCE}: la malla y el dataset no serían comparables")
+
+
+@pytest.mark.parametrize("iT,iQ,clase,iS", NODOS_DE_MUESTRA)
+def test_el_bloque_ruidoso_de_la_malla_es_reproducible(contexto_malla, iT, iQ, clase, iS):
+    """Re-ejecuta `_estado_punto` y compara con lo que viaja en el `.js`.
+
+    Cubre la derivación de semillas y el redondeo del exportador. Si el ruido
+    dependiera del orden de ejecución en paralelo, esta prueba fallaría.
+    """
+    from src.exportador_web import (CARGAS, DECIMALES_RUIDOSO, SEVERIDADES, TEMPERATURAS,
+                                    _estado_punto, columnas_ruidosas)
+
+    c = contexto_malla
+    iC = c["clases"].index(clase)
+    k = ((iT * c["nQ"] + iQ) * c["nC"] + iC) * c["nS"] + iS
+    f = 0.0 if clase == "sano" else SEVERIDADES[iS]
+    fila = _estado_punto(TEMPERATURAS[iT], CARGAS[iQ], clase, f, c["p"],
+                         eps=c["eps"][iT * c["nQ"] + iQ],
+                         semilla_ruido=c["sem_nodo"][k])
+    assert fila is not None
+
+    cols = list(columnas_ruidosas(c["p"].topologia))
+    r = evaluar(f"""
+      const M = FDD_MALLA, out = {{}};
+      for (const col of {json.dumps(cols)}) out[col] = M.datos[col][{k}];
+      return out;
+    """)
+    assert "error" not in r, r
+    for col in cols:
+        esperado = round(float(fila[col]), DECIMALES_RUIDOSO)
+        assert r["ok"][col] == pytest.approx(esperado, abs=10 ** -DECIMALES_RUIDOSO), (
+            f"{col} en el nodo {k}: la malla trae {r['ok'][col]} y recalcular da {esperado}")
+
+
+@pytest.mark.parametrize("iT,iQ,clase,iS", NODOS_DE_MUESTRA)
+def test_el_bloque_ruidoso_coincide_con_el_pipeline_de_entrenamiento(
+        contexto_malla, iT, iQ, clase, iS):
+    """La prueba que importa: ¿es el MISMO cálculo que hizo el dataset?
+
+    Se reconstruye el residuo ruidoso con las primitivas de `src.generador`
+    —`aplicar_discrepancia`, `_referencia_sana`, `aplicar_ruido`— en lugar de
+    volver a llamar al exportador. Así, si el exportador se desviara de cómo se
+    generaron los datos de entrenamiento, se vería aquí y no en la defensa.
+    """
+    from config.params import TOL_BALANCE
+    from src.ciclo import AjustesCiclo, CondicionContorno, resolver_ciclo
+    from src.exportador_web import (CARGAS, HR_FIJA, SEVERIDADES, TEMPERATURAS,
+                                    _estado_punto, columnas_ruidosas)
+    from src.fallas import ajustes_de_falla
+    from src.features import calcular_residuos, columnas_residuos, derivadas_desde_medicion
+    from src.generador import _referencia_sana, aplicar_discrepancia, aplicar_ruido, rng_desde
+
+    c = contexto_malla
+    p = c["p"]
+    iC = c["clases"].index(clase)
+    k = ((iT * c["nQ"] + iQ) * c["nC"] + iC) * c["nS"] + iS
+    f = 0.0 if clase == "sano" else SEVERIDADES[iS]
+    eps = c["eps"][iT * c["nQ"] + iQ]
+    cond = CondicionContorno(TEMPERATURAS[iT], HR_FIJA, CARGAS[iQ])
+
+    # --- camino del pipeline de entrenamiento (src.generador) --------------
+    p_modelo = aplicar_discrepancia(p, eps)
+    _, _, derivadas_ref = _referencia_sana(cond, p_modelo)
+    assert derivadas_ref is not None
+    if clase == "sano":
+        deg = resolver_ciclo(cond, p, AjustesCiclo(), tol=TOL_BALANCE)
+    else:
+        deg = resolver_ciclo(cond, p, ajustes_de_falla(clase, f, p), tol=TOL_BALANCE)
+    assert deg.convergio
+    medido = aplicar_ruido(deg.dict_medible(), rng_desde(c["sem_nodo"][k]), 1.0)
+    esperado = calcular_residuos(derivadas_desde_medicion(medido, p),
+                                 derivadas_ref, p.topologia)
+
+    # --- camino del exportador --------------------------------------------
+    fila = _estado_punto(TEMPERATURAS[iT], CARGAS[iQ], clase, f, p,
+                         eps=eps, semilla_ruido=c["sem_nodo"][k])
+
+    for limpio, ruidoso in zip(columnas_residuos(p.topologia),
+                               columnas_ruidosas(p.topologia)):
+        assert fila[ruidoso] == pytest.approx(esperado[limpio], rel=1e-12, abs=1e-12), (
+            f"{ruidoso} divergió del cálculo de src.generador")
+
+
+def test_el_bloque_ruidoso_se_diferencia_del_limpio(contexto_malla):
+    """Control de que el bloque no es una copia del limpio con otro nombre."""
+    r = evaluar("""
+      const M = FDD_MALLA, mapa = M.residuo_ruidoso;
+      let n = 0, iguales = 0, nulos = 0;
+      for (const limpio in mapa) {
+        const a = M.datos[limpio], b = M.datos[mapa[limpio]];
+        for (let i = 0; i < a.length; i++) {
+          if (b[i] === null) { nulos++; continue; }
+          n++;
+          if (a[i] === b[i]) iguales++;
+        }
+      }
+      return {n: n, iguales: iguales, nulos: nulos};
+    """)
+    assert "error" not in r, r
+    o = r["ok"]
+    assert o["n"] > 0
+    # Con sigmas de sensor no nulas, dos bloques iguales serían un error de copia.
+    assert o["iguales"] / o["n"] < 0.01, (
+        f"{o['iguales']} de {o['n']} valores ruidosos son idénticos al limpio")
+
+
+def test_los_residuos_ruidosos_no_se_interpolan_nunca():
+    """Interpolar ruido independiente reduce sigma a la mitad: no se hace.
+
+    Se consulta el CENTRO de una celda interpolable. El bloque limpio debe
+    haberse interpolado —su valor no coincide con ninguna esquina— y el ruidoso
+    debe ser exactamente el de la esquina del vecino más próximo, que en el
+    centro es la esquina superior por el criterio `t < 0.5` de `consultar`.
+    """
+    r = evaluar("""
+      const M = FDD_MALLA;
+      const nT = M.temperaturas_C.length, nQ = M.cargas.length;
+      const nC = M.nClases, nS = M.nSeveridades;
+      const iC = M.clases.indexOf('condensador_sucio'), iS = 3;
+      const plano = (t, q) => ((t * nQ + q) * nC + iC) * nS + iS;
+      for (let iT = 0; iT < nT - 1; iT++) {
+        for (let iQ = 0; iQ < nQ - 1; iQ++) {
+          const idxC = ((iT * (nQ - 1) + iQ) * nC + iC) * nS + iS;
+          if (M.celda_bilineal[idxC] !== 1) continue;
+          const T = (M.temperaturas_C[iT] + M.temperaturas_C[iT + 1]) / 2;
+          const q = (M.cargas[iQ] + M.cargas[iQ + 1]) / 2;
+          const centro = FDD.consultar(T, q, 'condensador_sucio', M.severidades[iS]);
+          if (centro === null || centro._interpolacion !== 'bilineal') continue;
+          const esq = [plano(iT, iQ), plano(iT + 1, iQ),
+                       plano(iT, iQ + 1), plano(iT + 1, iQ + 1)];
+          // En el centro, t = 0,5 en los dos ejes, asi que el vecino mas
+          // proximo es la esquina alta: `t < 0.5` es falso en ambos.
+          const vecino = esq[3];
+          const limpias = esq.map(k => M.datos.res_SC[k]);
+          const ruidosas = esq.map(k => M.datos.res_ruidoso_SC[k]);
+          const media = (ruidosas[0] + ruidosas[1] + ruidosas[2] + ruidosas[3]) / 4;
+          return {
+            celda: [iT, iQ],
+            limpio_centro: centro.res_SC,
+            limpio_en_alguna_esquina: limpias.some(v => v === centro.res_SC),
+            ruidoso_centro: centro.res_ruidoso_SC,
+            ruidoso_vecino: M.datos.res_ruidoso_SC[vecino],
+            ruidoso_media_4: media,
+            dispersion_esquinas: Math.max.apply(null, ruidosas)
+                               - Math.min.apply(null, ruidosas)
+          };
+        }
+      }
+      return null;
+    """)
+    assert "error" not in r, r
+    assert r["ok"] is not None, "no se encontró ninguna celda interpolable de prueba"
+    o = r["ok"]
+    assert not o["limpio_en_alguna_esquina"], (
+        "el campo limpio debería haberse interpolado en el centro de la celda")
+    assert o["ruidoso_centro"] == o["ruidoso_vecino"], (
+        f"el bloque ruidoso NO es el del vecino más próximo en la celda {o['celda']}: "
+        f"{o['ruidoso_centro']} frente a {o['ruidoso_vecino']}")
+    # Y no es la media de las cuatro esquinas, que es lo que daría una bilineal
+    # en el centro y lo que reduciría el ruido a la mitad.
+    assert o["dispersion_esquinas"] > 0.0
+    assert o["ruidoso_centro"] != pytest.approx(o["ruidoso_media_4"], abs=1e-9), (
+        "el valor servido coincide con la media de las cuatro esquinas: se interpoló")
+
+
+def test_diagnosticar_declara_con_que_ruido_clasifica():
+    r = evaluar("""
+      const d = FDD.diagnosticar(30, 0.70, 'condensador_sucio', 0.75);
+      const cols = FDD_MODELO.columnas_entrada;
+      return {semilla: d.semilla, factor_ruido: d.factor_ruido,
+              nivel_discrepancia: d.nivel_discrepancia,
+              modo_discrepancia: d.modo_discrepancia,
+              clase: d.diagnostico.clase, confianza: d.diagnostico.confianza,
+              usa_ruidoso: d.residuos[cols[0]] === FDD.consultar(30, 0.70,
+                  'condensador_sucio', 0.75)[FDD_MALLA.residuo_ruidoso[cols[0]]],
+              tiene_limpios: d.residuos_limpios[cols[0]] !== undefined};
+    """)
+    assert "error" not in r, r
+    o = r["ok"]
+    from src.exportador_web import FACTOR_RUIDO_MALLA, SEMILLA_MALLA
+    from config.params import MODO_DISCREPANCIA, NIVEL_DISCREPANCIA
+    assert o["semilla"] == SEMILLA_MALLA
+    assert o["factor_ruido"] == FACTOR_RUIDO_MALLA
+    assert o["nivel_discrepancia"] == NIVEL_DISCREPANCIA
+    assert o["modo_discrepancia"] == MODO_DISCREPANCIA
+    assert o["usa_ruidoso"], "`diagnosticar` no está clasificando el bloque ruidoso"
+    assert o["tiene_limpios"], "los residuos limpios deben seguir disponibles"
+    assert isinstance(o["clase"], str) and len(o["clase"]) > 0
