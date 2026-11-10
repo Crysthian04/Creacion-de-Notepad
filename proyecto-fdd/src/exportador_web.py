@@ -616,6 +616,44 @@ def decidir_celdas(malla: dict) -> np.ndarray:
     return celdas
 
 
+def dominio_entrenamiento() -> dict:
+    """Rango de contorno con el que se generaron los datasets de entrenamiento.
+
+    Se LEE de `config.params.RangosContorno`, que es exactamente la misma
+    configuración que `src.generador.muestrear_condiciones` usó para el
+    hipercubo latino. No se escribe a mano aquí, y menos aún en el JavaScript:
+    si alguien amplía el barrido, el dato exportado lo sigue solo.
+
+    POR QUÉ HACE FALTA. La malla de operación se extendió por debajo del piso de
+    carga del dataset —hasta 0,28— para poder dibujar la zona de ciclado. El
+    clasificador NUNCA vio un punto ahí: el dataset tiene cero filas con
+    `Q_load_frac < 0,40` y cero filas en ciclado. Pedirle un diagnóstico en esa
+    banda es pedirle que extrapole fuera de su dominio, y un bosque aleatorio
+    extrapola devolviendo la hoja más parecida con toda la confianza del mundo.
+
+    `HR_amb_pct` se exporta por completitud pero NO se comprueba: la malla fija
+    la humedad en 80 % y, con condensador de aire, la humedad no interviene en el
+    ciclo. `consultar` ni siquiera la recibe como argumento.
+    """
+    from config.params import RangosContorno
+    r = RangosContorno()
+    return {
+        "T_amb_C": [float(r.T_amb_min), float(r.T_amb_max)],
+        "Q_load_frac": [float(r.Q_load_frac_min), float(r.Q_load_frac_max)],
+        "HR_amb_pct": [float(r.HR_amb_min), float(r.HR_amb_max)],
+        "ejes_comprobados": ["T_amb_C", "Q_load_frac"],
+        "fuente": ("config/params.py RangosContorno: los mismos rangos del hipercubo "
+                   "latino con el que se generaron data/dataset_balanceado.parquet y "
+                   "data/dataset_prevalencia.parquet"),
+        "nota": ("La malla llega mas abajo que el dataset, hasta carga 0,28, para poder "
+                 "dibujar la zona de ciclado. El clasificador no vio ningun punto por "
+                 "debajo de 0,40 ni ninguno en ciclado, asi que `diagnosticar()` marca "
+                 "esos puntos con `_fuera_de_entrenamiento` y NO los clasifica. El "
+                 "estado del ciclo si se devuelve: lo que falta es el mandato para "
+                 "diagnosticarlo, no el calculo."),
+    }
+
+
 def margenes_extrapolacion(malla: dict) -> dict:
     """Hasta dónde se admite una consulta FUERA del dominio de la malla.
 
@@ -697,6 +735,7 @@ def exportar_malla(malla: dict, p, ruta: Path | None = None) -> Path:
               f'demas casos, vecino mas proximo. Los campos discretos son SIEMPRE vecino.",\n'
               f'  "campos_discretos": {json.dumps(list(CAMPOS_DISCRETOS))},\n'
               f'  "margen_extrapolacion": {json.dumps(margenes_extrapolacion(malla))},\n'
+              f'  "dominio_entrenamiento": {json.dumps(dominio_entrenamiento())},\n'
               f'  "campos_siempre_vecino": {json.dumps(list(columnas_ruidosas(p.topologia)))},\n'
               f'  "nota_siempre_vecino": "El bloque `res_ruidoso_*` NO se interpola nunca. '
               f'El ruido de dos nodos vecinos es independiente, asi que promediar cuatro '

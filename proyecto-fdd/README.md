@@ -80,7 +80,7 @@ entorno.
 
 En un clon limpio, cinco pruebas de `tests/test_exportador.py` dan error porque
 `resultados/modelo_rf.joblib` está excluido del repositorio. El paso 3 lo regenera; hasta
-entonces el conteo esperado es **189 pasan, 5 errores** de 194. Ver «Qué se puede correr en un clon
+entonces el conteo esperado es **202 pasan, 5 errores** de 207. Ver «Qué se puede correr en un clon
 limpio» en la sección 7 bis.
 
 ```bash
@@ -225,9 +225,9 @@ pytest tests/test_exportador.py            # equivalencia exacta JS <-> scikit-l
 | `web/datos/fdd_metricas.js` | `FDD_METRICAS` | 0,03 MB — confusión y Wilson |
 | `web/datos/fdd_fisica.js` | `FDD_FISICA` | 0,01 MB — equipo, fallas, campana de saturación |
 | `web/js/fdd_inferencia.js` | `FDD` | 0,02 MB — inferencia de referencia |
-| `web/verificacion.html` | — | autoprueba de carga local, 11 comprobaciones |
+| `web/verificacion.html` | — | autoprueba de carga local, 12 comprobaciones |
 
-Total: **5,72 MB (5,46 MiB) en 6 archivos, cero dependencias externas** — ningún CDN, ninguna fuente web,
+Total: **5,73 MB (5,46 MiB) en 6 archivos, cero dependencias externas** — ningún CDN, ninguna fuente web,
 ningún `fetch`, ningún módulo ES6.
 
 ### Qué se puede correr en un clon limpio, y qué no
@@ -286,6 +286,15 @@ bit a bit, diferencia máxima 0,000e+00**, y cero pares (muestra, umbral) a meno
   presentes también cuando la consulta está dentro del dominio. El eje de severidad se **marca pero
   no se rechaza**, porque es vecino más próximo por diseño; una severidad fuera de `[0, 1]` sí falla
   ruidosamente.
+- **Dominio de entrenamiento:** la malla llega hasta carga **0,28** y el dataset nunca bajó de
+  **0,40** (`config/params.py:208`). Esos 1 540 nodos —el 33,3 % de la malla— están fuera del
+  dominio en el que el clasificador fue entrenado, así que `consultar()` los marca con
+  `_fuera_de_entrenamiento` y **`diagnosticar()` NO los clasifica**: devuelve el estado del ciclo,
+  `diagnostico: null` y el motivo. Lo que falta ahí es el mandato para diagnosticar, no el cálculo.
+  Los rangos los lee el exportador de `config.params.RangosContorno` —la misma configuración del
+  hipercubo latino— y viajan en `FDD_MALLA.dominio_entrenamiento`; no están escritos en el
+  JavaScript. `HR_amb_pct` se exporta pero no se comprueba, y el dato lo dice en
+  `ejes_comprobados`.
 - **Puntos sin estado estacionario:** los 189 nodos con `convergio = 0` llevan sus residuos en
   `null` y **`diagnosticar()` los rechaza**. `Math.fround(null)` vale 0, así que sin esa
   comprobación entraban al bosque como un vector de once ceros —una máquina perfectamente sana— y
@@ -302,10 +311,25 @@ La malla trae los residuos **dos veces**, y no son intercambiables:
 | `res_ruidoso_*` | con ruido de sensor y con `theta_modelo = theta_planta·(1+epsilon)`, igual que el dataset de entrenamiento | **lo que clasifica `diagnosticar()`** |
 
 El clasificador se entrenó con ruido y con un gemelo desafinado al 5 %, así que alimentarlo con
-residuos limpios lo hace parecer mejor de lo que es. **Medido sobre los 4 431 nodos utilizables:
-acierto 0,7364 con el bloque limpio frente a 0,6752 con el ruidoso** — 6,1 puntos de optimismo, del
+residuos limpios lo hace parecer mejor de lo que es. Medido con `FDD.consultar()`:
+
+| Nodos | n | Acierto ruidoso | Acierto limpio |
+|---|---|---|---|
+| Todos los utilizables | 4 431 | 0,6752 | 0,7364 |
+| **Dentro del dominio de entrenamiento** | **3 010** | **0,7156** | **0,7920** |
+| Fuera del dominio | 1 421 | 0,5897 | 0,6186 |
+
+La cifra defendible es la del medio: **0,7156**. La primera mezcla puntos sobre los que el
+clasificador no tenía nada que decir, y la banda fuera del dominio la arrastraba hacia abajo. La
+brecha limpio-ruidoso es **mayor** dentro del dominio —7,6 puntos frente a 6,1—, es decir el
+optimismo de clasificar residuos limpios es más grande justo donde el visualizador se va a usar. Del
 mismo orden que la cota del barrido de discrepancia (F1 macro 0,8198 con discrepancia nula frente a
 0,7572 en el caso base).
+
+El caso que lo explica: con residuos **limpios**, `sano` se reconoce el **100 %** de las veces
+dentro del dominio (280 nodos), porque el residuo limpio de una máquina sana es casi exactamente
+cero. Con ruido y discrepancia baja a 0,625, del orden del 0,64 que el informe reporta para `sano`
+en el conjunto de prueba.
 
 - El ruido se calcula en **Python**, no en el navegador. Los residuos son funciones no lineales de
   las mediciones —pasan por temperaturas de saturación de CoolProp—, así que sumar ruido a un
@@ -379,7 +403,7 @@ proyecto-fdd/
 ├── web/datos/*.js              # los cuatro archivos del visualizador
 ├── web/js/fdd_inferencia.js    # inferencia de referencia en JavaScript
 ├── web/verificacion.html       # autoprueba de carga local (no es el visualizador)
-├── tests/                      # 194 pruebas sobre las tres topologías
+├── tests/                      # 207 pruebas sobre las tres topologías
 │   ├── test_ciclo.py           #   solver, unidades, dominio físico
 │   ├── test_firmas.py          #   batería de firmas físicas (va primero)
 │   ├── test_features.py        #   lista blanca y residuos

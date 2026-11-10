@@ -545,3 +545,145 @@ def test_diagnosticar_declara_con_que_ruido_clasifica():
     assert o["usa_ruidoso"], "`diagnosticar` no está clasificando el bloque ruidoso"
     assert o["tiene_limpios"], "los residuos limpios deben seguir disponibles"
     assert isinstance(o["clase"], str) and len(o["clase"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# 5. Dominio de entrenamiento: la malla llega más abajo que el dataset
+# ---------------------------------------------------------------------------
+# `config/params.py` muestreó el hipercubo latino con `Q_load_frac >= 0,40`, y la
+# malla se extendió hasta 0,28 para poder dibujar la zona de ciclado. El
+# clasificador no vio ni un solo punto de esa banda —el dataset tiene cero filas
+# por debajo de 0,40 y cero filas en ciclado—, así que ahí no se diagnostica.
+def test_la_malla_declara_el_dominio_de_entrenamiento():
+    """Los rangos se LEEN de la configuración que generó el dataset."""
+    from config.params import RangosContorno
+    from src.exportador_web import dominio_entrenamiento
+
+    r = RangosContorno()
+    res = evaluar("return FDD_MALLA.dominio_entrenamiento;")
+    assert "error" not in res, res
+    d = res["ok"]
+    assert d["T_amb_C"] == [r.T_amb_min, r.T_amb_max]
+    assert d["Q_load_frac"] == [r.Q_load_frac_min, r.Q_load_frac_max]
+    assert d["HR_amb_pct"] == [r.HR_amb_min, r.HR_amb_max]
+    assert d["ejes_comprobados"] == ["T_amb_C", "Q_load_frac"]
+    esperado = dominio_entrenamiento()
+    assert d["T_amb_C"] == esperado["T_amb_C"]
+    assert d["Q_load_frac"] == esperado["Q_load_frac"]
+
+
+def test_el_dominio_declarado_cubre_los_datos_realmente_muestreados():
+    """Guardia contra una configuración que ya no describa los `.parquet`.
+
+    Si alguien cambiara `RangosContorno` sin regenerar los datos, el dato
+    exportado mentiría. Esta prueba compara el rango declarado con los mínimos y
+    máximos que de verdad hay en los datasets.
+    """
+    import pandas as pd
+
+    from src.exportador_web import dominio_entrenamiento
+
+    rutas = [RAIZ / "data" / "dataset_balanceado.parquet",
+             RAIZ / "data" / "dataset_prevalencia.parquet"]
+    if not all(r.exists() for r in rutas):
+        pytest.skip("los datasets no están generados")
+    d = dominio_entrenamiento()
+    for ruta in rutas:
+        df = pd.read_parquet(ruta, columns=["T_amb", "Q_load_frac"])
+        assert df["Q_load_frac"].min() >= d["Q_load_frac"][0] - 1e-9, ruta.name
+        assert df["Q_load_frac"].max() <= d["Q_load_frac"][1] + 1e-9, ruta.name
+        assert df["T_amb"].min() >= d["T_amb_C"][0] - 1e-9, ruta.name
+        assert df["T_amb"].max() <= d["T_amb_C"][1] + 1e-9, ruta.name
+
+
+@pytest.mark.parametrize("tAmb,carga,ejes", [
+    (30.0, 0.28, ["Q_load_frac"]),   # el suelo de la malla, muy por debajo del dataset
+    (30.0, 0.31, ["Q_load_frac"]),
+    (30.0, 0.34, ["Q_load_frac"]),
+    (30.0, 0.37, ["Q_load_frac"]),
+    (37.0, 0.70, ["T_amb_C"]),       # dentro del margen de malla, fuera del dataset
+    (23.0, 0.30, ["T_amb_C", "Q_load_frac"]),
+    (30.0, 1.03, ["Q_load_frac"]),   # por ENCIMA del techo de carga del dataset
+])
+def test_fuera_del_dominio_se_marca_y_no_se_clasifica(tAmb, carga, ejes):
+    r = evaluar(f"""
+      const e = FDD.consultar({tAmb}, {carga}, 'sano', 0);
+      const d = FDD.diagnosticar({tAmb}, {carga}, 'sano', 0);
+      return {{marca: e._fuera_de_entrenamiento,
+               ejes: e._fuera_de_entrenamiento_ejes.map(x => x.eje),
+               diagnostico: d.diagnostico, residuos: d.residuos,
+               bandera: d.fuera_de_entrenamiento, motivo: d.motivo,
+               hay_estado: d.estado !== null && isFinite(d.estado.T4_C)}};
+    """)
+    assert "error" not in r, r
+    o = r["ok"]
+    assert o["marca"] is True, f"({tAmb}, {carga}) no quedó marcado"
+    assert sorted(o["ejes"]) == sorted(ejes)
+    assert o["diagnostico"] is None, "se clasificó un punto fuera del dominio de entrenamiento"
+    assert o["residuos"] is None
+    assert o["bandera"] is True
+    assert "fuera del dominio de entrenamiento" in o["motivo"]
+    # El ESTADO del ciclo sí se devuelve: lo que falta es el mandato, no el cálculo.
+    assert o["hay_estado"] is True
+
+
+@pytest.mark.parametrize("tAmb,carga", [(24.0, 0.40), (30.0, 0.70), (36.0, 1.00)])
+def test_dentro_del_dominio_si_se_clasifica(tAmb, carga):
+    """Los bordes exactos del dominio cuentan como DENTRO."""
+    r = evaluar(f"""
+      const e = FDD.consultar({tAmb}, {carga}, 'condensador_sucio', 0.75);
+      const d = FDD.diagnosticar({tAmb}, {carga}, 'condensador_sucio', 0.75);
+      return {{marca: e._fuera_de_entrenamiento, ejes: e._fuera_de_entrenamiento_ejes,
+               clase: d.diagnostico && d.diagnostico.clase,
+               bandera: d.fuera_de_entrenamiento}};
+    """)
+    assert "error" not in r, r
+    o = r["ok"]
+    assert o["marca"] is False, f"({tAmb}, {carga}) está dentro del dominio y quedó marcado"
+    assert o["ejes"] == []
+    assert o["bandera"] is False
+    assert isinstance(o["clase"], str)
+
+
+def test_la_marca_cubre_toda_la_zona_de_ciclado():
+    """El defecto 1 vive en la zona de ciclado; la marca debe cubrirla entera.
+
+    No es una coincidencia afortunada: la máquina solo cicla por debajo de la
+    carga mínima que sostiene el compresor, y el dataset nunca bajó hasta ahí.
+    Pero conviene comprobarlo en lugar de suponerlo.
+    """
+    r = evaluar("""
+      const M = FDD_MALLA, d = M.dominio_entrenamiento;
+      const nT = M.temperaturas_C.length, nQ = M.cargas.length;
+      const nC = M.nClases, nS = M.nSeveridades;
+      let ciclado = 0, cicladoCubierto = 0, imposibles = 0, imposiblesCubiertos = 0;
+      let sinEstado = 0, sinEstadoCubierto = 0;
+      for (let i = 0; i < M.discretos.ciclado.length; i++) {
+        const q = Math.floor(i / (nS * nC)) % nQ, t = Math.floor(i / (nS * nC * nQ)) % nT;
+        const carga = M.cargas[q], T = M.temperaturas_C[t];
+        const fuera = carga < d.Q_load_frac[0] || carga > d.Q_load_frac[1]
+                   || T < d.T_amb_C[0] || T > d.T_amb_C[1];
+        if (M.discretos.convergio[i] === 0) { sinEstado++; if (fuera) sinEstadoCubierto++; }
+        if (M.discretos.ciclado[i] === 1) {
+          ciclado++; if (fuera) cicladoCubierto++;
+          if (M.datos.y_capacidad[i] < FDD_FISICA.capacidad_minima_compresor) {
+            imposibles++; if (fuera) imposiblesCubiertos++;
+          }
+        }
+      }
+      return {ciclado, cicladoCubierto, imposibles, imposiblesCubiertos,
+              sinEstado, sinEstadoCubierto};
+    """)
+    assert "error" not in r, r
+    o = r["ok"]
+    assert o["imposibles"] > 0 and o["ciclado"] > 0
+    assert o["imposiblesCubiertos"] == o["imposibles"], (
+        f"{o['imposibles'] - o['imposiblesCubiertos']} estados imposibles del defecto 1 "
+        "quedan DENTRO del dominio de entrenamiento y se seguirían diagnosticando")
+    assert o["cicladoCubierto"] == o["ciclado"], (
+        "la zona de ciclado no queda cubierta entera por la marca")
+    # Las dos marcas NO son redundantes: hay nodos sin estado estacionario
+    # dentro del dominio, que solo atrapa la comprobación de `convergio`.
+    assert o["sinEstadoCubierto"] < o["sinEstado"], (
+        "si la marca de entrenamiento cubriera todos los nodos sin estado "
+        "estacionario, la comprobación de `convergio` sería redundante; no lo es")

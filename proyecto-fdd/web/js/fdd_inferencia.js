@@ -139,6 +139,20 @@ var FDD = (function () {
     return _siempreVecino[c] === true;
   }
 
+  // Dominio en el que el clasificador fue ENTRENADO. Es distinto del dominio de
+  // la malla: la malla baja hasta carga 0,28 para poder dibujar la zona de
+  // ciclado, y el dataset nunca bajó de 0,40 ni incluyó un solo punto en
+  // ciclado. Los rangos los lee el exportador de `config/params.py` y viajan
+  // como dato; no se escriben aquí.
+  function dominioEntrenamiento() {
+    var d = FDD_MALLA.dominio_entrenamiento;
+    if (!d) {
+      throw new Error("la malla no declara `dominio_entrenamiento`: regenérala con "
+                      + "`python -m src.exportador_web --solo-malla`");
+    }
+    return d;
+  }
+
   function margenes() {
     var m = FDD_MALLA.margen_extrapolacion;
     if (!m) {
@@ -222,6 +236,22 @@ var FDD = (function () {
       if (ejesFuera[z].distancia > distanciaMax) distanciaMax = ejesFuera[z].distancia;
     }
 
+    // Fuera del dominio de ENTRENAMIENTO. Se comprueba el rango completo en los
+    // dos ejes, no solo el piso de carga: una consulta a carga 1,03 —que el
+    // margen de extrapolación admite— está tan fuera del dominio del dataset
+    // como una a 0,28, y un bosque aleatorio extrapola devolviendo la hoja más
+    // parecida con toda la confianza del mundo.
+    var dom = dominioEntrenamiento();
+    var fueraEnt = [];
+    if (tAmb < dom.T_amb_C[0] || tAmb > dom.T_amb_C[1]) {
+      fueraEnt.push({eje: "T_amb_C", valor: tAmb, rango: dom.T_amb_C,
+                     lado: tAmb < dom.T_amb_C[0] ? -1 : 1});
+    }
+    if (carga < dom.Q_load_frac[0] || carga > dom.Q_load_frac[1]) {
+      fueraEnt.push({eje: "Q_load_frac", valor: carga, rango: dom.Q_load_frac,
+                     lado: carga < dom.Q_load_frac[0] ? -1 : 1});
+    }
+
     var e = [indicePlano(cT.i, cQ.i, iC, iS), indicePlano(cT.i + 1, cQ.i, iC, iS),
              indicePlano(cT.i, cQ.i + 1, iC, iS), indicePlano(cT.i + 1, cQ.i + 1, iC, iS)];
     var reg = FDD_MALLA.discretos.regimen_cod;
@@ -246,7 +276,9 @@ var FDD = (function () {
                   _regimen: FDD_MALLA.regimenes[reg[vecino]],
                   _sin_estado_estacionario: !conv[vecino],
                   _extrapolado: ejesFuera.length > 0,
-                  _fuera_de_malla: {ejes: ejesFuera, distancia_max: distanciaMax}};
+                  _fuera_de_malla: {ejes: ejesFuera, distancia_max: distanciaMax},
+                  _fuera_de_entrenamiento: fueraEnt.length > 0,
+                  _fuera_de_entrenamiento_ejes: fueraEnt};
     var campos = FDD_MALLA.datos, c;
     for (c in campos) {
       if (!Object.prototype.hasOwnProperty.call(campos, c)) continue;
@@ -265,7 +297,12 @@ var FDD = (function () {
     return salida;
   }
 
-  // Diagnóstico completo: consulta la malla y clasifica el bloque de residuos
+  // Diagnóstico completo. Se NIEGA a clasificar en tres casos: consulta fuera de
+  // la malla, punto sin estado estacionario, y punto fuera del dominio en el que
+  // el clasificador fue entrenado. En los tres devuelve el estado cuando lo hay,
+  // `diagnostico: null` y un `motivo` legible.
+  //
+  // Consulta la malla y clasifica el bloque de residuos
   // CON RUIDO (`res_ruidoso_*`), que es el único comparable con los datos con
   // los que se entrenó el bosque. Los limpios se devuelven aparte, en
   // `residuos_limpios`, para el diagrama P-h. Clasificar los limpios daba unos
@@ -285,7 +322,22 @@ var FDD = (function () {
     }
     if (!estado.convergio) {
       return {estado: estado, residuos: null, diagnostico: null,
+              fuera_de_entrenamiento: estado._fuera_de_entrenamiento,
               motivo: "sin estado estacionario: el modelo no tiene solución en este punto"};
+    }
+    // El estado del ciclo SÍ se devuelve; lo que falta es el mandato para
+    // diagnosticarlo. El clasificador no vio ni un solo punto de esta región.
+    if (estado._fuera_de_entrenamiento) {
+      var dicho = [];
+      for (var j = 0; j < estado._fuera_de_entrenamiento_ejes.length; j++) {
+        var ej = estado._fuera_de_entrenamiento_ejes[j];
+        dicho.push(ej.eje + " = " + ej.valor + " fuera de ["
+                   + ej.rango[0] + ", " + ej.rango[1] + "]");
+      }
+      return {estado: estado, residuos: null, diagnostico: null,
+              fuera_de_entrenamiento: true,
+              dominio_entrenamiento: FDD_MALLA.dominio_entrenamiento,
+              motivo: "fuera del dominio de entrenamiento: " + dicho.join("; ")};
     }
     var ruido = FDD_MALLA.ruido_malla, mapa = FDD_MALLA.residuo_ruidoso;
     if (!mapa || !ruido) {
@@ -302,6 +354,8 @@ var FDD = (function () {
       limpios[col] = estado[col];
     }
     var comun = {estado: estado, residuos_limpios: limpios,
+                 fuera_de_entrenamiento: false,
+                 dominio_entrenamiento: FDD_MALLA.dominio_entrenamiento,
                  semilla: ruido.semilla, factor_ruido: ruido.factor_ruido,
                  nivel_discrepancia: ruido.nivel_discrepancia,
                  modo_discrepancia: ruido.modo_discrepancia};

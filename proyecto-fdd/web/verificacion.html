@@ -95,6 +95,17 @@ los cuatro archivos de datos cargan con doble clic bajo <code>file://</code>, si
        + (sinEstado && sinEstado.diagnostico === null ? 'null' : 'una clase')
        + ' («' + (sinEstado ? sinEstado.motivo : '') + '»)');
 
+  // El dataset se muestreó con carga >= 0,40 y la malla baja hasta 0,28 para
+  // poder dibujar la zona de ciclado. Ahí el clasificador no vio nada.
+  var dom = FDD_MALLA.dominio_entrenamiento;
+  var baja = FDD.diagnosticar(30, 0.30, 'condensador_sucio', 0.75);
+  comp('Fuera del dominio de entrenamiento: no se diagnostica',
+       baja.fuera_de_entrenamiento === true && baja.diagnostico === null
+       && isFinite(baja.estado.T4_C),
+       'entrenado en carga [' + dom.Q_load_frac[0] + ', ' + dom.Q_load_frac[1] + '] y '
+       + dom.T_amb_C[0] + '–' + dom.T_amb_C[1] + ' °C; a carga 0,30 se devuelve el estado '
+       + 'del ciclo pero no un diagnóstico');
+
   var s = FDD.consultar(30, 0.30, 'sano', 0);
   comp('Zona de ciclado documentada', typeof s.fraccion_marcha === 'number',
        'carga 0,30: ciclado=' + s.ciclado + ', fracción de marcha='

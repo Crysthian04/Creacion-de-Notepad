@@ -325,3 +325,179 @@ y `_fuera_de_malla`.
   pidió corregirlos; siguen anotados en `AUDITORIA_FDD_10NOV.md`.
 - **Sin decidir, de la sección 3**: si el visualizador debe mostrar en alguna
   parte la caída de acierto de 0,7364 a 0,6752, y dónde.
+
+---
+
+# Adenda — dominio de entrenamiento
+
+Añadida después de la primera entrega, sobre el mismo trabajo y la misma fecha,
+por lo que no se abre un archivo nuevo.
+
+## A.1 El problema
+
+El dataset se muestreó con `Q_load_frac ≥ 0,40` (`config/params.py:208`), y la
+malla se extendió hasta 0,28 para poder dibujar la zona de ciclado. El
+clasificador **no vio ni un solo punto de esa banda**: el dataset tiene cero
+filas con carga por debajo de 0,40 y cero filas en ciclado. Pedirle un
+diagnóstico ahí es pedirle que extrapole, y un bosque aleatorio extrapola
+devolviendo la hoja más parecida con toda la confianza del mundo.
+
+**1 540 de los 4 620 nodos de la malla (33,3 %) están fuera del dominio de
+entrenamiento**: los cuatro nodos de carga 0,28, 0,31, 0,34 y 0,37, en las siete
+temperaturas, once clases y cinco severidades.
+
+## A.2 Qué se implementó
+
+| Cambio | Archivo:línea |
+|---|---|
+| `dominio_entrenamiento()` lee los rangos de `config.params.RangosContorno` —la misma configuración que usó el hipercubo latino— y los exporta | `src/exportador_web.py:619`–`655`, emitido en `:738` |
+| `dominioEntrenamiento()` exige el dato y falla con el comando de regeneración si falta | `web/js/fdd_inferencia.js:147`–`160` |
+| `consultar` calcula la marca y la adjunta como `_fuera_de_entrenamiento` (booleano) y `_fuera_de_entrenamiento_ejes` (detalle: eje, valor, rango, lado) | `web/js/fdd_inferencia.js:244`–`262`, `280`–`281` |
+| `diagnosticar` **no clasifica** fuera del dominio: devuelve el estado, `diagnostico: null`, `fuera_de_entrenamiento: true` y un motivo legible | `web/js/fdd_inferencia.js:330`–`343` |
+| Dentro del dominio, el objeto también lo declara (`fuera_de_entrenamiento: false` y los rangos) | `web/js/fdd_inferencia.js:355`–`359` |
+| Fila nueva en la autoprueba | `web/verificacion.html:99`–`108` |
+
+**Los rangos viajan como dato, no escritos en el JS.** `FDD_MALLA.dominio_entrenamiento`
+trae `T_amb_C: [24, 36]`, `Q_load_frac: [0.4, 1]`, `HR_amb_pct: [60, 95]`, la
+lista `ejes_comprobados` y la fuente. Hay una prueba que compara el dato
+exportado contra `RangosContorno()` y **otra que lo compara contra los mínimos y
+máximos que de verdad hay en los `.parquet`**, para que una configuración que
+dejara de describir los datos no pase desapercibida.
+
+### Dos decisiones que van más allá de la letra del encargo
+
+1. **Se comprueba el rango completo en los dos ejes, no solo el piso de carga.**
+   El encargo decía «la carga por debajo del piso de entrenamiento, o la
+   temperatura ambiente fuera de su rango». Una consulta a carga 1,03 —que el
+   margen de extrapolación admite— está tan fuera del dominio del dataset como
+   una a 0,28, así que se marca igual. Si se prefiere la lectura literal, es un
+   `||` menos en `web/js/fdd_inferencia.js:252`.
+2. **La marca va en el estado que devuelve `consultar`, no solo en el resultado
+   de `diagnosticar`.** El encargo nombraba `diagnosticar()`. Ponerla en el
+   estado hace que cualquier consumidor la vea —la página de demostración la
+   necesita para pintar la bandera— y `diagnosticar` la lee de ahí. Es
+   consistente con `_extrapolado`, que ya funcionaba así.
+
+### `HR_amb_pct` se exporta pero NO se comprueba
+
+Está en el dato por completitud. La malla fija la humedad en 80 %, dentro del
+rango, y con condensador de aire la humedad no interviene en el ciclo:
+`consultar` ni la recibe como argumento. `ejes_comprobados` lo dice
+explícitamente para que nadie suponga que sí se valida.
+
+## A.3 Acierto dentro y fuera del dominio
+
+Medido con `FDD.consultar()` —la superficie que el visualizador expone—, no
+leyendo las matrices crudas.
+
+| Conjunto de nodos | n | Acierto **ruidoso** | Acierto **limpio** | Recall macro ruidoso / limpio |
+|---|---|---|---|---|
+| **Todos** (lo reportado antes) | 4 431 | **0,6752** | **0,7364** | 0,6759 / 0,7322 |
+| **Dentro** del dominio de entrenamiento | 3 010 | **0,7156** | **0,7920** | 0,7172 / 0,7903 |
+| Fuera del dominio | 1 421 | 0,5897 | 0,6186 | 0,5860 / 0,6043 |
+
+Dos lecturas:
+
+- **La banda fuera del dominio estaba arrastrando la cifra hacia abajo.**
+  Restringido a donde el modelo fue entrenado, el acierto con el bloque ruidoso
+  sube de 0,6752 a **0,7156**. Esa es la cifra defendible: la otra mezclaba
+  puntos sobre los que el clasificador no tenía nada que decir.
+- **La brecha limpio-ruidoso es MAYOR dentro del dominio**, no menor: 7,6 puntos
+  (0,7920 frente a 0,7156) contra 6,1 en el conjunto completo. Es decir, el
+  optimismo de clasificar residuos limpios es todavía más grande justo donde el
+  visualizador va a usarse.
+
+Recall por clase dentro del dominio (ruidoso / limpio):
+
+| Clase | n | Ruidoso | Limpio |
+|---|---|---|---|
+| `sano` | 280 | 0,625 | **1,000** |
+| `condensador_sucio` | 280 | 0,871 | 0,911 |
+| `incrustacion_evaporador` | 280 | 0,729 | 0,693 |
+| `caudal_agua_bajo` | 280 | 0,821 | 0,875 |
+| `carga_baja` | 219 | 0,826 | 0,744 |
+| `sobrecarga` | 280 | 0,586 | 0,789 |
+| `txv_restringida` | 279 | 0,541 | 0,688 |
+| `txv_sobrealimenta` | 280 | 0,796 | 0,757 |
+| `compresor_desgastado` | 280 | 0,750 | 0,800 |
+| `incondensables` | 280 | 0,857 | 0,925 |
+| `restriccion_linea_liquido` | 272 | 0,485 | 0,511 |
+
+La fila que conviene mirar es la primera: **con residuos limpios, `sano` se
+reconoce el 100 % de las veces**. Es el artefacto que justifica todo el bloque
+ruidoso — un residuo limpio de una máquina sana es casi exactamente cero y el
+bosque lo reconoce sin esfuerzo. Con ruido y discrepancia baja a 0,625, que es
+del orden del 0,64 de recall que el informe reporta para `sano` en el conjunto
+de prueba.
+
+## A.4 Cobertura del defecto 1
+
+**Los 519 estados imposibles del defecto 1 quedan cubiertos por la marca: 519 de
+519, el 100 %.** Reparto por carga: **262** en 0,28, **228** en 0,31 y **29** en
+0,34 — los tres por debajo del piso de 0,40.
+
+Y es más amplio que eso: **los 623 nodos marcados como `ciclado` están fuera del
+dominio de entrenamiento**, no solo los 519 imposibles. No es casualidad —la
+máquina solo cicla por debajo de la carga mínima que sostiene el compresor, y el
+dataset nunca bajó hasta ahí— pero hay una prueba que lo comprueba en lugar de
+suponerlo, y que fallaría si alguien ampliara la malla o el barrido.
+
+**Las dos marcas no son redundantes.** De los 189 nodos sin estado estacionario,
+**119 están fuera del dominio y 70 están dentro**. Esos 70 solo los atrapa la
+comprobación de `convergio` de §7.3. Hay una prueba que lo afirma, para que
+nadie retire una de las dos creyéndola cubierta por la otra.
+
+## A.5 Hallazgo: `sano` guarda cinco realizaciones de ruido y solo una es alcanzable
+
+Salió al cuadrar los números y no estaba buscado.
+
+La malla guarda cinco ranuras de severidad por clase. Para `sano` las cinco
+corresponden a `f = 0`, así que el bloque **limpio** es idéntico en las cinco
+—mismo cálculo determinista—. El bloque **ruidoso**, en cambio, tiene una
+semilla por nodo, de modo que **las cinco ranuras llevan cinco sorteos de ruido
+independientes**. Pero `consultar` fuerza `iS = 0` cuando la clase es `sano`
+(`web/js/fdd_inferencia.js:234`), que es correcto —`sano` ignora la severidad por
+construcción—, así que **cuatro de cada cinco realizaciones de `sano` no son
+alcanzables por la API**: 336 nodos con 11 valores cada uno.
+
+Consecuencias:
+
+- **Ninguna sobre la corrección.** Lo que el visualizador sirve es siempre la
+  ranura 0, de forma determinista y reproducible.
+- **Una sobre la medición**, y por eso se reporta: leyendo las matrices crudas el
+  acierto sale 0,6741, y por `consultar()` sale 0,6752. La diferencia son esas
+  realizaciones que nadie puede ver. **Las cifras de A.3 están medidas por
+  `consultar()`**, que es lo único reproducible desde el navegador.
+- Si se cuenta `sano` una sola vez por condición, para que no pese cinco veces,
+  el acierto dentro del dominio es **0,7229 ruidoso frente a 0,7753 limpio**
+  (n = 2 786). El recall macro no cambia, porque promedia por clase.
+
+**No lo corregí**, porque sembrar las cinco ranuras de `sano` con una sola
+semilla es un cambio de diseño que nadie pidió y que obligaría a regenerar la
+malla otra vez. Queda anotado. Cuesta del orden de media hora más una
+regeneración de siete minutos, y ahorraría unos 30 kB.
+
+## A.6 Verificación de la adenda
+
+- **Malla regenerada por completo** (`python -m src.exportador_web --solo-malla
+  --sin-validar`, 11 min con la suite compitiendo por los núcleos) y comparada
+  contra el archivo que yo había parcheado a mano insertando solo la línea
+  nueva: **idéntico byte a byte**. Los campos siguen intactos, así que
+  `resultados/malla_error.json` continúa siendo válido.
+- **Suite completa: 202 pasan, 5 errores de 207.** Los 5 errores son los mismos
+  de siempre, del `.joblib` ausente. Las 13 pruebas nuevas de esta adenda no
+  dependen de ese artefacto.
+- **`verificacion.html` en Chromium bajo `file://`: 12 de 12 correctas, cero
+  errores de página, cero mensajes de consola.** La fila nueva informa: «entrenado
+  en carga [0.4, 1] y 24–36 °C; a carga 0,30 se devuelve el estado del ciclo pero
+  no un diagnóstico».
+- `web/`: **5 727 188 B (5,73 MB)**. El dato del dominio añade 712 B a la malla.
+- `src/ciclo.py`, `data/` y `resultados/` siguen sin tocar; no se reentrenó nada.
+
+### Conteo de pruebas a lo largo del trabajo
+
+| | Recogidas | Pasan | Errores |
+|---|---|---|---|
+| Antes de todo | 161 | 156 | 5 |
+| Tras §7.3 + §7.1 + §7.2 | 194 | 189 | 5 |
+| Tras la adenda | **207** | **202** | **5** |
