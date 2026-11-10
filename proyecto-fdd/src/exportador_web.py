@@ -694,6 +694,7 @@ def margenes_extrapolacion(malla: dict) -> dict:
 
 
 def exportar_malla(malla: dict, p, ruta: Path | None = None) -> Path:
+    from src.features import unidades_residuos
     ruta = ruta or (DIR_DATOS / "fdd_malla.js")
     dec = {"m_r": 6, "y_capacidad": 6, "COP": 6, "fraccion_marcha": 6}
     # El bloque ruidoso alimenta al clasificador, no a una etiqueta de pantalla:
@@ -742,6 +743,7 @@ def exportar_malla(malla: dict, p, ruta: Path | None = None) -> Path:
               f'nodos reduciria la desviacion tipica a la mitad y desharia en silencio el '
               f'efecto que el bloque existe para representar.",\n'
               f'  "residuo_ruidoso": {json.dumps(mapa_residuo_ruidoso(p.topologia))},\n'
+              f'  "unidades_residuos": {json.dumps(unidades_residuos(p.topologia), ensure_ascii=False)},\n'
               f'  "ruido_malla": {json.dumps(malla.get("ruido", {}))},\n'
               f'  "nota_ruido_malla": "`res_*` son limpios y sirven para el diagrama P-h. '
               f'`res_ruidoso_*` llevan ruido de sensor y discrepancia modelo-planta, como '

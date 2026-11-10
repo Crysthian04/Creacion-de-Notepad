@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FDD — demostración</title>
+<!--
+  Página de demostración del módulo FDD. Se abre con DOBLE CLIC: no necesita
+  servidor. Los cuatro archivos de datos se cargan con <script src=...>, porque
+  bajo file:// el origen es `null` y `fetch()` queda bloqueado.
+
+  NO HAY ANIMACIONES. Los deslizadores recalculan en cada paso y cada repintado
+  es el resultado de un cálculo; no hay transiciones, ni easing, ni
+  reconstrucción del arranque matutino —que el defecto 1 de la zona de ciclado
+  impide, y así está documentado en el README—.
+
+  Todo dato cuantitativo de esta página sale de los `.js` exportados. Los
+  rangos, las unidades, los signos esperados y el dominio de entrenamiento NO
+  están escritos aquí: viajan como dato desde Python.
+-->
+<style>
+ :root{
+   --fondo:#ffffff; --fondo2:#f6f7f8; --borde:#d7dbdf; --texto:#16191c;
+   --suave:#5d666e; --ok:#0a7d32; --mal:#b3261e; --aviso:#8a5a00;
+   --aviso-fondo:#fdf6e3; --acento:#1b5fa8; --tenue:#eef1f4;
+ }
+ @media (prefers-color-scheme: dark){
+   :root:not([data-theme="light"]){
+     --fondo:#15181b; --fondo2:#1c2024; --borde:#333a40; --texto:#e7eaed;
+     --suave:#9aa4ad; --ok:#4ec977; --mal:#ff8a80; --aviso:#e8b964;
+     --aviso-fondo:#2a2317; --acento:#79b4f2; --tenue:#22272b;
+   }
+ }
+ :root[data-theme="dark"]{
+   --fondo:#15181b; --fondo2:#1c2024; --borde:#333a40; --texto:#e7eaed;
+   --suave:#9aa4ad; --ok:#4ec977; --mal:#ff8a80; --aviso:#e8b964;
+   --aviso-fondo:#2a2317; --acento:#79b4f2; --tenue:#22272b;
+ }
+ *{box-sizing:border-box}
+ body{background:var(--fondo);color:var(--texto);margin:0;
+      font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+ .env{max-width:62rem;margin:0 auto;padding:1.25rem 16px 3rem}
+ h1{font-size:1.25rem;margin:0 0 .35rem}
+ h2{font-size:.95rem;margin:1.6rem 0 .5rem;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--suave)}
+ .rotulo{background:var(--fondo2);border:1px solid var(--borde);border-left:4px solid var(--acento);
+         border-radius:6px;padding:.7rem .9rem;margin:.75rem 0 1.25rem;font-size:.9rem}
+ .rotulo strong{color:var(--texto)}
+ .sim{color:var(--aviso);font-weight:600}
+ .rejilla{display:grid;gap:1rem;grid-template-columns:1fr}
+ @media (min-width:48rem){ .rejilla.dos{grid-template-columns:1fr 1fr} }
+ .caja{background:var(--fondo2);border:1px solid var(--borde);border-radius:6px;padding:.9rem}
+ label{display:block;font-size:.85rem;color:var(--suave);margin:.1rem 0 .3rem}
+ .valor{font-variant-numeric:tabular-nums;font-weight:600;color:var(--texto)}
+ input[type=range]{width:100%;margin:0;accent-color:var(--acento)}
+ datalist{display:flex;justify-content:space-between;writing-mode:horizontal-tb;
+          font-size:.68rem;color:var(--suave);font-variant-numeric:tabular-nums}
+ datalist option{padding:0}
+ select{width:100%;padding:.4rem;background:var(--fondo);color:var(--texto);
+        border:1px solid var(--borde);border-radius:4px;font:inherit}
+ .sev{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.2rem}
+ .sev button{flex:1 1 5.2rem;padding:.4rem .2rem;background:var(--fondo);color:var(--texto);
+   border:1px solid var(--borde);border-radius:4px;font:inherit;font-size:.82rem;cursor:pointer}
+ .sev button[aria-pressed=true]{background:var(--acento);border-color:var(--acento);color:#fff}
+ .sev button:disabled{opacity:.4;cursor:not-allowed}
+ .sev small{display:block;font-size:.7rem;color:inherit;opacity:.8}
+ .scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch}
+ table{border-collapse:collapse;width:100%;font-size:.86rem;min-width:34rem}
+ th,td{border:1px solid var(--borde);padding:.3rem .5rem;text-align:right;
+       font-variant-numeric:tabular-nums}
+ th{background:var(--tenue);text-align:right;font-weight:600;font-size:.78rem;
+    color:var(--suave);text-transform:uppercase;letter-spacing:.03em}
+ td.n,th.n{text-align:left;font-variant-numeric:normal}
+ tr.caracteristico td{background:var(--tenue)}
+ tr.caracteristico td.n:first-child::after{content:" ◂ característico";color:var(--acento);
+   font-size:.72rem;letter-spacing:.02em}
+ .ok{color:var(--ok);font-weight:600} .mal{color:var(--mal);font-weight:600}
+ .nd{color:var(--suave)}
+ .banderas{display:flex;flex-wrap:wrap;gap:.4rem;margin:.2rem 0 0}
+ .b{display:inline-flex;align-items:center;gap:.35rem;border:1px solid var(--borde);
+    border-radius:999px;padding:.2rem .65rem;font-size:.82rem;background:var(--fondo)}
+ .b.on{border-color:var(--aviso);background:var(--aviso-fondo);color:var(--aviso);font-weight:600}
+ .b.off{color:var(--suave)}
+ .b .pt{width:.5rem;height:.5rem;border-radius:50%;background:var(--borde)}
+ .b.on .pt{background:var(--aviso)}
+ .diag{font-size:1.05rem;font-weight:700;margin:.15rem 0}
+ .conf{font-variant-numeric:tabular-nums;color:var(--suave);font-size:.86rem}
+ .subt{font-size:.78rem;color:var(--suave);margin:.1rem 0 .5rem}
+ .negado{color:var(--aviso);font-weight:600;font-size:.92rem}
+ .motivo{font-size:.82rem;color:var(--suave);margin-top:.3rem}
+ .probs{margin-top:.5rem;font-size:.8rem}
+ .probs div{display:flex;align-items:center;gap:.4rem;margin:.1rem 0}
+ .probs span.k{flex:0 0 11rem;color:var(--suave)}
+ .probs span.bar{height:.55rem;background:var(--acento);border-radius:2px}
+ .probs span.v{font-variant-numeric:tabular-nums;color:var(--suave)}
+ footer{margin-top:2rem;padding-top:1rem;border-top:1px solid var(--borde);
+        font-size:.8rem;color:var(--suave)}
+ footer code{background:var(--tenue);padding:0 .25rem;border-radius:3px}
+ footer dl{display:grid;grid-template-columns:auto 1fr;gap:.15rem .7rem;margin:.4rem 0}
+ footer dt{color:var(--texto)} footer dd{margin:0}
+ .fallo{background:var(--aviso-fondo);border:1px solid var(--aviso);color:var(--aviso);
+        border-radius:6px;padding:1rem;margin:1rem 0}
+</style>
+</head>
+<body>
+<div class="env">
+
+<h1>Detección y diagnóstico de fallas — demostración</h1>
+
+<p class="rotulo">
+  <strong>Sistema de estudio:</strong> enfriadora condensada por aire, R-134a,
+  100 TR (351,7 kW). <strong>Sistema distinto del congelador del sitio.</strong>
+  <span class="sim">Resultados simulados.</span>
+</p>
+
+<div id="raiz">Cargando los archivos de datos…</div>
+
+<footer id="pie"></footer>
+</div>
+
+<script src="datos/fdd_modelo.js"></script>
+<script src="datos/fdd_fisica.js"></script>
+<script src="datos/fdd_malla.js"></script>
+<script src="datos/fdd_metricas.js"></script>
+<script src="js/fdd_inferencia.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var raiz = document.getElementById("raiz");
+  function morir(msg) {
+    raiz.innerHTML = '<div class="fallo"><strong>La página no puede arrancar.</strong><br>'
+      + esc(msg) + '</div>';
+    throw new Error(msg);
+  }
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  if (typeof FDD === "undefined" || typeof FDD_MALLA === "undefined"
+      || typeof FDD_MODELO === "undefined" || typeof FDD_FISICA === "undefined") {
+    morir("No se cargaron los archivos de datos. Esta página debe abrirse desde la "
+          + "carpeta web/ del proyecto, con datos/ y js/ a su lado.");
+  }
+
+  var M = FDD_MALLA, MO = FDD_MODELO, FIS = FDD_FISICA;
+  var DOM = M.dominio_entrenamiento, MARG = M.margen_extrapolacion;
+  var UNID = M.unidades_residuos, MAPA_R = M.residuo_ruidoso;
+  var RUIDO = M.ruido_malla;
+  var COLS = MO.columnas_entrada;
+  if (!DOM || !MARG || !UNID || !MAPA_R || !RUIDO) {
+    morir("La malla exportada es anterior a esta página: le faltan "
+          + "`dominio_entrenamiento`, `margen_extrapolacion`, `unidades_residuos`, "
+          + "`residuo_ruidoso` o `ruido_malla`. Regenérala con "
+          + "`python -m src.exportador_web --solo-malla`.");
+  }
+
+  // Los deslizadores van algo MÁS ALLÁ del margen de extrapolación, a propósito:
+  // así se puede llegar a la zona donde `consultar()` devuelve null y la página
+  // enseña el rechazo duro en lugar de solo describirlo.
+  var T_NODOS = M.temperaturas_C, Q_NODOS = M.cargas, SEVS = M.severidades;
+  var T_MIN = Math.min.apply(null, T_NODOS) - 4, T_MAX = Math.max.apply(null, T_NODOS) + 4;
+  var Q_MIN = Math.max(0.05, Math.min.apply(null, Q_NODOS) - 0.10);
+  var Q_MAX = Math.max.apply(null, Q_NODOS) + 0.10;
+
+  var estado = {T: 30, q: 0.70, clase: "condensador_sucio", sev: SEVS[3]};
+
+  // --- utilidades de formato ------------------------------------------------
+  function num(v, d) {
+    if (v === null || v === undefined || typeof v !== "number" || !isFinite(v)) return "—";
+    return v.toFixed(d === undefined ? 3 : d);
+  }
+  function coma(s) { return String(s).replace(".", ","); }
+  function fnum(v, d) { return coma(num(v, d)); }
+  function nivelDe(f) {
+    var n = FIS.niveles_severidad || {};
+    for (var k in n) if (Object.prototype.hasOwnProperty.call(n, k)) {
+      if (f > n[k][0] - 1e-9 && f <= n[k][1] + 1e-9) return k;
+    }
+    return "";
+  }
+
+  // --- construcción de los controles ---------------------------------------
+  function marcas(nodos, dec) {
+    var h = "";
+    for (var i = 0; i < nodos.length; i++) h += '<option value="' + nodos[i] + '"></option>';
+    return h;
+  }
+  function pintarControles() {
+    var opc = "";
+    for (var i = 0; i < M.clases.length; i++) {
+      opc += '<option value="' + esc(M.clases[i]) + '"'
+           + (M.clases[i] === estado.clase ? " selected" : "") + ">"
+           + esc(M.clases[i]) + "</option>";
+    }
+    var bot = "";
+    for (var k = 0; k < SEVS.length; k++) {
+      bot += '<button type="button" data-sev="' + SEVS[k] + '" aria-pressed="false">'
+           + coma(SEVS[k].toFixed(2)) + "<small>" + esc(nivelDe(SEVS[k])) + "</small></button>";
+    }
+    return ''
+      + '<div class="rejilla dos">'
+      + '  <div class="caja">'
+      + '    <label for="sT">Temperatura del aire al condensador — <span class="valor" id="vT"></span></label>'
+      + '    <input type="range" id="sT" list="lT" min="' + T_MIN + '" max="' + T_MAX + '" step="0.1">'
+      + '    <datalist id="lT">' + marcas(T_NODOS) + '</datalist>'
+      + '    <div class="subt" id="hT"></div>'
+      + '    <label for="sQ">Fracción de carga — <span class="valor" id="vQ"></span></label>'
+      + '    <input type="range" id="sQ" list="lQ" min="' + Q_MIN + '" max="' + Q_MAX + '" step="0.005">'
+      + '    <datalist id="lQ">' + marcas(Q_NODOS) + '</datalist>'
+      + '    <div class="subt" id="hQ"></div>'
+      + '  </div>'
+      + '  <div class="caja">'
+      + '    <label for="sC">Modo de falla inyectado</label>'
+      + '    <select id="sC">' + opc + '</select>'
+      + '    <label style="margin-top:.7rem">Severidad <span id="hS" class="nd"></span></label>'
+      + '    <div class="sev" id="sS">' + bot + '</div>'
+      + '  </div>'
+      + '</div>';
+  }
+
+  raiz.innerHTML = pintarControles()
+    + '<h2>Estado y banderas</h2><div class="caja"><div class="banderas" id="bnd"></div>'
+    + '<div class="subt" id="estadoTxt" style="margin:.6rem 0 0"></div></div>'
+    + '<h2>Diagnóstico</h2><div class="rejilla dos" id="diag"></div>'
+    + '<h2>Residuos</h2><div id="tabla"></div>';
+
+  var sT = document.getElementById("sT"), sQ = document.getElementById("sQ");
+  var sC = document.getElementById("sC"), sS = document.getElementById("sS");
+
+  // --- banderas -------------------------------------------------------------
+  function bandera(on, txt) {
+    return '<span class="b ' + (on ? "on" : "off") + '"><span class="pt"></span>'
+         + esc(txt) + "</span>";
+  }
+  function pintarBanderas(e) {
+    var b = document.getElementById("bnd"), t = document.getElementById("estadoTxt");
+    if (e === null) {
+      // No hay estado, pero las condiciones de contorno sí se conocen: una
+      // consulta tan lejos de la malla está también fuera del dominio de
+      // entrenamiento, y apagar esa bandera sería engañoso.
+      var ejesEnt = [];
+      if (estado.T < DOM.T_amb_C[0] || estado.T > DOM.T_amb_C[1]) ejesEnt.push("T_amb_C");
+      if (estado.q < DOM.Q_load_frac[0] || estado.q > DOM.Q_load_frac[1]) {
+        ejesEnt.push("Q_load_frac");
+      }
+      b.innerHTML = bandera(true, "fuera de la malla — consulta rechazada")
+                  + bandera(ejesEnt.length > 0, "fuera del dominio de entrenamiento"
+                            + (ejesEnt.length ? " (" + ejesEnt.join(", ") + ")" : ""))
+                  + bandera(false, "sin estado estacionario — no determinable")
+                  + bandera(false, "ciclado — no determinable");
+      t.innerHTML = "La consulta se sale más de un paso de nodo del dominio de la malla, "
+        + "así que <code>consultar()</code> devuelve <code>null</code> y no hay estado que "
+        + "mostrar. Margen admitido: " + coma(MARG.temperaturas_C[0]) + "–"
+        + coma(MARG.temperaturas_C[1]) + " °C y carga " + coma(MARG.cargas[0]) + "–"
+        + coma(MARG.cargas[1]) + ". Las dos últimas banderas no se pueden evaluar sin "
+        + "estado: no son «no», son <strong>no determinables</strong>.";
+      return;
+    }
+    var ejesM = e._fuera_de_malla.ejes.map(function (x) { return x.eje; }).join(", ");
+    var ejesE = e._fuera_de_entrenamiento_ejes.map(function (x) { return x.eje; }).join(", ");
+    var cicla = e.ciclado === 1;
+    var yMin = FIS.capacidad_minima_compresor;
+    var imposible = cicla && typeof e.y_capacidad === "number" && e.y_capacidad < yMin;
+    b.innerHTML = bandera(e._extrapolado, "fuera de la malla"
+                          + (ejesM ? " (" + ejesM + ")" : ""))
+                + bandera(e._fuera_de_entrenamiento, "fuera del dominio de entrenamiento"
+                          + (ejesE ? " (" + ejesE + ")" : ""))
+                + bandera(e.convergio === 0, "sin estado estacionario")
+                + bandera(cicla, "ciclado");
+    var filas = [];
+    filas.push("Régimen resuelto: <strong>" + esc(e._regimen) + "</strong>");
+    filas.push("Interpolación: <strong>" + esc(e._interpolacion) + "</strong>");
+    if (e.convergio === 0) {
+      filas.push('<span class="negado">El solver no tiene solución estacionaria en este '
+        + "punto, así que no hay residuos y no se diagnostica.</span>");
+    } else {
+      filas.push("Evaporación " + fnum(e.T4_C, 2) + " °C · condensación "
+        + fnum(e.T3_C, 2) + " °C · ṁ " + fnum(e.m_r, 4) + " kg/s · potencia "
+        + fnum(e.W_elec_W / 1000, 1) + " kW · COP " + fnum(e.COP, 2));
+      filas.push("Capacidad del compresor: <strong>" + fnum(e.y_capacidad, 4)
+        + "</strong> (mínimo de la válvula deslizante " + coma(yMin) + ")");
+    }
+    if (imposible) {
+      // Defecto 1, abierto y documentado en el README. La fracción de marcha de
+      // estos nodos vale 1,000 y NO es la proporción real de tiempo encendido:
+      // la página no la muestra como si lo fuera.
+      filas.push('<span class="negado">DEFECTO ABIERTO (zona de ciclado): la capacidad '
+        + "resuelta (" + fnum(e.y_capacidad, 4) + ") queda por debajo del mínimo del "
+        + "compresor (" + coma(yMin) + ") mientras se sostiene el setpoint, que es un estado "
+        + "que la máquina no puede tener. Por eso el régimen resuelto dice «"
+        + esc(e._regimen) + "» y la bandera de ciclado está encendida al mismo tiempo: el "
+        + "solver fija la bandera antes de reintentar a capacidad mínima y conserva la "
+        + "solución no acotada si el reintento no mejora el residuo. La fracción de marcha "
+        + "de este nodo NO es fiable y no se muestra. Son 519 nodos de la malla; está "
+        + "documentado en el README y no está corregido.</span>");
+    } else if (cicla) {
+      filas.push("Fracción de marcha: <strong>" + fnum(e.fraccion_marcha, 3) + "</strong>");
+    }
+    t.innerHTML = filas.join("<br>");
+  }
+
+  // --- diagnóstico ----------------------------------------------------------
+  function barras(pr) {
+    var ord = [], i;
+    for (i = 0; i < pr.length; i++) ord.push([MO.clases[i], pr[i]]);
+    ord.sort(function (a, b) { return b[1] - a[1]; });
+    var h = '<div class="probs">';
+    for (i = 0; i < Math.min(4, ord.length); i++) {
+      if (ord[i][1] <= 0) break;
+      h += "<div><span class='k'>" + esc(ord[i][0]) + "</span>"
+         + "<span class='bar' style='width:" + (ord[i][1] * 100).toFixed(1) + "%'></span>"
+         + "<span class='v'>" + fnum(ord[i][1], 3) + "</span></div>";
+    }
+    return h + "</div>";
+  }
+  function panel(titulo, subtitulo, cuerpo) {
+    return '<div class="caja"><h3 style="margin:0;font-size:.9rem">' + esc(titulo)
+         + '</h3><div class="subt">' + subtitulo + "</div>" + cuerpo + "</div>";
+  }
+  function pintarDiagnostico(d, e) {
+    var cont = document.getElementById("diag");
+    var subRuido = "residuos <strong>con ruido de sensor y discrepancia</strong>, como los "
+      + "datos de entrenamiento. Es el resultado que corresponde al informe.";
+    var subLimpio = "lo que diría el modelo con residuos limpios — <strong>no es el "
+      + "resultado del informe</strong>. Acierto 0,7920 frente a 0,7156 dentro del dominio.";
+
+    // REGLA: si `diagnosticar()` se niega, NINGUNA de las dos columnas muestra
+    // clase. El bloque limpio se podría clasificar llamando a `predecir()` por
+    // separado, y hacerlo aquí reintroduciría justo lo que se corrigió.
+    if (d.diagnostico === null) {
+      var neg = '<div class="negado">Sin diagnóstico</div>'
+              + '<div class="motivo">' + esc(d.motivo) + "</div>";
+      if (d.fuera_de_entrenamiento) {
+        neg += '<div class="motivo">El clasificador se entrenó con carga en ['
+             + coma(DOM.Q_load_frac[0]) + ", " + coma(DOM.Q_load_frac[1]) + "] y ambiente "
+             + coma(DOM.T_amb_C[0]) + "–" + coma(DOM.T_amb_C[1]) + " °C. Fuera de ahí no vio "
+             + "ni un punto, y un bosque aleatorio extrapola devolviendo la hoja más "
+             + "parecida con toda la confianza del mundo.</div>";
+      }
+      cont.innerHTML = panel("Con ruido", subRuido, neg)
+                     + panel("Con residuos limpios", subLimpio, neg);
+      return;
+    }
+    var limpio = FDD.predecir(d.residuos_limpios);
+    function cuerpo(r) {
+      return '<div class="diag">' + esc(r.clase) + "</div>"
+           + '<div class="conf">confianza ' + fnum(r.confianza, 3) + "</div>"
+           + barras(r.probabilidades);
+    }
+    var nota = (d.diagnostico.clase === limpio.clase) ? "" :
+      '<div class="motivo">Las dos columnas <strong>no coinciden</strong> en este punto: '
+      + "es el efecto del ruido y del error de calibración del gemelo digital.</div>";
+    cont.innerHTML = panel("Con ruido", subRuido, cuerpo(d.diagnostico) + nota)
+                   + panel("Con residuos limpios", subLimpio, cuerpo(limpio));
+  }
+
+  // --- tabla de residuos ----------------------------------------------------
+  function signoTxt(s) { return s > 0 ? "+" : (s < 0 ? "−" : "0"); }
+  function pintarTabla(e, hayDiag) {
+    var cont = document.getElementById("tabla");
+    if (e === null || e.convergio === 0) {
+      cont.innerHTML = '<div class="caja nd">No hay residuos que mostrar en este punto.</div>';
+      return;
+    }
+    var firmas = (FIS.firmas_esperadas || {})[estado.clase] || {};
+    var carac = (FIS.residuo_caracteristico || {})[estado.clase];
+    var h = '<div class="scrollx"><table><thead><tr>'
+      + '<th class="n">Residuo</th><th class="n">Unidad</th>'
+      + '<th>Limpio</th><th>Con ruido</th><th>Diferencia</th>'
+      + '<th>Signo esperado</th><th>¿Coincide?</th></tr></thead><tbody>';
+    for (var i = 0; i < COLS.length; i++) {
+      var col = COLS[i];
+      var vl = e[col], vr = e[MAPA_R[col]];
+      var sig = Object.prototype.hasOwnProperty.call(firmas, col) ? firmas[col] : null;
+      var cel;
+      if (sig === null) {
+        cel = '<td class="nd">—</td><td class="nd">—</td>';
+      } else {
+        var okL = typeof vl === "number" && isFinite(vl) && Math.sign(vl) === Math.sign(sig);
+        var okR = typeof vr === "number" && isFinite(vr) && Math.sign(vr) === Math.sign(sig);
+        cel = "<td>" + signoTxt(sig) + "</td><td>"
+            + '<span class="' + (okL ? "ok" : "mal") + '">' + (okL ? "✓" : "✗") + "</span>"
+            + ' <span class="nd">/</span> '
+            + '<span class="' + (okR ? "ok" : "mal") + '">' + (okR ? "✓" : "✗") + "</span>"
+            + "</td>";
+      }
+      var dif = (typeof vl === "number" && typeof vr === "number") ? (vr - vl) : null;
+      h += '<tr' + (col === carac ? ' class="caracteristico"' : "") + ">"
+        + '<td class="n">' + esc(col) + '</td><td class="n">' + esc(UNID[col] || "?") + "</td>"
+        + "<td>" + fnum(vl, 4) + "</td><td>" + fnum(vr, 4) + "</td>"
+        + '<td class="nd">' + fnum(dif, 4) + "</td>" + cel + "</tr>";
+    }
+    h += "</tbody></table></div>";
+    h += '<div class="subt" style="margin-top:.5rem">'
+      + "La columna <strong>¿Coincide?</strong> compara el signo observado con el esperado: "
+      + "primero el limpio, después el que lleva ruido. Los signos esperados "
+      + "(<code>FDD_FISICA.firmas_esperadas</code>) se verificaron <strong>sin ruido</strong>, "
+      + "así que la referencia es la columna limpia. <strong>No hay tolerancia:</strong> un "
+      + "residuo pequeño puede cambiar de signo con el ruido del sensor, y ese ✗ en la "
+      + "segunda marca es precisamente ese fenómeno, no un error del modelo. Un «—» "
+      + "significa que la firma de esta falla no predice signo para ese residuo.";
+    if (!hayDiag) {
+      h += " Los residuos se muestran, pero el punto no se diagnostica.";
+    }
+    h += "</div>";
+    cont.innerHTML = h;
+  }
+
+  // --- pie ------------------------------------------------------------------
+  function pintarPie() {
+    document.getElementById("pie").innerHTML = ''
+      + "<dl>"
+      + "<dt>Semilla del ruido</dt><dd><code>" + esc(RUIDO.semilla) + "</code></dd>"
+      + "<dt>Factor de ruido</dt><dd>" + coma(RUIDO.factor_ruido) + " × las sigmas de la hoja "
+      + "<code>Instrumentos</code></dd>"
+      + "<dt>Discrepancia modelo-planta</dt><dd>" + coma(RUIDO.nivel_discrepancia)
+      + " (<code>" + esc(RUIDO.modo_discrepancia) + "</code>)</dd>"
+      + "<dt>Dominio de entrenamiento</dt><dd>carga [" + coma(DOM.Q_load_frac[0]) + ", "
+      + coma(DOM.Q_load_frac[1]) + "], ambiente " + coma(DOM.T_amb_C[0]) + "–"
+      + coma(DOM.T_amb_C[1]) + " °C · <code>" + esc(DOM.fuente) + "</code></dd>"
+      + "<dt>Malla</dt><dd>" + T_NODOS.length + " × " + Q_NODOS.length + " × "
+      + M.nClases + " × " + M.nSeveridades + " = " + M.discretos.convergio.length
+      + " nodos, humedad fija al " + coma(M.HR_fija_pct) + " %</dd>"
+      + "<dt>Modelo</dt><dd>bosque de " + MO.n_arboles + " árboles, " + MO.clases.length
+      + " clases, inferencia de referencia en JavaScript</dd>"
+      + "</dl>"
+      + "<p>Esta página no reentrena nada ni llama a ningún servidor: lee la malla de "
+      + "operación y el bosque ya exportados. Todo valor es <strong>simulado</strong> con un "
+      + "gemelo digital cuyos parámetros siguen marcados como provisionales; lo que se "
+      + "demuestra es que el método funciona y es implementable, no que ya esté implantado.</p>"
+      + "<p>Nota conocida: la malla guarda cinco sorteos de ruido para la clase "
+      + "<code>sano</code>, uno por ranura de severidad, y <code>consultar()</code> alcanza "
+      + "solo el primero, porque <code>sano</code> ignora la severidad por construcción. No "
+      + "afecta a lo que se ve aquí —siempre es la misma ranura, de forma determinista— y "
+      + "está anotado en <code>CAMBIOS_FDD_10NOV.md</code>, sección A.5.</p>";
+  }
+
+  // --- repintado ------------------------------------------------------------
+  function pistaFuera(valor, dominio, margen, unidad) {
+    if (valor < margen[0] || valor > margen[1]) {
+      return '<span class="negado">fuera de la malla: la consulta se rechaza</span>';
+    }
+    if (valor < dominio[0] || valor > dominio[1]) {
+      return '<span style="color:var(--aviso)">fuera del dominio de entrenamiento ('
+           + coma(dominio[0]) + "–" + coma(dominio[1]) + (unidad ? " " + unidad : "")
+           + "): no se diagnostica</span>";
+    }
+    return "dentro del dominio de entrenamiento";
+  }
+
+  function repintar() {
+    document.getElementById("vT").textContent = coma(estado.T.toFixed(1)) + " °C";
+    document.getElementById("vQ").textContent = coma((estado.q * 100).toFixed(1)) + " %";
+    document.getElementById("hT").innerHTML =
+      pistaFuera(estado.T, DOM.T_amb_C, MARG.temperaturas_C, "°C");
+    document.getElementById("hQ").innerHTML =
+      pistaFuera(estado.q, DOM.Q_load_frac, MARG.cargas, "");
+
+    var esSano = estado.clase === "sano";
+    var bot = sS.querySelectorAll("button");
+    for (var i = 0; i < bot.length; i++) {
+      bot[i].disabled = esSano;
+      bot[i].setAttribute("aria-pressed",
+        (!esSano && Number(bot[i].dataset.sev) === estado.sev) ? "true" : "false");
+    }
+    document.getElementById("hS").textContent = esSano
+      ? "— no aplica: la clase sana no tiene severidad" : "(" + nivelDe(estado.sev) + ")";
+
+    var e = FDD.consultar(estado.T, estado.q, estado.clase, esSano ? 0 : estado.sev);
+    var d = FDD.diagnosticar(estado.T, estado.q, estado.clase, esSano ? 0 : estado.sev);
+    pintarBanderas(e);
+    pintarDiagnostico(d, e);
+    pintarTabla(e, d.diagnostico !== null);
+  }
+
+  sT.value = estado.T; sQ.value = estado.q; 
+  sT.addEventListener("input", function () { estado.T = Number(sT.value); repintar(); });
+  sQ.addEventListener("input", function () { estado.q = Number(sQ.value); repintar(); });
+  sC.addEventListener("change", function () { estado.clase = sC.value; repintar(); });
+  sS.addEventListener("click", function (ev) {
+    var b = ev.target.closest("button");
+    if (!b || b.disabled) return;
+    estado.sev = Number(b.dataset.sev);
+    repintar();
+  });
+
+  pintarPie();
+  repintar();
+})();
+</script>
+</body>
+</html>

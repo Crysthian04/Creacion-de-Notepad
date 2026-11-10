@@ -80,7 +80,7 @@ entorno.
 
 En un clon limpio, cinco pruebas de `tests/test_exportador.py` dan error porque
 `resultados/modelo_rf.joblib` está excluido del repositorio. El paso 3 lo regenera; hasta
-entonces el conteo esperado es **202 pasan, 5 errores** de 207. Ver «Qué se puede correr en un clon
+entonces el conteo esperado es **208 pasan, 5 errores** de 213. Ver «Qué se puede correr en un clon
 limpio» en la sección 7 bis.
 
 ```bash
@@ -211,6 +211,7 @@ como `null` y bloquean `fetch()`, así que un `.json` haría que el visualizador
 del evaluador.
 
 ```bash
+# y abrir web/demo.html con doble clic — es la página de demostración
 python -m src.exportador_web               # los cuatro .js + resultados/malla_error.json
 python -m src.exportador_web --solo-malla  # solo la malla; NO necesita el .joblib
 pytest tests/test_inferencia_js.py         # contrato del visualizador (sin .joblib)
@@ -225,10 +226,44 @@ pytest tests/test_exportador.py            # equivalencia exacta JS <-> scikit-l
 | `web/datos/fdd_metricas.js` | `FDD_METRICAS` | 0,03 MB — confusión y Wilson |
 | `web/datos/fdd_fisica.js` | `FDD_FISICA` | 0,01 MB — equipo, fallas, campana de saturación |
 | `web/js/fdd_inferencia.js` | `FDD` | 0,02 MB — inferencia de referencia |
+| `web/demo.html` | — | **página de demostración**: controles, residuos, diagnóstico y banderas |
 | `web/verificacion.html` | — | autoprueba de carga local, 12 comprobaciones |
 
-Total: **5,73 MB (5,46 MiB) en 6 archivos, cero dependencias externas** — ningún CDN, ninguna fuente web,
+Total: **5,75 MB (5,49 MiB) en 7 archivos, cero dependencias externas** — ningún CDN, ninguna fuente web,
 ningún `fetch`, ningún módulo ES6.
+
+### `web/demo.html` — la página de demostración
+
+Se abre con **doble clic**, sin servidor. Un solo archivo, sin dependencias externas, legible a
+ancho de teléfono y con tema claro y oscuro según el sistema.
+
+- **Controles:** deslizadores continuos de temperatura del aire al condensador y de fracción de
+  carga, con marcas en los nodos de la malla; selector de modo de falla; cinco botones de severidad
+  con los niveles exactos de la malla. La severidad son botones y no un deslizador a propósito:
+  `indiceSeveridad()` ajusta al nivel más cercano, y un deslizador lo haría en silencio. Con la
+  clase `sano` quedan deshabilitados, porque esa clase ignora la severidad por construcción.
+- Los deslizadores llegan **más allá del margen de extrapolación**, para que se pueda alcanzar la
+  zona donde `consultar()` devuelve `null` y la página enseñe el rechazo en lugar de describirlo.
+- **Tabla de los 11 residuos** con sus unidades, en tres columnas —limpio, con ruido y
+  diferencia— más el **signo esperado** de la firma física de la falla elegida
+  (`FDD_FISICA.firmas_esperadas`) y si el signo observado coincide, primero en el limpio y después
+  en el ruidoso. El residuo característico de cada falla va marcado.
+- **Diagnóstico doble**: con el bloque ruidoso —el que corresponde al informe— y con el limpio,
+  rotulado como *lo que diría el modelo con residuos limpios, no el resultado del informe*.
+  **Si `diagnosticar()` se niega, ninguna de las dos columnas muestra clase.** El bloque limpio se
+  podría clasificar llamando a `predecir()` por separado, y hacerlo ahí reintroduciría justo lo que
+  se corrigió; hay una prueba que comprueba el orden de las dos llamadas en el archivo.
+- **Cuatro banderas** siempre visibles: fuera de la malla, fuera del dominio de entrenamiento, sin
+  estado estacionario y ciclado. Cuando la consulta se rechaza, las dos últimas se marcan como
+  **no determinables**, no como «no».
+- En los 519 nodos del defecto 1 la página **no muestra la fracción de marcha**: avisa de que la
+  capacidad resuelta queda por debajo del mínimo del compresor y de que ese número no es fiable.
+- **No hay animaciones.** Los deslizadores recalculan en cada paso y cada repintado es el resultado
+  de un cálculo; no hay transiciones ni easing, y no se reconstruye el arranque matutino, que es
+  precisamente lo que el defecto 1 impide.
+- Nada cuantitativo está escrito en el HTML: rangos, unidades, signos esperados, semilla, nivel de
+  discrepancia y dominio de entrenamiento viajan como dato desde Python. Hay una prueba que lo
+  comprueba.
 
 ### Qué se puede correr en un clon limpio, y qué no
 
@@ -402,8 +437,9 @@ proyecto-fdd/
 ├── src/exportador_web.py       # exportación a JavaScript plano
 ├── web/datos/*.js              # los cuatro archivos del visualizador
 ├── web/js/fdd_inferencia.js    # inferencia de referencia en JavaScript
-├── web/verificacion.html       # autoprueba de carga local (no es el visualizador)
-├── tests/                      # 207 pruebas sobre las tres topologías
+├── web/demo.html               # página de demostración, se abre con doble clic
+├── web/verificacion.html       # autoprueba de carga local
+├── tests/                      # 213 pruebas sobre las tres topologías
 │   ├── test_ciclo.py           #   solver, unidades, dominio físico
 │   ├── test_firmas.py          #   batería de firmas físicas (va primero)
 │   ├── test_features.py        #   lista blanca y residuos

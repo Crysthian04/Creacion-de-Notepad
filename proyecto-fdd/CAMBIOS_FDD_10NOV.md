@@ -501,3 +501,132 @@ regeneración de siete minutos, y ahorraría unos 30 kB.
 | Antes de todo | 161 | 156 | 5 |
 | Tras §7.3 + §7.1 + §7.2 | 194 | 189 | 5 |
 | Tras la adenda | **207** | **202** | **5** |
+
+---
+
+# Adenda 2 — `web/demo.html`
+
+Primera interfaz del visualizador del proyecto. Antes de esto **no existía
+ninguna**: `web/verificacion.html` es una autoprueba y su propio texto lo dice.
+
+## B.1 Lo implementado, por filas del plan
+
+| # | Tarea | Archivo:línea | Horas reales |
+|---|---|---|---|
+| 0 | Unidades de los 11 residuos como dato | `src/features.py:49`–`76`, `src/exportador_web.py:697`, `:746` | ~0,7 |
+| 1 | Esqueleto: un archivo, cero dependencias, móvil, claro y oscuro | `web/demo.html:21`–`103` | ~1,5 |
+| 2 | Controles | `web/demo.html:188`–`232` | ~1,5 |
+| 3 | Tabla de residuos con unidades y firma | `web/demo.html:359`–`408` | ~1,2 |
+| 4 | Diagnóstico doble con el rechazo propagado | `web/demo.html:320`–`357` | ~1,3 |
+| 5 | Banderas y aviso del defecto 1 | `web/demo.html:235`–`318` | ~1,2 |
+| 6 | Rótulo fijo y pie | `web/demo.html:110`–`114`, `410`–`437` | ~0,4 |
+| 7 | Pruebas en Chromium de los ocho estados + contrato estático en pytest | `tests/test_inferencia_js.py:694`–`774` | ~1,6 |
+| 8 | README y esta adenda | `README.md:214`, `229`–`267` | ~0,6 |
+| | **Total** | | **~10 h**, en el extremo bajo del rango 10,0–15,5 |
+
+## B.2 Las cuatro decisiones que se pidieron
+
+1. **Deslizadores continuos con marcas en los nodos.** Llegan deliberadamente
+   más allá del margen de extrapolación —T hasta 20–40 °C, carga hasta
+   0,18–1,10— para que se pueda alcanzar la zona donde `consultar()` devuelve
+   `null`. Si pararan en el margen, el rechazo duro no se podría enseñar.
+2. **Diagnóstico limpio sí, con la regla.** Rótulo literal: «lo que diría el
+   modelo con residuos limpios — **no es el resultado del informe**. Acierto
+   0,7920 frente a 0,7156 dentro del dominio». Y **si `diagnosticar()` se niega,
+   ninguna de las dos columnas muestra clase**: las dos muestran el motivo.
+   Hay una prueba, `test_la_demo_no_clasifica_cuando_diagnosticar_se_niega`, que
+   comprueba en el texto del archivo que la llamada a
+   `FDD.predecir(d.residuos_limpios)` está **después** del early return. Es la
+   única forma barata de impedir que un cambio futuro deshaga lo corregido.
+3. **Sin diagrama P-h.**
+4. **Columna de signo esperado** desde `FDD_FISICA.firmas_esperadas`, con dos
+   marcas de coincidencia: primero el limpio, después el ruidoso. El residuo
+   característico de cada falla (`residuo_caracteristico`) va resaltado.
+   **Sin tolerancia**, y la página lo dice: un residuo pequeño puede cambiar de
+   signo con el ruido del sensor, y ese ✗ en la segunda marca es ese fenómeno,
+   no un error del modelo. La referencia es la columna limpia, porque la batería
+   de firmas se verificó sin ruido.
+
+Rótulo fijo, literal: «Sistema de estudio: enfriadora condensada por aire,
+R-134a, 100 TR (351,7 kW). **Sistema distinto del congelador del sitio.**
+Resultados simulados.»
+
+A.5 no se corrigió. Queda anotado, además, en el pie de la propia página.
+
+## B.3 Dos cosas que la página hace y conviene mirar
+
+**No muestra la fracción de marcha en los 519 nodos del defecto 1.** En su lugar
+avisa de que la capacidad resuelta queda por debajo del mínimo del compresor
+sosteniendo el setpoint, y nombra la inconsistencia que se ve en pantalla: el
+régimen dice `controlado` y la bandera de ciclado está encendida al mismo
+tiempo, porque el solver fija la bandera antes de reintentar a capacidad mínima
+y conserva la solución no acotada si el reintento no mejora el residuo. Mostrar
+`fraccion_marcha = 1,000` como si fuera la proporción real de tiempo encendido
+habría contradicho al README.
+
+**Cuando la consulta se rechaza, dos banderas se marcan «no determinables».**
+Sin estado no se puede saber si el punto cicla o si converge; apagarlas sería
+afirmar que no, y no es lo mismo. La bandera de dominio de entrenamiento sí se
+evalúa, porque solo depende de las condiciones de contorno: a 41 °C el punto
+está fuera del dataset aunque no haya estado que mostrar.
+
+## B.4 Verificación
+
+### Ocho estados en Chromium bajo `file://`
+
+Carga en **370 ms**, **cero errores de página**, **cero avisos de consola**.
+
+| Estado | Banderas encendidas | Diagnóstico con ruido | Con limpios |
+|---|---|---|---|
+| centro (30 °C, 0,70, `condensador_sucio` 0,55) | ninguna | `condensador_sucio` 1,000 | `condensador_sucio` 1,000 |
+| borde del dominio (36 °C, 1,00, sev. 0,75) | ninguna | `condensador_sucio` 1,000 | `condensador_sucio` 1,000 |
+| fuera de la malla (41 °C, 0,70) | fuera de malla · fuera de entrenamiento (`T_amb_C`) | **sin diagnóstico** | **sin diagnóstico** |
+| fuera de entrenamiento (30 °C, 0,30) | fuera de entrenamiento (`Q_load_frac`) · ciclado | **sin diagnóstico** | **sin diagnóstico** |
+| sin estado estacionario (24 °C, 0,28, `carga_baja`) | fuera de entrenamiento · sin estado | **sin diagnóstico** | **sin diagnóstico** |
+| ciclado (30 °C, 0,31, `sano`) | fuera de entrenamiento · ciclado | **sin diagnóstico** | **sin diagnóstico** |
+| sano (28 °C, 0,80) | ninguna | `sano` 0,318 | `sano` 0,348 |
+| severa (34 °C, 0,90, `restriccion_linea_liquido` 0,95) | ninguna | `restriccion_linea_liquido` 0,960 | `restriccion_linea_liquido` 1,000 |
+
+En los cinco casos con estado la tabla trae las 11 filas con unidades
+`K`, `—` y `kW/TR`; en los dos sin residuos, la tabla lo dice en lugar de
+quedarse en blanco. Con `sano` no hay signos esperados —esa clase no tiene
+firma— y los botones de severidad quedan deshabilitados.
+
+A ancho de teléfono (390 px): **desborde horizontal 0 px**. La tabla hace scroll
+dentro de su propia caja, no la página.
+
+### Suite y tamaño
+
+| | Antes de la demo | Después |
+|---|---|---|
+| Pruebas recogidas | 207 | **213** |
+| Pasan | 202 | **208** |
+| Errores | 5 | **5** (los mismos del `.joblib`) |
+
+`web/`: **5 753 396 B = 5,75 MB (5,49 MiB) en 7 archivos**, cero dependencias
+externas. La demo añade 25 959 B y las unidades 249 B a la malla.
+
+| Archivo | Bytes |
+|---|---|
+| `web/datos/fdd_modelo.js` | 3 608 614 |
+| `web/datos/fdd_malla.js` | 2 053 137 |
+| `web/datos/fdd_metricas.js` | 30 116 |
+| `web/demo.html` | **25 959** |
+| `web/js/fdd_inferencia.js` | 18 162 |
+| `web/datos/fdd_fisica.js` | 10 262 |
+| `web/verificacion.html` | 7 146 |
+
+`src/ciclo.py`, `data/` y `resultados/` siguen sin tocar; no se reentrenó nada.
+
+## B.5 Dos defectos de la propia página, encontrados y corregidos antes de cerrar
+
+Se registran porque los encontró la corrida en navegador, no la revisión.
+
+1. **Desborde horizontal de 274 px a 390 px de ancho.** La tabla de residuos
+   tiene siete columnas. Corregido envolviéndola en un contenedor con
+   `overflow-x:auto` y `min-width` en la tabla, de modo que haga scroll ella y
+   no la página.
+2. **Con la consulta rechazada, la bandera de dominio de entrenamiento se
+   apagaba.** A 41 °C el punto está fuera del dataset, y marcarlo como «no» era
+   engañoso. Corregido evaluando esa bandera a partir de las condiciones de
+   contorno, que se conocen aunque no haya estado.

@@ -687,3 +687,88 @@ def test_la_marca_cubre_toda_la_zona_de_ciclado():
     assert o["sinEstadoCubierto"] < o["sinEstado"], (
         "si la marca de entrenamiento cubriera todos los nodos sin estado "
         "estacionario, la comprobación de `convergio` sería redundante; no lo es")
+
+
+# ---------------------------------------------------------------------------
+# 6. Contrato estático de la página de demostración
+# ---------------------------------------------------------------------------
+# El comportamiento de `web/demo.html` se verifica en un navegador real; aquí se
+# fija lo que debe cumplirse SIEMPRE y es barato comprobar: que abra con doble
+# clic bajo file://, que no traiga dependencias externas, y que no escriba a mano
+# datos que deben viajar desde Python.
+DEMO = RAIZ / "web" / "demo.html"
+
+
+@pytest.fixture(scope="module")
+def demo_html():
+    if not DEMO.exists():
+        pytest.skip("web/demo.html no existe")
+    return DEMO.read_text(encoding="utf-8")
+
+
+def test_la_demo_no_tiene_dependencias_externas(demo_html):
+    import re
+
+    fuentes = re.findall(r'<script[^>]+src="([^"]+)"', demo_html)
+    assert fuentes == ["datos/fdd_modelo.js", "datos/fdd_fisica.js",
+                       "datos/fdd_malla.js", "datos/fdd_metricas.js",
+                       "js/fdd_inferencia.js"]
+    for f in fuentes:
+        assert (RAIZ / "web" / f).exists(), f
+    assert re.search(r'<link[^>]+href=', demo_html) is None, "la demo enlaza una hoja externa"
+    assert "//cdn" not in demo_html and "https://" not in demo_html
+
+
+def _sin_comentarios(html: str) -> str:
+    """Quita los comentarios HTML y las lineas `//` del script."""
+    import re
+
+    sin = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    return "\n".join(ln for ln in sin.splitlines() if not ln.strip().startswith("//"))
+
+
+def test_la_demo_no_usa_fetch_ni_modulos(demo_html):
+    """Bajo `file://` el origen es `null` y `fetch()` queda bloqueado."""
+    codigo = _sin_comentarios(demo_html)
+    for prohibido in ("fetch(", "XMLHttpRequest", "import(", 'type="module"'):
+        assert prohibido not in codigo, (
+            f"`{prohibido}` aparece en el código de la demo, no solo en un comentario")
+
+
+def test_la_guardia_de_comentarios_no_es_vacua(demo_html):
+    """Si `_sin_comentarios` dejara de quitar nada, la prueba anterior mentiría."""
+    assert len(_sin_comentarios(demo_html)) < len(demo_html)
+    assert "fetch()" in demo_html, "el comentario que explica por qué no se usa fetch"
+
+
+def test_la_demo_lleva_el_rotulo_fijo(demo_html):
+    for trozo in ("enfriadora condensada por aire", "R-134a", "100 TR (351,7 kW)",
+                  "Sistema distinto del congelador del sitio", "Resultados simulados"):
+        assert trozo in demo_html, f"falta del rótulo fijo: {trozo}"
+
+
+def test_la_demo_no_escribe_a_mano_los_datos_que_vienen_de_python(demo_html):
+    """Rangos, unidades y signos esperados se LEEN de los `.js`, no se teclean."""
+    for clave in ("dominio_entrenamiento", "margen_extrapolacion", "unidades_residuos",
+                  "residuo_ruidoso", "ruido_malla", "firmas_esperadas",
+                  "residuo_caracteristico", "capacidad_minima_compresor"):
+        assert clave in demo_html, f"la demo no lee `{clave}`"
+    # Ninguna lista de residuos ni de clases escrita a mano.
+    assert "res_SH_evap" not in demo_html, "hay nombres de residuo escritos a mano"
+    assert "condensador_sucio" not in demo_html.split("<script>")[0], (
+        "hay nombres de clase escritos a mano en el marcado")
+
+
+def test_la_demo_no_clasifica_cuando_diagnosticar_se_niega(demo_html):
+    """La regla que impide que la página deshaga lo corregido en el JS.
+
+    `FDD.predecir(d.residuos_limpios)` existe en la página para la columna
+    limpia. Tiene que quedar DESPUÉS del early return que atiende
+    `d.diagnostico === null`, o la demo volvería a diagnosticar donde el modelo
+    no sabe nada.
+    """
+    corte = demo_html.index("if (d.diagnostico === null) {")
+    predecir = demo_html.index("FDD.predecir(d.residuos_limpios)")
+    assert corte < predecir, (
+        "`predecir()` sobre los residuos limpios aparece antes del rechazo: la "
+        "demo clasificaría puntos que `diagnosticar()` se niega a clasificar")

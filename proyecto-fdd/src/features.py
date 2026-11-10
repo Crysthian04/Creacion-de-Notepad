@@ -46,6 +46,35 @@ def columnas_derivadas(topo: Topologia) -> tuple[str, ...]:
     return comunes + evap + cond
 
 
+# Unidad de cada variable derivada. Un residuo es la DIFERENCIA de dos valores
+# de la misma variable, así que lleva la misma unidad que ella.
+#
+# Se define aquí, junto a `columnas_derivadas`, y se exporta como dato: escribirla
+# a mano en el HTML del visualizador la pondría a dos sitios de distancia de la
+# definición y se desincronizaría en la primera topología nueva.
+UNIDADES_DERIVADAS: dict[str, str] = {
+    "SH_evap": "K", "SH_total": "K", "SC": "K", "SH_des": "K",
+    "rp": "—", "COP_sist": "—", "kW_TR": "kW/TR",
+    "approach_ev": "K", "dT_agua_ev": "K",
+    "approach_evap": "K", "dT_air_ev": "K",
+    "split_cond": "K", "approach_cd": "K", "dT_agua_cd": "K", "dT_air_cd": "K",
+}
+
+
+def unidades_residuos(topo: Topologia) -> dict[str, str]:
+    """`res_SH_evap` -> `K`, para la topología activa.
+
+    Falla ruidosamente si una variable derivada no tiene unidad declarada: es
+    mejor que el visualizador no abra que mostrar kelvin donde hay kW/TR.
+    """
+    mapa = derivada_a_residuo(topo)
+    faltan = [d for d in columnas_derivadas(topo) if d not in UNIDADES_DERIVADAS]
+    if faltan:
+        raise KeyError(f"variables derivadas sin unidad declarada en "
+                       f"UNIDADES_DERIVADAS: {faltan}")
+    return {mapa[d]: UNIDADES_DERIVADAS[d] for d in columnas_derivadas(topo)}
+
+
 def derivada_a_residuo(topo: Topologia) -> dict[str, str]:
     """Correspondencia explícita: `COP_sist` -> `res_COP` no sigue el patrón."""
     especiales = {"COP_sist": "res_COP", "kW_TR": "res_kW_TR"}
