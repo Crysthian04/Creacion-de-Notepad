@@ -3,8 +3,8 @@
   "generado": "2026-11-15",
   "procedencia": {
     "rama": "claude/fdd-random-forest-audit-gjehhl",
-    "commit_codigo": "043dee2",
-    "arbol_git_limpio_al_generar": false,
+    "commit_codigo": "180545d",
+    "arbol_git_limpio_al_generar": true,
     "commit_de_resultados_metricas_json": "d6d9628",
     "commit_de_los_datasets": "cd5f1db",
     "semilla_maestra": 20260902,
@@ -41,7 +41,7 @@
       "archivo": "resultados/metricas.json",
       "clave": "seleccion_de_modelo",
       "funcion": "src.modelo.seleccionar_modelo",
-      "commit_codigo": "043dee2"
+      "commit_codigo": "180545d"
     }
   },
   "particion": {
@@ -62,7 +62,7 @@
       "archivo": "resultados/metricas.json",
       "clave": "particion",
       "funcion": "src.modelo.particionar",
-      "commit_codigo": "043dee2"
+      "commit_codigo": "180545d"
     }
   },
   "columnas_de_entrada": {
@@ -130,7 +130,7 @@
         "txv_sobrealimenta": 0.957650722494362,
         "compresor_desgastado": 0.8879073995949602,
         "incondensables": 0.9591771698440587,
-        "restriccion_linea_liquido": 0.6901343818569586
+        "restriccion_linea_liquido": 0.6901343818569587
       },
       "matriz_confusion": [
         [
@@ -426,7 +426,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prueba_balanceada",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "043dee2"
+        "commit_codigo": "180545d"
       }
     },
     "prevalencia_realista": {
@@ -769,7 +769,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prevalencia_realista",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "043dee2"
+        "commit_codigo": "180545d"
       }
     }
   },
@@ -879,7 +879,7 @@
     "origen": {
       "archivo": "src/figuras_informe.py",
       "funcion": "fig_deteccion",
-      "commit_codigo": "043dee2",
+      "commit_codigo": "180545d",
       "nota": "equivale a `deteccion_vs_severidad` de resultados/metricas.json, calculada por src.modelo.fig_deteccion_vs_severidad"
     }
   },
@@ -934,7 +934,7 @@
     "origen": {
       "archivo": "src/figuras_informe.py",
       "funcion": "por_nivel_de_severidad",
-      "commit_codigo": "043dee2",
+      "commit_codigo": "180545d",
       "modelo_usado": {
         "prueba_balanceada": "paquete['modelo']",
         "prevalencia_realista": "paquete['modelo_balanceado'] (class_weight='balanced')"
@@ -974,7 +974,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prevalencia_sin_class_weight",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "043dee2"
+        "commit_codigo": "180545d"
       }
     }
   },
@@ -1010,7 +1010,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "sensibilidad_al_ruido",
         "funcion": "src.modelo.estudio_ruido",
-        "commit_codigo": "043dee2"
+        "commit_codigo": "180545d"
       }
     },
     "discrepancia_modelo_planta": {
@@ -1055,7 +1055,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "sensibilidad_a_la_discrepancia",
         "funcion": "src.modelo.estudio_discrepancia",
-        "commit_codigo": "043dee2"
+        "commit_codigo": "180545d"
       }
     },
     "repeticiones_por_corrida": {
@@ -1117,7 +1117,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "repeticiones_por_corrida",
         "funcion": "src.modelo.repeticiones_por_corrida",
-        "commit_codigo": "043dee2"
+        "commit_codigo": "180545d"
       }
     }
   },
@@ -1248,7 +1248,7 @@
     "origen": {
       "archivo": "resultados/persistencia.json",
       "funcion": "src.persistencia.ejecutar",
-      "commit_codigo": "c9e3dd9"
+      "commit_codigo": "f614d4b"
     }
   },
   "alarma_de_fuga": {
