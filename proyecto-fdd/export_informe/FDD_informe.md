@@ -8,7 +8,7 @@ Fase 5, Monitoreo e Innovación
 |---|---|
 | Repositorio | `Crysthian04/Creacion-de-Notepad`, carpeta `proyecto-fdd/` |
 | Rama | `claude/fdd-random-forest-audit-gjehhl` |
-| Commit del código | `c9e3dd9` |
+| Commit del código | `f614d4b` |
 | Fecha de esta exportación | 15 de noviembre de 2026 |
 
 > **Cómo leer las cifras de este documento.** Cada número lleva entre paréntesis el archivo, la
@@ -491,7 +491,7 @@ de cada barrido.
 | Exactitud global | 0,7376 | 0,6827 |
 
 Origen: `resultados/metricas.json` → `metricas.prueba_balanceada` y `metricas.prevalencia_realista`,
-función `src.modelo.evaluar`, commit `d6d9628` del artefacto, commit `c9e3dd9` del código.
+función `src.modelo.evaluar`, commit `d6d9628` del artefacto, commit `f614d4b` del código.
 
 ### F1 y PR-AUC por clase
 
