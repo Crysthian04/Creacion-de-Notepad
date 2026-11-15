@@ -3,8 +3,8 @@
   "generado": "2026-11-15",
   "procedencia": {
     "rama": "claude/fdd-random-forest-audit-gjehhl",
-    "commit_codigo": "8764236",
-    "arbol_git_limpio": false,
+    "commit_codigo": "789bda7",
+    "arbol_git_limpio_al_generar": true,
     "commit_de_resultados_metricas_json": "d6d9628",
     "commit_de_los_datasets": "cd5f1db",
     "semilla_maestra": 20260902,
@@ -41,7 +41,7 @@
       "archivo": "resultados/metricas.json",
       "clave": "seleccion_de_modelo",
       "funcion": "src.modelo.seleccionar_modelo",
-      "commit_codigo": "8764236"
+      "commit_codigo": "789bda7"
     }
   },
   "particion": {
@@ -62,7 +62,7 @@
       "archivo": "resultados/metricas.json",
       "clave": "particion",
       "funcion": "src.modelo.particionar",
-      "commit_codigo": "8764236"
+      "commit_codigo": "789bda7"
     }
   },
   "columnas_de_entrada": {
@@ -426,7 +426,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prueba_balanceada",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "8764236"
+        "commit_codigo": "789bda7"
       }
     },
     "prevalencia_realista": {
@@ -769,7 +769,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prevalencia_realista",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "8764236"
+        "commit_codigo": "789bda7"
       }
     }
   },
@@ -879,7 +879,7 @@
     "origen": {
       "archivo": "src/figuras_informe.py",
       "funcion": "fig_deteccion",
-      "commit_codigo": "8764236",
+      "commit_codigo": "789bda7",
       "nota": "equivale a `deteccion_vs_severidad` de resultados/metricas.json, calculada por src.modelo.fig_deteccion_vs_severidad"
     }
   },
