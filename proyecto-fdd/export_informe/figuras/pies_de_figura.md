@@ -3,8 +3,8 @@
 
 ## Figuras
 
-Seis archivos PNG a **300 dpi** en `export_informe/figuras/`, generados por
-`python -m src.figuras_informe` (commit `8764236`) a partir de
+Seis archivos PNG a **300 dpi**, con los nombres de clase en español legible en `export_informe/figuras/`, generados por
+`python -m src.figuras_informe` (módulo introducido en el commit `789bda7`) a partir de
 `resultados/modelo_rf.joblib` y los `.parquet` de `data/`. Todas se recalcularon el 15 de noviembre
 de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.json` con tolerancia
 1e-12 antes de dibujarse.
@@ -21,7 +21,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > máquina sana**, en los tres sentidos.
 >
 > *Origen:* `resultados/metricas.json` → `metricas.prueba_balanceada.matriz_confusion_normalizada`;
-> función `src.modelo.evaluar`; dibujada por `src.figuras_informe.fig_matriz`; commit `8764236`.
+> función `src.modelo.evaluar`; dibujada por `src.figuras_informe.fig_matriz` (commit `789bda7`, el que introdujo ese módulo).
 
 ### Figura 2 — `fig2_matriz_confusion_prevalencia.png`
 
@@ -33,7 +33,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 >
 > *Origen:* `resultados/metricas.json` → `metricas.prevalencia_realista.matriz_confusion_normalizada`;
 > modelo con `class_weight='balanced'` (`src/modelo.py:674`–`679`); función `src.modelo.evaluar`;
-> dibujada por `src.figuras_informe.fig_matriz`; commit `8764236`.
+> dibujada por `src.figuras_informe.fig_matriz` (commit `789bda7`, el que introdujo ese módulo).
 
 ### Figura 3a — `fig3a_curvas_pr_balanceada.png`
 
@@ -46,7 +46,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 >
 > *Origen:* probabilidades del modelo sobre el conjunto sellado; `sklearn.metrics.precision_recall_curve`;
 > AP por clase en `resultados/metricas.json` → `metricas.prueba_balanceada.pr_auc_por_clase`;
-> dibujada por `src.figuras_informe.fig_pr`; commit `8764236`.
+> dibujada por `src.figuras_informe.fig_pr` (commit `789bda7`).
 
 ### Figura 3b — `fig3b_curvas_pr_prevalencia.png`
 
@@ -56,7 +56,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > las veces parte de una precisión base de 0,003.
 >
 > *Origen:* igual que la Figura 3a, sobre `data/dataset_prevalencia.parquet` y el modelo con
-> `class_weight='balanced'`; commit `8764236`.
+> `class_weight='balanced'` (commit `789bda7`).
 
 ### Figura 4 — `fig4_f1_por_clase.png`
 
@@ -68,7 +68,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > cae de 0,8844 a 0,2685.
 >
 > *Origen:* `resultados/metricas.json` → `metricas.*.f1_por_clase`; función `src.modelo.evaluar`;
-> dibujada por `src.figuras_informe.fig_f1_por_clase`; commit `8764236`. **Esta figura no existía en
+> dibujada por `src.figuras_informe.fig_f1_por_clase` (commit `789bda7`). **Esta figura no existía en
 > el pipeline; se añadió para este informe.**
 
 ### Figura 5 — `fig5_deteccion_por_severidad.png`
@@ -85,7 +85,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > *Origen:* aciertos del conjunto sellado cruzados con `severidad_f`; equivale a
 > `resultados/metricas.json` → `deteccion_vs_severidad` (función
 > `src.modelo.fig_deteccion_vs_severidad`); recalculada y dibujada por
-> `src.figuras_informe.fig_deteccion`; commit `8764236`.
+> `src.figuras_informe.fig_deteccion` (commit `789bda7`).
 
 ### Inventario
 

@@ -42,6 +42,45 @@ DPI = 300
 
 TOLERANCIA = 1e-12   # los números deben COINCIDIR, no parecerse
 
+# ---------------------------------------------------------------------------
+# Nombres legibles para las figuras del informe
+# ---------------------------------------------------------------------------
+# Los identificadores internos (`txv_restringida`) son los que viajan en los
+# datos, en el modelo y en el visualizador, y NO se tocan: cambiarlos rompería
+# la correspondencia con `src/fallas.py` y con los `.parquet`. Esta tabla es
+# solo de presentación, y vive aquí —no en el código del pipeline— precisamente
+# para que quede claro que no afecta a ningún cálculo.
+#
+# Cubre las clases de las TRES topologías, no solo la activa, para que la tabla
+# no haya que tocarla si se cambia `TIPO_SISTEMA`.
+ETIQUETAS_CLASE: dict[str, str] = {
+    "sano": "Máquina sana",
+    "condensador_sucio": "Condensador sucio",
+    "incrustacion_condensador": "Incrustación en el condensador",
+    "incrustacion_evaporador": "Incrustación en el evaporador",
+    "caudal_agua_bajo": "Caudal de agua bajo",
+    "evaporador_sucio": "Evaporador sucio",
+    "carga_baja": "Carga baja de refrigerante",
+    "sobrecarga": "Sobrecarga de refrigerante",
+    "txv_restringida": "Válvula de expansión restringida",
+    "txv_sobrealimenta": "Válvula de expansión sobrealimentando",
+    "compresor_desgastado": "Compresor desgastado",
+    "incondensables": "Incondensables en el condensador",
+    "restriccion_linea_liquido": "Restricción en la línea de líquido",
+}
+
+
+def etiquetas(nombres) -> list[str]:
+    """Traduce a nombres legibles, fallando si falta alguno.
+
+    Fallar es deliberado: una clase sin etiqueta saldría en la figura con su
+    identificador interno y nadie lo notaría al revisar el informe.
+    """
+    faltan = [c for c in nombres if c not in ETIQUETAS_CLASE]
+    if faltan:
+        raise KeyError(f"clases sin etiqueta legible en ETIQUETAS_CLASE: {faltan}")
+    return [ETIQUETAS_CLASE[c] for c in nombres]
+
 
 def _commit(ruta: str | None = None) -> str:
     """Commit del repositorio, o el último que tocó un archivo."""
@@ -163,9 +202,10 @@ def comprobar_contra_metricas(res_bal, res_prev, guardadas: dict) -> list[str]:
 # ---------------------------------------------------------------------------
 def fig_matriz(res, titulo, archivo, nombres) -> Path:
     mc = np.array(res["matriz_confusion_normalizada"])
-    fig, ax = plt.subplots(figsize=(9.5, 8))
+    leyenda = etiquetas(nombres)
+    fig, ax = plt.subplots(figsize=(10.5, 8.5))
     sns.heatmap(mc, annot=True, fmt=".2f", cmap="Blues", cbar=True, vmin=0, vmax=1,
-                xticklabels=nombres, yticklabels=nombres, ax=ax,
+                xticklabels=leyenda, yticklabels=leyenda, ax=ax,
                 annot_kws={"size": 7})
     ax.set_title(f"{titulo}\n(normalizada por fila; n = {res['n_muestras']})")
     ax.set_xlabel("Predicción"); ax.set_ylabel("Realidad")
@@ -183,11 +223,11 @@ def fig_pr(res, titulo, archivo, nombres) -> Path:
             continue
         prec, rec, _ = precision_recall_curve(y_bin[:, i], proba[:, i])
         ax.plot(rec, prec, color=colores[i], lw=1.6,
-                label=f"{c} (AP={res['pr_auc_por_clase'][c]:.3f})")
+                label=f"{ETIQUETAS_CLASE[c]} (AP={res['pr_auc_por_clase'][c]:.3f})")
     ax.set_xlabel("Sensibilidad (recall)"); ax.set_ylabel("Precisión")
     ax.set_title(f"Curvas precisión-sensibilidad por clase — {titulo}\n"
                  f"PR-AUC macro = {res['pr_auc_macro']:.4f}")
-    ax.legend(fontsize=7, loc="lower left")
+    ax.legend(fontsize=7, loc="lower left", framealpha=.92)
     ax.set_xlim(0, 1); ax.set_ylim(0, 1.02)
     return _guardar(fig, archivo)
 
@@ -207,7 +247,7 @@ def fig_f1_por_clase(res_bal, res_prev, nombres) -> Path:
             color=sns.color_palette("Oranges", 3)[1])
     ax.axvline(res_bal["f1_macro"], color="#1b5fa8", ls="--", lw=1)
     ax.axvline(res_prev["f1_macro"], color="#b8651b", ls="--", lw=1)
-    ax.set_yticks(y, orden, fontsize=9)
+    ax.set_yticks(y, etiquetas(orden), fontsize=9)
     ax.set_xlim(0, 1)
     ax.set_xlabel("F1 por clase")
     ax.set_title("F1 por clase en los dos conjuntos de prueba\n"
@@ -216,7 +256,13 @@ def fig_f1_por_clase(res_bal, res_prev, nombres) -> Path:
     # que es justo la clase cuyo contraste entre escenarios hay que ver.
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.09), ncols=2, fontsize=9,
               frameon=False)
+    # `sns.set_theme(style="whitegrid")` —que `src.modelo` aplica al importarse—
+    # dibuja rejilla en los DOS ejes. Las líneas horizontales cruzan por detrás
+    # de las barras y estorban; se dejan solo las verticales, que sí ayudan a
+    # leer el valor.
     ax.grid(axis="x", alpha=.25)
+    ax.grid(axis="y", visible=False)
+    ax.set_axisbelow(True)
     return _guardar(fig, "fig4_f1_por_clase.png")
 
 
@@ -233,7 +279,7 @@ def fig_deteccion(res_bal, extra_te) -> tuple[Path, dict]:
         serie = g.groupby("tramo", observed=True)["acierto"].mean()
         centros = [iv.mid for iv in serie.index]
         ax.plot(centros, serie.values, marker="o", ms=4, lw=1.5,
-                color=colores[i], label=clase)
+                color=colores[i], label=ETIQUETAS_CLASE[clase])
         tabla[clase] = {str(k): (None if pd.isna(v) else float(v))
                         for k, v in serie.items()}
     ax.set_xlabel("Severidad de la falla  f")
@@ -242,7 +288,7 @@ def fig_deteccion(res_bal, extra_te) -> tuple[Path, dict]:
                  "(solo clases con falla; la clase sana no tiene severidad)")
     ax.set_ylim(-0.02, 1.05)
     ax.grid(alpha=.25)
-    ax.legend(fontsize=8, ncols=5, loc="upper center", bbox_to_anchor=(0.5, -0.1),
+    ax.legend(fontsize=8, ncols=3, loc="upper center", bbox_to_anchor=(0.5, -0.1),
               frameon=False)
     return _guardar(fig, "fig5_deteccion_por_severidad.png"), tabla
 
@@ -345,6 +391,18 @@ def generar(verbose: bool = True) -> dict:
         "figuras": {k: str(v.relative_to(DIR_SALIDA)) for k, v in figs.items()},
     }
 
+    ruta_pers = DIR_RESULTADOS / "persistencia.json"
+    if ruta_pers.exists():
+        pers = json.loads(ruta_pers.read_text("utf-8"))
+        salida["persistencia"] = {
+            "valores": pers,
+            "origen": {"archivo": "resultados/persistencia.json",
+                       "funcion": "src.persistencia.ejecutar",
+                       "commit_codigo": _commit("src/persistencia.py")},
+        }
+    else:
+        salida["persistencia"] = "no disponible (correr `python -m src.persistencia`)"
+
     for clave, res in (("prueba_balanceada", res_bal), ("prevalencia_realista", res_prev)):
         salida["resultados"][clave] = {
             "n_muestras": res["n_muestras"],
@@ -368,11 +426,59 @@ def generar(verbose: bool = True) -> dict:
             alarmas.append(f"{clave}: exactitud {res['exactitud_global']:.4f} > 0,95")
         if res["f1_macro"] > 0.95:
             alarmas.append(f"{clave}: F1 macro {res['f1_macro']:.4f} > 0,95")
+    # Revisión POR CLASE: una métrica global sana puede esconder una clase que
+    # se separa sospechosamente bien. Se listan las que superan el umbral en F1
+    # o en PR-AUC, con su justificación física, para que nadie tenga que
+    # suponerla.
+    JUSTIFICACION = {
+        "carga_baja": (
+            "La firma es doble y de signo opuesto: el subenfriamiento CAE "
+            "(ajuste d_SC = −0,85·f·SC_nom, src/fallas.py:130) mientras el "
+            "sobrecalentamiento SUBE como consecuencia de que la válvula "
+            "alimenta menos. Ninguna otra clase del catálogo mueve ese par en "
+            "esa combinación de signos, así que la separación es física, no "
+            "una pista filtrada. Se verifica en tests/test_firmas.py, que "
+            "comprueba los signos SIN ruido en todo el dominio."),
+        "condensador_sucio": (
+            "Degrada a la vez UA_cd y el caudal de aire (src/fallas.py:99), "
+            "así que mueve el approach del condensador y el salto de aire "
+            "simultáneamente; es la única clase que hace ambas cosas."),
+        "incondensables": (
+            "Es la única clase que sube la presión de descarga SIN mover la "
+            "temperatura de condensación, que sigue gobernada por el balance "
+            "del lado secundario (src/fallas.py:190)."),
+        "txv_sobrealimenta": (
+            "Única clase que lleva el sobrecalentamiento a su mínimo físico y "
+            "dispara la bandera de retorno de líquido."),
+        "caudal_agua_bajo": (
+            "Única clase que reduce el caudal de agua del evaporador a UA "
+            "constante, así que concentra la firma en el salto de temperatura "
+            "del agua (src/fallas.py:115)."),
+    }
+    revision = []
+    for clave, res in (("prueba_balanceada", res_bal), ("prevalencia_realista", res_prev)):
+        for c in res["f1_por_clase"]:
+            f1, ap = res["f1_por_clase"][c], res["pr_auc_por_clase"][c]
+            if max(f1, ap) > 0.95:
+                revision.append({
+                    "conjunto": clave, "clase": c,
+                    "f1": f1, "pr_auc": ap,
+                    "justificacion_fisica": JUSTIFICACION.get(
+                        c, "SIN JUSTIFICAR — revisar si hay fuga para esta clase"),
+                    "justificada": c in JUSTIFICACION,
+                })
+
     salida["alarma_de_fuga"] = {
         "umbral": 0.95,
         "criterio": "exactitud o F1 macro por encima de 0,95 en datos no vistos",
         "disparada": bool(alarmas),
         "detalle": alarmas or ["ninguna métrica supera el umbral"],
+        "revision_por_clase": {
+            "criterio": "clases con F1 o PR-AUC por encima de 0,95",
+            "n": len(revision),
+            "todas_justificadas": all(r["justificada"] for r in revision),
+            "clases": revision,
+        },
         "controles_estructurales": {
             "lista_blanca_de_columnas": "src/features.py::construir_matriz_X",
             "particion_por_grupos": "src/modelo.py::particionar (GroupShuffleSplit "

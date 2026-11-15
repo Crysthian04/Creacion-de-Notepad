@@ -35,8 +35,10 @@ que predice cómo debería comportarse la máquina sana en las condiciones del m
 **Para qué sirve.** Un mantenimiento basado en condición necesita saber qué hay que intervenir. La
 diferencia entre «el consumo subió un 12 %» y «el condensador está sucio con severidad moderada» es
 la diferencia entre programar una inspección y programar una limpieza con su repuesto y su ventana
-de parada. El método es implementable con el inventario de instrumentos que la Fase 1 levantó: no
-exige instrumentación nueva.
+de parada. Las variables de entrada se miden con **instrumentos portátiles** —manifold, termopares, pinza
+amperimétrica, caudalímetro de abrazadera—, que es como se toma una lectura puntual en una visita.
+**El uso continuo exige sensores fijos**: un diagnóstico que dependa de que alguien vaya con el
+manifold no es monitoreo, es una inspección instrumentada.
 
 **Qué resultados da.** Sobre datos que el modelo nunca vio, con ruido de sensor y con un error de
 calibración del gemelo digital del 5 %:
@@ -56,9 +58,10 @@ de `txv_restringida` solo uno lo es (precisión 0,12), y lo mismo con `sobrecarg
 repuesto sin verla.**
 
 Tres condiciones que acotan el alcance y que el informe no debe omitir: los datos son
-**simulados**, no medidos; el equipo modelado **no es el del local** (sección c); y los parámetros
-del gemelo digital siguen marcados como **provisionales** a la espera de la hoja `Registro Campo`
-de la Fase 1. Lo que la Fase 5 demuestra es que **el método funciona y es implementable**, no que
+**simulados**, no medidos; el equipo modelado **no es el del local** (sección c); y los 29 parámetros del
+gemelo digital son **valores de catálogo de una enfriadora genérica**, marcados como provisionales,
+que **no se van a calibrar con el `Registro Campo` de la Fase 1 porque el sitio no tiene
+enfriadora**. Sin datos de una enfriadora real seguirán siendo provisionales indefinidamente. Lo que la Fase 5 demuestra es que **el método funciona y es implementable**, no que
 ya esté implantado.
 
 ---
@@ -286,13 +289,34 @@ levantamiento y vale **exactitud / 2**, asumiendo que la exactitud declarada es 
 | `W_elec` | 0,50 % de la lectura | analizador de redes |
 | `V_agua_ev` | 1,0 % de la lectura | caudalímetro ultrasónico |
 
+> ⚠ **¿De qué sitio es la hoja `Instrumentos`?** **No determinable desde el repositorio.** La hoja
+> se cita en tres sitios (`config/params.py:223`, `src/generador.py:23`,
+> `ESPEC_Simulacion_FDD.md:250`) pero **el archivo no está en el repositorio**, así que no se puede
+> comprobar a qué levantamiento corresponde. Lo que sí es determinable es que **el inventario tal
+> como está codificado no puede ser el del congelador del local**, por dos razones:
+>
+> 1. **Incluye tres instrumentos del circuito de agua helada** —`T_agua_in_ev`, `T_agua_out_ev` y
+>    `V_agua_ev`—, que en un equipo de expansión directa no existen porque no hay circuito de agua.
+> 2. **Los fondos de escala son los de una enfriadora con R-134a.** El manómetro de succión está
+>    declarado a 300 psig de fondo de escala (`config/params.py:227`). Un congelador con R-404A a
+>    −40 °C trabaja a **4,3 psig** de succión, y a −30 °C a 14,6 psig: un instrumento de 300 psig de
+>    fondo daría, con su 0,25 % de clase, un error absoluto mayor que la propia lectura.
+>
+> **Conclusión para el informe: las σ de esta tabla corresponden al inventario del estudio de la
+> enfriadora, no al del KFC.** Si la Fase 1 levantó instrumentos en el local, hay que contrastarlos
+> contra esta tabla antes de citar estas cifras de ruido como propias del sitio.
+
 **Hay una segunda fuente de error, más grande que el ruido, y es deliberada.** Los datos se generan
 con los parámetros de la planta, pero la referencia sana que se resta se calcula con
 `θ_modelo = θ_planta·(1 + ε)`, con `|ε| ≤ 5 %` sorteado por condición
 (`config/params.py:264`, `src/generador.py:122` `muestrear_discrepancia`). Representa el error de
 calibración del gemelo digital, que en campo es el error **dominante**. Sin él, el residuo de una
-máquina sana sería ruido puro y la separación entre clases sería trivial por construcción: el F1
-macro subiría de 0,757 a 0,820 (sección g).
+máquina sana sería ruido puro y la separación entre clases sería trivial por construcción.
+**En la prueba principal, el F1 macro sube de 0,7543 a 0,8270** al quitar la discrepancia
+(`resultados/metricas_sin_discrepancia.json` → `metricas.prueba_balanceada.f1_macro`, misma
+partición y misma semilla, commit `d6d9628`). El par 0,757 → 0,820 que figuraba aquí en la versión
+anterior de este documento **no era de la prueba principal**: procedía del estudio de sensibilidad,
+que es otro protocolo (ver el recuadro de la sección g).
 
 ### ¿Hubo fracciones de carga menores de 0,34?
 
@@ -426,7 +450,27 @@ El resultado se comparó, **clave por clave y valor por valor**, contra el artef
 Además, `src/figuras_informe.py` recalcula las métricas desde el modelo serializado y **aborta la
 generación** si alguna difiere de `resultados/metricas.json` en más de 1e-12. No abortó.
 
-### Resultados principales
+### Dos conjuntos distintos que no deben mezclarse
+
+Este documento maneja cifras de **dos procedimientos de evaluación diferentes**. Confundirlos fue el
+origen de varias de las discrepancias de la primera ronda, así que quedan separados aquí:
+
+| | **Prueba principal** | **Estudios de sensibilidad** |
+|---|---|---|
+| Para qué sirve | reportar el desempeño | medir cómo se degrada ante ruido y descalibración |
+| Datos | 400 condiciones; conjunto **sellado** de 61 condiciones | **120 condiciones** generadas dentro del estudio |
+| Se evalúa sobre | conjunto de **prueba**, abierto una sola vez | split de **validación** del dataset del estudio |
+| Modelo | el principal, entrenado una vez | **reentrenado dentro de cada estudio**, con los hiperparámetros del principal |
+| F1 macro, caso base | **0,7543** | **0,7572** |
+| F1 macro sin discrepancia | **0,8270** | **0,8198** |
+| Función | `src.modelo.evaluar` | `src.modelo._entrenar_y_medir` (`src/modelo.py:502`) |
+| Clave en el JSON | `metricas.prueba_balanceada` | `sensibilidad_al_ruido`, `sensibilidad_a_la_discrepancia` |
+
+Las dos columnas se parecen por casualidad numérica, no porque midan lo mismo. **Para el informe
+final usa siempre la columna de la izquierda**; la derecha solo sirve para leer *tendencias* dentro
+de cada barrido.
+
+### Resultados principales (prueba principal)
 
 | Métrica | Prueba balanceada | Prevalencia realista |
 |---|---|---|
@@ -530,6 +574,11 @@ matizada:
 
 ### Robustez: qué pasa si el ruido o la calibración empeoran
 
+> **Estudio de sensibilidad, caso base 0,7572.** Las dos tablas siguientes **no** son de la prueba
+> principal: cada fila reentrena un bosque sobre 120 condiciones nuevas y mide en su split de
+> validación. Léelas como tendencias relativas a su propio caso base (0,7572), no como alternativas
+> al 0,7543 de la prueba principal.
+
 | Factor de ruido de instrumentos | F1 macro | Diagnóstico de fallas incipientes |
 |---|---|---|
 | ×0,5 | 0,8172 | 0,6235 |
@@ -544,13 +593,147 @@ matizada:
 | 8 % | 0,7491 | 0,5118 |
 | 15 % | 0,6638 | 0,3941 |
 
-Cinco repeticiones con un error de calibración distinto por corrida: **F1 macro 0,7950 ± 0,0076**
-(mínimo 0,7867, máximo 0,8024). Es decir: la variabilidad entre instalaciones es pequeña comparada
-con el efecto del nivel de calibración.
+**Cinco repeticiones con la discrepancia aplicada `por_corrida`: F1 macro 0,7950 ± 0,0076**
+(mínimo 0,7867, máximo 0,8024).
+
+Esa cifra **supera al caso base del propio estudio (0,7572) y conviene explicar por qué**, porque a
+primera vista parece que repetir mejora el resultado. No es eso: **cambia el modo de la
+discrepancia**.
+
+- `por_condicion` (caso base): **cada condición de contorno ve un gemelo desafinado distinto**. El
+  error de calibración entra como ruido estructural que varía de punto a punto y **borra la
+  estructura de clases**.
+- `por_corrida` (repeticiones): **un único ε para todo el dataset**. La desviación es entonces un
+  sesgo coherente, igual para todas las muestras, y un sesgo común desplaza todos los residuos en el
+  mismo sentido sin mezclar las clases entre sí: el clasificador lo absorbe en buena medida.
+
+Por eso `por_corrida` es sistemáticamente más fácil, con el mismo nivel del 5 %. Las dos cifras
+miden cosas distintas: `por_condicion` estima el efecto **promedio** del nivel de descalibración;
+`por_corrida` estima lo que le ocurre a **una implantación concreta**.
+
+**Lo que estas cinco repeticiones NO permiten afirmar** es que la variabilidad entre instalaciones
+sea pequeña. Son cinco corridas, sobre el protocolo del estudio y no sobre la prueba principal, y la
+desviación de 0,0076 es la dispersión de **ese** estimador, no un intervalo de confianza sobre el
+desempeño en campo. Una afirmación de ese tipo exigiría muchas más repeticiones y, sobre todo,
+datos reales.
 
 (`resultados/metricas.json` → `sensibilidad_al_ruido`, `sensibilidad_a_la_discrepancia`,
 `repeticiones_por_corrida`; funciones `src.modelo.estudio_ruido`, `estudio_discrepancia`,
 `repeticiones_por_corrida`, commit `d6d9628`.)
+
+### Detección sano / no-sano, y la cifra 0,788 de la sección 12
+
+> ⚠ **Las dos cifras que la sección 12 cita no salen de la prueba principal.**
+
+| Cifra citada | Valor | Archivo | Clave | Conjunto | Función |
+|---|---|---|---|---|---|
+| Detección incipiente | 0,7882 | `resultados/metricas.json` | `sensibilidad_al_ruido["1.0"].deteccion_incipiente` | split de **validación** de un dataset de **120 condiciones** generado dentro del estudio | `src.modelo._entrenar_y_medir` (`src/modelo.py:502`–`514`) |
+| Diagnóstico incipiente | 0,4824 | `resultados/metricas.json` | `sensibilidad_al_ruido["1.0"].diagnostico_incipiente` | el mismo | la misma |
+
+Ambas se calculan con un **bosque reentrenado dentro del estudio**, no con el modelo principal. Los
+equivalentes sobre el **conjunto de prueba sellado** se calcularon para este informe aplicando la
+misma definición (`src.modelo.tasa_deteccion` y `accuracy_score` restringidos a las filas con
+`nivel == "incipiente"`), y son **peores**:
+
+| | Estudio (lo citado) | **Prueba principal sellada** | Prevalencia realista |
+|---|---|---|---|
+| n de filas incipientes | **no disponible** ¹ | **610 de 1 997** | 1 095 de 9 964 |
+| **Detección** sano/no-sano | 0,7882 | **0,6951** | 0,7215 |
+| **Diagnóstico** de la clase exacta | 0,4824 | **0,4770** | 0,5142 |
+
+¹ El JSON guarda `n_filas = 3 921`, que es el dataset completo del estudio, **no** el tamaño de
+su split de validación ni el número de filas incipientes dentro de él. Ese dato no se registra, así
+que no se puede citar sin regenerar el estudio.
+
+La detección citada es **9,3 puntos optimista**; el diagnóstico citado está cerca del real (0,4824
+frente a 0,4770). **Recomendación: en la sección 12, sustituir 0,788 por 0,695 y 0,482 por 0,477, o
+decir explícitamente que proceden del estudio de sensibilidad.**
+
+Por contraste, la detección sí mejora mucho al subir la severidad, en la prueba principal:
+
+| Nivel | Detección sano/no-sano | Diagnóstico de la clase | n |
+|---|---|---|---|
+| Incipiente (f 0,15–0,35) | 0,6951 | 0,4770 | 610 |
+| Moderada (f 0,35–0,65) | 0,9262 | 0,8131 | 610 |
+| Severa (f 0,65–0,95) | 0,9848 | 0,9579 | 594 |
+
+### Falsas alarmas a nivel de detección
+
+Colapsando las once clases a la decisión binaria «¿hay que ir a mirar o no?»:
+
+| | Prueba balanceada | **Prevalencia realista** |
+|---|---|---|
+| Lecturas de máquina sana | 183 | **6 743** |
+| …con aviso (falsa alarma) | 66 → **0,3607** | **2 430 → 0,3604** |
+| Avisos emitidos | 1 640 | **5 261** |
+| …que son falla real | 1 574 → **0,9598** | **2 831 → 0,5381** |
+| Fallas reales | 1 814 | 3 221 |
+| …perdidas (diagnosticadas como sanas) | 240 → 0,1323 | **390 → 0,1211** |
+
+**Las dos cifras del encargo quedan confirmadas exactamente: 2 430/6 743 = 0,3604 y
+2 831/5 261 = 0,5381.** Calculadas desde `resultados/metricas.json` →
+`metricas.prevalencia_realista.matriz_confusion`, colapsando la columna y la fila de `sano`.
+
+Lo que significan juntas: **más de un tercio de las lecturas de una máquina sana generan un aviso**,
+y **algo menos de la mitad de los avisos no corresponden a ninguna falla**. Con una sola lectura,
+este sistema no puede disparar una orden de trabajo por sí solo. De ahí el estudio siguiente.
+
+### Persistencia: exigir N lecturas coincidentes
+
+Una política de mantenimiento no tiene por qué actuar con la primera lectura. Se simuló exigir que
+**N lecturas consecutivas de la misma máquina en el mismo punto de operación** coincidan antes de
+emitir un aviso (`src/persistencia.py`, salida en `resultados/persistencia.json`).
+
+**Cómo se simula, y qué no cambia entre lecturas.** Se resuelve el ciclo **una vez** por condición y
+se sortean N vectores de ruido de instrumento independientes sobre el mismo estado. Lo que **no**
+cambia entre lecturas, a propósito: las condiciones de contorno, la severidad, y sobre todo **la
+discrepancia modelo-planta ε, que está fija por condición**. ε es un error de **calibración** del
+gemelo digital, no ruido: no se promedia al repetir la lectura. Esa es exactamente la razón por la
+que la persistencia ayuda menos de lo que predice un cálculo binomial.
+
+**Validación de la reconstrucción:** la lectura 0 reproduce el dataset publicado **fila a fila**,
+con diferencia máxima **0,00e+00** sobre las 9 964 condiciones. Si no lo hubiera hecho, el estudio
+sería sobre otros datos; el módulo aborta en ese caso.
+
+**Detección (¿se avisa o no?):**
+
+| N | Falsas alarmas | Tasa | Si las lecturas fueran independientes | Fallas perdidas | Tasa | Precisión del aviso |
+|---|---|---|---|---|---|---|
+| 1 | 2 430 | **0,3604** | 0,3604 | 390 | **0,1211** | 0,5381 |
+| 2 | 1 044 | **0,1548** | 0,1299 | 599 | **0,1860** | 0,7152 |
+| 3 | 551 | **0,0817** | 0,0468 | 700 | **0,2173** | 0,8206 |
+| 5 | 225 | **0,0334** | 0,0061 | 850 | **0,2639** | 0,9133 |
+
+**Diagnóstico (¿se emite la misma clase en las N lecturas?):**
+
+| N | Órdenes emitidas | Con clase correcta | Precisión de la orden | Cobertura sobre las fallas |
+|---|---|---|---|---|
+| 1 | 5 261 | 2 489 | **0,4731** | 0,7727 |
+| 2 | 2 711 | 2 262 | **0,8344** | 0,7023 |
+| 3 | 2 248 | 2 124 | **0,9448** | 0,6594 |
+| 5 | 1 966 | 1 950 | **0,9919** | 0,6054 |
+
+Tres conclusiones para el plan de mantenimiento:
+
+1. **La persistencia funciona, y mucho.** Exigir tres lecturas coincidentes sube la precisión de la
+   orden de trabajo de **0,47 a 0,94**: de cada veinte órdenes emitidas, diecinueve corresponden a
+   la falla que dicen. Es la diferencia entre un sistema inutilizable y uno utilizable.
+2. **Se paga en fallas perdidas**, y hay que decirlo: del 12,1 % con una lectura al 21,7 % con tres.
+   Y la cobertura cae del 77 % al 66 % de las fallas reales. **N = 3 es el punto donde la precisión
+   ya es alta y la pérdida todavía es tolerable**; N = 5 compra muy poca precisión adicional a
+   cambio de perder una falla más de cada veinte.
+3. **La persistencia ayuda bastante menos de lo que parece.** A N = 5 la tasa de falsa alarma
+   observada es **0,0334**, frente al **0,0061** que predeciría suponer lecturas independientes:
+   **5,5 veces peor**. La razón es física, no estadística: el error de calibración del gemelo es
+   sistemático en cada punto de operación, y repetir la lectura no lo borra. **Cualquier cálculo de
+   persistencia que multiplique probabilidades será optimista.**
+
+> **Supuestos declarados.** (1) Las N lecturas se toman en el mismo punto de operación; en campo la
+> carga y el ambiente se mueven entre lecturas y eso no se modela. (2) El ruido de instrumento es
+> independiente entre lecturas y gaussiano; un **sesgo** de instrumento sería sistemático y no se
+> modela —si lo hubiera, la persistencia ayudaría aún menos—. (3) La falla no progresa entre
+> lecturas. (4) No se modela el tiempo entre lecturas: «tres lecturas» puede ser tres visitas o tres
+> muestras de un registrador.
 
 ### Alarma de fuga de datos: NO disparada
 
@@ -575,6 +758,28 @@ activas y verificadas en esta corrida:
 3. **Conjunto de prueba sellado** (`src/modelo.py:85`): **1 apertura** por conjunto, motivo
    registrado, `corrida_valida = true`.
 
+**Revisión por clase: `carga_baja` es la que más se acerca, y no es fuga.** Una métrica global sana
+puede esconder una clase que se separa sospechosamente bien, así que se revisaron las clases con F1
+o PR-AUC por encima de 0,95 en la prueba balanceada:
+
+| Clase | F1 | PR-AUC | ¿Por qué no es fuga? |
+|---|---|---|---|
+| `carga_baja` | 0,9477 | **0,9905** | Su firma es **doble y de signo opuesto**: el subenfriamiento CAE por el ajuste de inventario (`d_SC = −0,85·f·SC_nom`, `src/fallas.py:130`) mientras el sobrecalentamiento SUBE, como consecuencia de que la válvula alimenta menos. **Ninguna otra clase del catálogo mueve ese par en esa combinación de signos.** La separación es física. |
+| `condensador_sucio` | 0,9248 | **0,9684** | Única clase que degrada a la vez `UA_cd` y el caudal de aire (`src/fallas.py:99`), así que mueve el approach del condensador y el salto de aire simultáneamente. |
+| `incondensables` | 0,9157 | **0,9592** | Única clase que sube la presión de descarga **sin** mover la temperatura de condensación, que sigue gobernada por el balance del lado secundario (`src/fallas.py:190`). |
+| `txv_sobrealimenta` | 0,8844 | **0,9577** | Única clase que lleva el sobrecalentamiento a su mínimo físico y dispara la bandera de retorno de líquido. |
+
+Nota de precisión: el F1 de `carga_baja` es **0,9477**, por debajo de 0,95; lo que supera el umbral
+es su PR-AUC (0,9905). Las cuatro clases quedan **justificadas por firma física**, y esa
+justificación no es una interpretación a posteriori: `tests/test_firmas.py` comprueba los signos de
+cada firma **sin ruido y en todo el dominio** antes de que se genere ningún dato. La revisión
+completa, con su justificación, viaja en `export_informe/metricas.json` →
+`alarma_de_fuga.revision_por_clase`, y el campo `todas_justificadas` dice si alguna quedó sin
+explicar.
+
+**Si alguna clase quedara sin justificación física, habría que tratarla como fuga** y revisar qué
+residuo la está delatando. Hoy ninguna lo está.
+
 **Contexto histórico que conviene recordar en la defensa.** Una versión anterior de este módulo,
 anterior a introducir la discrepancia modelo–planta, daba F1 macro **0,9956**. Eso no se celebró: se
 trató como la señal de que el problema estaba mal planteado. Sin error de calibración, el residuo de
@@ -585,8 +790,8 @@ mejor: mide algo.
 
 ## Figuras
 
-Seis archivos PNG a **300 dpi** en `export_informe/figuras/`, generados por
-`python -m src.figuras_informe` (commit `8764236`) a partir de
+Seis archivos PNG a **300 dpi**, con los nombres de clase en español legible en `export_informe/figuras/`, generados por
+`python -m src.figuras_informe` (módulo introducido en el commit `789bda7`) a partir de
 `resultados/modelo_rf.joblib` y los `.parquet` de `data/`. Todas se recalcularon el 15 de noviembre
 de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.json` con tolerancia
 1e-12 antes de dibujarse.
@@ -603,7 +808,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > máquina sana**, en los tres sentidos.
 >
 > *Origen:* `resultados/metricas.json` → `metricas.prueba_balanceada.matriz_confusion_normalizada`;
-> función `src.modelo.evaluar`; dibujada por `src.figuras_informe.fig_matriz`; commit `8764236`.
+> función `src.modelo.evaluar`; dibujada por `src.figuras_informe.fig_matriz` (commit `789bda7`, el que introdujo ese módulo).
 
 ### Figura 2 — `fig2_matriz_confusion_prevalencia.png`
 
@@ -615,7 +820,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 >
 > *Origen:* `resultados/metricas.json` → `metricas.prevalencia_realista.matriz_confusion_normalizada`;
 > modelo con `class_weight='balanced'` (`src/modelo.py:674`–`679`); función `src.modelo.evaluar`;
-> dibujada por `src.figuras_informe.fig_matriz`; commit `8764236`.
+> dibujada por `src.figuras_informe.fig_matriz` (commit `789bda7`, el que introdujo ese módulo).
 
 ### Figura 3a — `fig3a_curvas_pr_balanceada.png`
 
@@ -628,7 +833,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 >
 > *Origen:* probabilidades del modelo sobre el conjunto sellado; `sklearn.metrics.precision_recall_curve`;
 > AP por clase en `resultados/metricas.json` → `metricas.prueba_balanceada.pr_auc_por_clase`;
-> dibujada por `src.figuras_informe.fig_pr`; commit `8764236`.
+> dibujada por `src.figuras_informe.fig_pr` (commit `789bda7`).
 
 ### Figura 3b — `fig3b_curvas_pr_prevalencia.png`
 
@@ -638,7 +843,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > las veces parte de una precisión base de 0,003.
 >
 > *Origen:* igual que la Figura 3a, sobre `data/dataset_prevalencia.parquet` y el modelo con
-> `class_weight='balanced'`; commit `8764236`.
+> `class_weight='balanced'` (commit `789bda7`).
 
 ### Figura 4 — `fig4_f1_por_clase.png`
 
@@ -650,7 +855,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > cae de 0,8844 a 0,2685.
 >
 > *Origen:* `resultados/metricas.json` → `metricas.*.f1_por_clase`; función `src.modelo.evaluar`;
-> dibujada por `src.figuras_informe.fig_f1_por_clase`; commit `8764236`. **Esta figura no existía en
+> dibujada por `src.figuras_informe.fig_f1_por_clase` (commit `789bda7`). **Esta figura no existía en
 > el pipeline; se añadió para este informe.**
 
 ### Figura 5 — `fig5_deteccion_por_severidad.png`
@@ -667,7 +872,7 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > *Origen:* aciertos del conjunto sellado cruzados con `severidad_f`; equivale a
 > `resultados/metricas.json` → `deteccion_vs_severidad` (función
 > `src.modelo.fig_deteccion_vs_severidad`); recalculada y dibujada por
-> `src.figuras_informe.fig_deteccion`; commit `8764236`.
+> `src.figuras_informe.fig_deteccion` (commit `789bda7`).
 
 ### Inventario
 
@@ -869,10 +1074,16 @@ Sin suavizar.
    desescarche eléctrico. Adaptarlo cuesta 59–118 h y requiere física que el módulo no tiene
    (sección c). **Ninguna cifra de este documento es un diagnóstico del equipo del KFC.**
 
-3. **Los 29 parámetros del equipo siguen marcados como provisionales**, incluidos los dos `UA`
-   calibrados, cuyo origen declarado es «punto de diseño de catálogo, sustituir por la hoja
-   `Registro Campo` de la Fase 1» (`resultados/metricas.json` → `calibracion_ua.origen_datos`).
-   Las métricas se moverán cuando lleguen los datos reales.
+3. **Los 29 parámetros son valores de catálogo de una enfriadora genérica, y van a seguir siendo
+   provisionales.** Incluyen los dos `UA` calibrados, cuyo origen declarado en el código es «punto
+   de diseño de catálogo, sustituir por la hoja `Registro Campo` de la Fase 1»
+   (`resultados/metricas.json` → `calibracion_ua.origen_datos`). **Esa sustitución no va a ocurrir:
+   el sitio no tiene enfriadora**, así que el `Registro Campo` de la Fase 1 no contiene ni puede
+   contener datos de una. Mientras no se tenga acceso a una enfriadora real de capacidad y
+   configuración comparables, los 29 parámetros seguirán siendo de catálogo y las métricas de este
+   informe seguirán siendo **las de un equipo genérico**, no las de un equipo medido. La promesa de
+   «cuando lleguen los datos de campo» que figura en el README del módulo **no aplica a este
+   proyecto** y conviene no repetirla en el informe.
 
 4. **Dos fallas no se diagnostican de forma utilizable.** `txv_restringida` (F1 0,52) y
    `restriccion_linea_liquido` (F1 0,60) se confunden entre sí y con la máquina sana. La segunda es
@@ -961,8 +1172,9 @@ python -m pytest tests/ -q          # 0. verificación física — va PRIMERO (~
 python -m src.calibracion           # 1. calibración de los UA
 python -m src.generador             # 2. datasets del caso base, discrepancia 5 %
 python -m src.modelo --sin-informe  # 3. entrenamiento, evaluación y figuras (~20 min)
-python -m src.figuras_informe       # 4. figuras del informe + export_informe/metricas.json
-python -m src.exportador_web        # 5. (opcional) visualizador web
+python -m src.persistencia          # 4. estudio de persistencia (~4 min, no reentrena)
+python -m src.figuras_informe       # 5. figuras del informe + export_informe/metricas.json
+python -m src.exportador_web        # 6. (opcional) visualizador web
 ```
 
 Las pruebas van primero a propósito: un simulador con firmas invertidas produciría un clasificador
@@ -976,7 +1188,11 @@ quedó commiteado el 10 de noviembre: **0 claves distintas y 0 valores distintos
 completo del JSON. Incluye las métricas principales, las matrices de confusión, los intervalos de
 Wilson, los barridos de ruido y de discrepancia y las cinco repeticiones.
 
-**No reproducido al bit: los PNG.** Las figuras regeneradas difieren de las commiteadas a nivel de
+**Figuras deterministas dentro del mismo contenedor.** Regeneradas dos veces seguidas en esta
+máquina, las seis salen **byte a byte idénticas**. Lo que no se reproduce es entre contenedores
+distintos:
+
+**No reproducido al bit entre contenedores: los PNG.** Las figuras regeneradas difieren de las commiteadas a nivel de
 píxel, y en algunos casos por unos pocos píxeles de tamaño total (2 671×2 458 → 2 666×2 455). **El
 contenido numérico es idéntico**; la diferencia está en el renderizado —métricas de fuente y
 `bbox_inches="tight"`—, no en el cálculo. Es una limitación conocida de matplotlib, no un fallo de
@@ -995,6 +1211,12 @@ salida de `src/modelo.py`.
 | `export_informe/FDD_informe.md` | escrito a mano; cada cifra con su origen |
 | `export_informe/figuras/*.png` | `python -m src.figuras_informe`, 300 dpi |
 | `export_informe/metricas.json` | `python -m src.figuras_informe`, cada valor con `archivo`, `clave`, `función` y `commit` |
+| `resultados/persistencia.json` | `python -m src.persistencia`; se enlaza entero dentro de `export_informe/metricas.json` |
+
+`src/persistencia.py` tampoco reentrena: carga el mismo modelo, reconstruye las condiciones del
+conjunto de prevalencia con la misma semilla y repite **solo el sorteo de ruido**. Antes de evaluar
+nada, **comprueba que su lectura 0 reproduce el dataset publicado fila a fila** y aborta si no lo
+hace; en la corrida reportada la diferencia máxima fue 0,00e+00 sobre 9 964 condiciones.
 
 `src/figuras_informe.py` no entrena ni decide nada: lee el modelo serializado, rehace la misma
 partición con la misma semilla, vuelve a evaluar y **contrasta cada número contra

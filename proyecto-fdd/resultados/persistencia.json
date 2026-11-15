@@ -1,0 +1,92 @@
+{
+  "n_condiciones_sanas": 6743,
+  "n_condiciones_con_falla": 3221,
+  "politicas": {
+    "1": {
+      "n_condiciones": 9964,
+      "deteccion": {
+        "falsas_alarmas": 2430,
+        "tasa_falsa_alarma": 0.3603737208957437,
+        "fallas_perdidas": 390,
+        "tasa_falla_perdida": 0.12108040981061782,
+        "avisos_emitidos": 5261,
+        "precision_del_aviso": 0.5381106253563961,
+        "tasa_falsa_alarma_si_fuera_independiente": 0.3603737208957437
+      },
+      "diagnostico": {
+        "ordenes_emitidas": 5261,
+        "con_clase_correcta": 2489,
+        "precision_de_la_orden": 0.4731039726287778,
+        "cobertura_sobre_fallas": 0.7727413846631481
+      }
+    },
+    "2": {
+      "n_condiciones": 9964,
+      "deteccion": {
+        "falsas_alarmas": 1044,
+        "tasa_falsa_alarma": 0.1548272282366899,
+        "fallas_perdidas": 599,
+        "tasa_falla_perdida": 0.18596709096553865,
+        "avisos_emitidos": 3666,
+        "precision_del_aviso": 0.7152209492635024,
+        "tasa_falsa_alarma_si_fuera_independiente": 0.12986921871224338
+      },
+      "diagnostico": {
+        "ordenes_emitidas": 2711,
+        "con_clase_correcta": 2262,
+        "precision_de_la_orden": 0.8343784581335301,
+        "cobertura_sobre_fallas": 0.7022663769015833
+      }
+    },
+    "3": {
+      "n_condiciones": 9964,
+      "deteccion": {
+        "falsas_alarmas": 551,
+        "tasa_falsa_alarma": 0.081714370458253,
+        "fallas_perdidas": 700,
+        "tasa_falla_perdida": 0.2173238124805961,
+        "avisos_emitidos": 3072,
+        "precision_del_aviso": 0.8206380208333334,
+        "tasa_falsa_alarma_si_fuera_independiente": 0.046801453577154296
+      },
+      "diagnostico": {
+        "ordenes_emitidas": 2248,
+        "con_clase_correcta": 2124,
+        "precision_de_la_orden": 0.9448398576512456,
+        "cobertura_sobre_fallas": 0.6594225395839801
+      }
+    },
+    "5": {
+      "n_condiciones": 9964,
+      "deteccion": {
+        "falsas_alarmas": 225,
+        "tasa_falsa_alarma": 0.03336793711997627,
+        "fallas_perdidas": 850,
+        "tasa_falla_perdida": 0.26389320086929524,
+        "avisos_emitidos": 2596,
+        "precision_del_aviso": 0.9133281972265023,
+        "tasa_falsa_alarma_si_fuera_independiente": 0.006078068210662356
+      },
+      "diagnostico": {
+        "ordenes_emitidas": 1966,
+        "con_clase_correcta": 1950,
+        "precision_de_la_orden": 0.9918616480162767,
+        "cobertura_sobre_fallas": 0.6054020490530891
+      }
+    }
+  },
+  "validacion_lectura_cero": {
+    "n_comunes": 9964,
+    "n_dataset": 9964,
+    "n_reconstruido": 9964,
+    "max_abs_dif_residuos": 0.0,
+    "clases_identicas": true
+  },
+  "n_lecturas_simuladas": 5,
+  "supuestos": [
+    "Las N lecturas se toman en el mismo punto de operación; en campo la carga y el ambiente se mueven entre lecturas y eso no se modela.",
+    "El ruido de instrumento es independiente entre lecturas, gaussiano y con las sigmas de config.params.SIGMA_RUIDO; un sesgo de instrumento sería sistemático y no se modela.",
+    "La discrepancia modelo-planta epsilon es FIJA por condición y no se promedia al repetir la lectura: es un error de calibración, no ruido.",
+    "La falla no progresa entre lecturas."
+  ]
+}

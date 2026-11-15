@@ -3,8 +3,8 @@
   "generado": "2026-11-15",
   "procedencia": {
     "rama": "claude/fdd-random-forest-audit-gjehhl",
-    "commit_codigo": "789bda7",
-    "arbol_git_limpio_al_generar": true,
+    "commit_codigo": "e6a0e2e",
+    "arbol_git_limpio_al_generar": false,
     "commit_de_resultados_metricas_json": "d6d9628",
     "commit_de_los_datasets": "cd5f1db",
     "semilla_maestra": 20260902,
@@ -41,7 +41,7 @@
       "archivo": "resultados/metricas.json",
       "clave": "seleccion_de_modelo",
       "funcion": "src.modelo.seleccionar_modelo",
-      "commit_codigo": "789bda7"
+      "commit_codigo": "e6a0e2e"
     }
   },
   "particion": {
@@ -62,7 +62,7 @@
       "archivo": "resultados/metricas.json",
       "clave": "particion",
       "funcion": "src.modelo.particionar",
-      "commit_codigo": "789bda7"
+      "commit_codigo": "e6a0e2e"
     }
   },
   "columnas_de_entrada": {
@@ -426,7 +426,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prueba_balanceada",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "789bda7"
+        "commit_codigo": "e6a0e2e"
       }
     },
     "prevalencia_realista": {
@@ -769,7 +769,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prevalencia_realista",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "789bda7"
+        "commit_codigo": "e6a0e2e"
       }
     }
   },
@@ -879,7 +879,7 @@
     "origen": {
       "archivo": "src/figuras_informe.py",
       "funcion": "fig_deteccion",
-      "commit_codigo": "789bda7",
+      "commit_codigo": "e6a0e2e",
       "nota": "equivale a `deteccion_vs_severidad` de resultados/metricas.json, calculada por src.modelo.fig_deteccion_vs_severidad"
     }
   },
@@ -891,6 +891,105 @@
     "fig4_f1_por_clase": "figuras/fig4_f1_por_clase.png",
     "fig5_deteccion_por_severidad": "figuras/fig5_deteccion_por_severidad.png"
   },
+  "persistencia": {
+    "valores": {
+      "n_condiciones_sanas": 6743,
+      "n_condiciones_con_falla": 3221,
+      "politicas": {
+        "1": {
+          "n_condiciones": 9964,
+          "deteccion": {
+            "falsas_alarmas": 2430,
+            "tasa_falsa_alarma": 0.3603737208957437,
+            "fallas_perdidas": 390,
+            "tasa_falla_perdida": 0.12108040981061782,
+            "avisos_emitidos": 5261,
+            "precision_del_aviso": 0.5381106253563961,
+            "tasa_falsa_alarma_si_fuera_independiente": 0.3603737208957437
+          },
+          "diagnostico": {
+            "ordenes_emitidas": 5261,
+            "con_clase_correcta": 2489,
+            "precision_de_la_orden": 0.4731039726287778,
+            "cobertura_sobre_fallas": 0.7727413846631481
+          }
+        },
+        "2": {
+          "n_condiciones": 9964,
+          "deteccion": {
+            "falsas_alarmas": 1044,
+            "tasa_falsa_alarma": 0.1548272282366899,
+            "fallas_perdidas": 599,
+            "tasa_falla_perdida": 0.18596709096553865,
+            "avisos_emitidos": 3666,
+            "precision_del_aviso": 0.7152209492635024,
+            "tasa_falsa_alarma_si_fuera_independiente": 0.12986921871224338
+          },
+          "diagnostico": {
+            "ordenes_emitidas": 2711,
+            "con_clase_correcta": 2262,
+            "precision_de_la_orden": 0.8343784581335301,
+            "cobertura_sobre_fallas": 0.7022663769015833
+          }
+        },
+        "3": {
+          "n_condiciones": 9964,
+          "deteccion": {
+            "falsas_alarmas": 551,
+            "tasa_falsa_alarma": 0.081714370458253,
+            "fallas_perdidas": 700,
+            "tasa_falla_perdida": 0.2173238124805961,
+            "avisos_emitidos": 3072,
+            "precision_del_aviso": 0.8206380208333334,
+            "tasa_falsa_alarma_si_fuera_independiente": 0.046801453577154296
+          },
+          "diagnostico": {
+            "ordenes_emitidas": 2248,
+            "con_clase_correcta": 2124,
+            "precision_de_la_orden": 0.9448398576512456,
+            "cobertura_sobre_fallas": 0.6594225395839801
+          }
+        },
+        "5": {
+          "n_condiciones": 9964,
+          "deteccion": {
+            "falsas_alarmas": 225,
+            "tasa_falsa_alarma": 0.03336793711997627,
+            "fallas_perdidas": 850,
+            "tasa_falla_perdida": 0.26389320086929524,
+            "avisos_emitidos": 2596,
+            "precision_del_aviso": 0.9133281972265023,
+            "tasa_falsa_alarma_si_fuera_independiente": 0.006078068210662356
+          },
+          "diagnostico": {
+            "ordenes_emitidas": 1966,
+            "con_clase_correcta": 1950,
+            "precision_de_la_orden": 0.9918616480162767,
+            "cobertura_sobre_fallas": 0.6054020490530891
+          }
+        }
+      },
+      "validacion_lectura_cero": {
+        "n_comunes": 9964,
+        "n_dataset": 9964,
+        "n_reconstruido": 9964,
+        "max_abs_dif_residuos": 0.0,
+        "clases_identicas": true
+      },
+      "n_lecturas_simuladas": 5,
+      "supuestos": [
+        "Las N lecturas se toman en el mismo punto de operación; en campo la carga y el ambiente se mueven entre lecturas y eso no se modela.",
+        "El ruido de instrumento es independiente entre lecturas, gaussiano y con las sigmas de config.params.SIGMA_RUIDO; un sesgo de instrumento sería sistemático y no se modela.",
+        "La discrepancia modelo-planta epsilon es FIJA por condición y no se promedia al repetir la lectura: es un error de calibración, no ruido.",
+        "La falla no progresa entre lecturas."
+      ]
+    },
+    "origen": {
+      "archivo": "resultados/persistencia.json",
+      "funcion": "src.persistencia.ejecutar",
+      "commit_codigo": ""
+    }
+  },
   "alarma_de_fuga": {
     "umbral": 0.95,
     "criterio": "exactitud o F1 macro por encima de 0,95 en datos no vistos",
@@ -898,6 +997,61 @@
     "detalle": [
       "ninguna métrica supera el umbral"
     ],
+    "revision_por_clase": {
+      "criterio": "clases con F1 o PR-AUC por encima de 0,95",
+      "n": 6,
+      "todas_justificadas": true,
+      "clases": [
+        {
+          "conjunto": "prueba_balanceada",
+          "clase": "condensador_sucio",
+          "f1": 0.924791086350975,
+          "pr_auc": 0.9683710034638513,
+          "justificacion_fisica": "Degrada a la vez UA_cd y el caudal de aire (src/fallas.py:99), así que mueve el approach del condensador y el salto de aire simultáneamente; es la única clase que hace ambas cosas.",
+          "justificada": true
+        },
+        {
+          "conjunto": "prueba_balanceada",
+          "clase": "carga_baja",
+          "f1": 0.9476923076923077,
+          "pr_auc": 0.9904796815748377,
+          "justificacion_fisica": "La firma es doble y de signo opuesto: el subenfriamiento CAE (ajuste d_SC = −0,85·f·SC_nom, src/fallas.py:130) mientras el sobrecalentamiento SUBE como consecuencia de que la válvula alimenta menos. Ninguna otra clase del catálogo mueve ese par en esa combinación de signos, así que la separación es física, no una pista filtrada. Se verifica en tests/test_firmas.py, que comprueba los signos SIN ruido en todo el dominio.",
+          "justificada": true
+        },
+        {
+          "conjunto": "prueba_balanceada",
+          "clase": "txv_sobrealimenta",
+          "f1": 0.884393063583815,
+          "pr_auc": 0.957650722494362,
+          "justificacion_fisica": "Única clase que lleva el sobrecalentamiento a su mínimo físico y dispara la bandera de retorno de líquido.",
+          "justificada": true
+        },
+        {
+          "conjunto": "prueba_balanceada",
+          "clase": "incondensables",
+          "f1": 0.9157303370786517,
+          "pr_auc": 0.9591771698440587,
+          "justificacion_fisica": "Es la única clase que sube la presión de descarga SIN mover la temperatura de condensación, que sigue gobernada por el balance del lado secundario (src/fallas.py:190).",
+          "justificada": true
+        },
+        {
+          "conjunto": "prevalencia_realista",
+          "clase": "condensador_sucio",
+          "f1": 0.8868894601542416,
+          "pr_auc": 0.9540967344464082,
+          "justificacion_fisica": "Degrada a la vez UA_cd y el caudal de aire (src/fallas.py:99), así que mueve el approach del condensador y el salto de aire simultáneamente; es la única clase que hace ambas cosas.",
+          "justificada": true
+        },
+        {
+          "conjunto": "prevalencia_realista",
+          "clase": "carga_baja",
+          "f1": 0.8934426229508197,
+          "pr_auc": 0.9576823429909664,
+          "justificacion_fisica": "La firma es doble y de signo opuesto: el subenfriamiento CAE (ajuste d_SC = −0,85·f·SC_nom, src/fallas.py:130) mientras el sobrecalentamiento SUBE como consecuencia de que la válvula alimenta menos. Ninguna otra clase del catálogo mueve ese par en esa combinación de signos, así que la separación es física, no una pista filtrada. Se verifica en tests/test_firmas.py, que comprueba los signos SIN ruido en todo el dominio.",
+          "justificada": true
+        }
+      ]
+    },
     "controles_estructurales": {
       "lista_blanca_de_columnas": "src/features.py::construir_matriz_X",
       "particion_por_grupos": "src/modelo.py::particionar (GroupShuffleSplit sobre cond_id)",
