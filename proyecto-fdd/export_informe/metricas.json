@@ -1,0 +1,912 @@
+{
+  "_lee_esto_primero": "Cada número lleva su origen: archivo, clave, función que lo calcula y commit del código. Los valores se recalcularon con `src.figuras_informe` a partir de `resultados/modelo_rf.joblib` y se comprobaron uno a uno contra `resultados/metricas.json`; si hubieran diferido, esta corrida habría fallado en lugar de publicar.",
+  "generado": "2026-11-15",
+  "procedencia": {
+    "rama": "claude/fdd-random-forest-audit-gjehhl",
+    "commit_codigo": "8764236",
+    "arbol_git_limpio": false,
+    "commit_de_resultados_metricas_json": "d6d9628",
+    "commit_de_los_datasets": "cd5f1db",
+    "semilla_maestra": 20260902,
+    "comandos": [
+      "python -m src.modelo --sin-informe",
+      "python -m src.figuras_informe"
+    ],
+    "topologia": "chiller_cond_aire",
+    "nivel_discrepancia": 0.05,
+    "modo_discrepancia": "por_condicion",
+    "factor_ruido": 1.0
+  },
+  "entorno": {
+    "python": "3.11.18",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "pandas": "3.0.5",
+    "scikit-learn": "1.9.0",
+    "matplotlib": "3.11.1",
+    "seaborn": "0.13.2",
+    "joblib": "1.6.0",
+    "CoolProp": "8.0.0"
+  },
+  "modelo": {
+    "familia": "random_forest",
+    "criterio_de_seleccion": "F1 macro sobre el conjunto de VALIDACIÓN",
+    "hiperparametros": {
+      "max_depth": 16,
+      "max_features": 0.5,
+      "min_samples_leaf": 1,
+      "n_estimators": 100
+    },
+    "origen": {
+      "archivo": "resultados/metricas.json",
+      "clave": "seleccion_de_modelo",
+      "funcion": "src.modelo.seleccionar_modelo",
+      "commit_codigo": "8764236"
+    }
+  },
+  "particion": {
+    "valores": {
+      "filas": {
+        "entrenamiento": 9151,
+        "validacion": 1929,
+        "prueba": 1997
+      },
+      "condiciones": {
+        "train": 280,
+        "val": 59,
+        "test": 61
+      },
+      "condiciones_compartidas_entre_particiones": 0
+    },
+    "origen": {
+      "archivo": "resultados/metricas.json",
+      "clave": "particion",
+      "funcion": "src.modelo.particionar",
+      "commit_codigo": "8764236"
+    }
+  },
+  "columnas_de_entrada": {
+    "valores": [
+      "res_SH_evap",
+      "res_SH_total",
+      "res_SC",
+      "res_SH_des",
+      "res_rp",
+      "res_COP",
+      "res_kW_TR",
+      "res_approach_ev",
+      "res_dT_agua_ev",
+      "res_split_cond",
+      "res_dT_air_cd"
+    ],
+    "origen": {
+      "archivo": "src/features.py",
+      "funcion": "columnas_residuos (lista blanca)",
+      "commit_codigo": "8764236"
+    }
+  },
+  "resultados": {
+    "prueba_balanceada": {
+      "n_muestras": 1997,
+      "f1_macro": 0.7542799882017952,
+      "f1_ponderado": 0.7527303652113854,
+      "recall_macro": 0.7390732692587999,
+      "pr_auc_macro": 0.8074295148283973,
+      "exactitud_global": 0.7376064096144216,
+      "f1_por_clase": {
+        "sano": 0.43333333333333335,
+        "condensador_sucio": 0.924791086350975,
+        "incrustacion_evaporador": 0.73224043715847,
+        "caudal_agua_bajo": 0.8688046647230321,
+        "carga_baja": 0.9476923076923077,
+        "sobrecarga": 0.6532951289398281,
+        "txv_restringida": 0.5164556962025316,
+        "txv_sobrealimenta": 0.884393063583815,
+        "compresor_desgastado": 0.8217522658610272,
+        "incondensables": 0.9157303370786517,
+        "restriccion_linea_liquido": 0.5985915492957746
+      },
+      "recall_por_clase": {
+        "sano": 0.639344262295082,
+        "condensador_sucio": 0.907103825136612,
+        "incrustacion_evaporador": 0.73224043715847,
+        "caudal_agua_bajo": 0.8142076502732241,
+        "carga_baja": 0.9221556886227545,
+        "sobrecarga": 0.6229508196721312,
+        "txv_restringida": 0.5573770491803278,
+        "txv_sobrealimenta": 0.8360655737704918,
+        "compresor_desgastado": 0.7431693989071039,
+        "incondensables": 0.8907103825136612,
+        "restriccion_linea_liquido": 0.4644808743169399
+      },
+      "pr_auc_por_clase": {
+        "sano": 0.3575580484302663,
+        "condensador_sucio": 0.9683710034638513,
+        "incrustacion_evaporador": 0.8309952895840792,
+        "caudal_agua_bajo": 0.9360409105821937,
+        "carga_baja": 0.9904796815748377,
+        "sobrecarga": 0.7381149257957729,
+        "txv_restringida": 0.5652951298910288,
+        "txv_sobrealimenta": 0.957650722494362,
+        "compresor_desgastado": 0.8879073995949602,
+        "incondensables": 0.9591771698440587,
+        "restriccion_linea_liquido": 0.6901343818569586
+      },
+      "matriz_confusion": [
+        [
+          117,
+          0,
+          9,
+          2,
+          1,
+          15,
+          30,
+          0,
+          4,
+          0,
+          5
+        ],
+        [
+          11,
+          166,
+          2,
+          0,
+          0,
+          0,
+          3,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          31,
+          1,
+          134,
+          5,
+          1,
+          4,
+          2,
+          4,
+          1,
+          0,
+          0
+        ],
+        [
+          17,
+          0,
+          5,
+          149,
+          0,
+          2,
+          4,
+          5,
+          1,
+          0,
+          0
+        ],
+        [
+          6,
+          2,
+          1,
+          0,
+          154,
+          0,
+          4,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          36,
+          1,
+          5,
+          0,
+          0,
+          114,
+          10,
+          1,
+          2,
+          8,
+          6
+        ],
+        [
+          65,
+          0,
+          2,
+          1,
+          1,
+          4,
+          102,
+          0,
+          2,
+          1,
+          5
+        ],
+        [
+          10,
+          0,
+          18,
+          0,
+          1,
+          0,
+          0,
+          153,
+          1,
+          0,
+          0
+        ],
+        [
+          21,
+          1,
+          5,
+          1,
+          0,
+          4,
+          14,
+          0,
+          136,
+          1,
+          0
+        ],
+        [
+          5,
+          3,
+          0,
+          0,
+          0,
+          12,
+          0,
+          0,
+          0,
+          163,
+          0
+        ],
+        [
+          38,
+          2,
+          2,
+          2,
+          0,
+          11,
+          43,
+          0,
+          0,
+          0,
+          85
+        ]
+      ],
+      "intervalos_wilson": {
+        "sano": {
+          "soporte": 183,
+          "predichos": 357,
+          "recall_ic95": [
+            0.5675650408887386,
+            0.705393443731389
+          ],
+          "precision_ic95": [
+            0.28109887179871434,
+            0.3780313393521065
+          ],
+          "soporte_pequeno": false
+        },
+        "condensador_sucio": {
+          "soporte": 183,
+          "predichos": 176,
+          "recall_ic95": [
+            0.8562759268623155,
+            0.9411910184004098
+          ],
+          "precision_ic95": [
+            0.8985816137448528,
+            0.9688483913262764
+          ],
+          "soporte_pequeno": false
+        },
+        "incrustacion_evaporador": {
+          "soporte": 183,
+          "predichos": 183,
+          "recall_ic95": [
+            0.6637941541811011,
+            0.7911366535191114
+          ],
+          "precision_ic95": [
+            0.6637941541811011,
+            0.7911366535191114
+          ],
+          "soporte_pequeno": false
+        },
+        "caudal_agua_bajo": {
+          "soporte": 183,
+          "predichos": 160,
+          "recall_ic95": [
+            0.7516043604890528,
+            0.8638902616935875
+          ],
+          "precision_ic95": [
+            0.8810959503315197,
+            0.9611809805578271
+          ],
+          "soporte_pequeno": false
+        },
+        "carga_baja": {
+          "soporte": 167,
+          "predichos": 158,
+          "recall_ic95": [
+            0.8713799915330105,
+            0.953945924403155
+          ],
+          "precision_ic95": [
+            0.9367201325318171,
+            0.9901120292856636
+          ],
+          "soporte_pequeno": false
+        },
+        "sobrecarga": {
+          "soporte": 183,
+          "predichos": 166,
+          "recall_ic95": [
+            0.5508832399093089,
+            0.6899624818143331
+          ],
+          "precision_ic95": [
+            0.6126394825128705,
+            0.7524065368369237
+          ],
+          "soporte_pequeno": false
+        },
+        "txv_restringida": {
+          "soporte": 183,
+          "predichos": 212,
+          "recall_ic95": [
+            0.4849661191232457,
+            0.6274285510144537
+          ],
+          "precision_ic95": [
+            0.41480953896657424,
+            0.5481262435702492
+          ],
+          "soporte_pequeno": false
+        },
+        "txv_sobrealimenta": {
+          "soporte": 183,
+          "predichos": 163,
+          "recall_ic95": [
+            0.7756226790586419,
+            0.8826889603193125
+          ],
+          "precision_ic95": [
+            0.8907619319125651,
+            0.9663384555207849
+          ],
+          "soporte_pequeno": false
+        },
+        "compresor_desgastado": {
+          "soporte": 183,
+          "predichos": 148,
+          "recall_ic95": [
+            0.675325435128111,
+            0.8010138811697585
+          ],
+          "precision_ic95": [
+            0.8636284040808161,
+            0.9530120949655586
+          ],
+          "soporte_pequeno": false
+        },
+        "incondensables": {
+          "soporte": 183,
+          "predichos": 173,
+          "recall_ic95": [
+            0.8372235285581803,
+            0.9281306538080595
+          ],
+          "precision_ic95": [
+            0.8968780598913775,
+            0.9683029834830323
+          ],
+          "soporte_pequeno": false
+        },
+        "restriccion_linea_liquido": {
+          "soporte": 183,
+          "predichos": 101,
+          "recall_ic95": [
+            0.39369350674818765,
+            0.536728840309427
+          ],
+          "precision_ic95": [
+            0.7580624179833655,
+            0.9000732838754386
+          ],
+          "soporte_pequeno": false
+        }
+      },
+      "origen": {
+        "archivo": "resultados/metricas.json",
+        "clave": "metricas.prueba_balanceada",
+        "funcion": "src.modelo.evaluar",
+        "commit_codigo": "8764236"
+      }
+    },
+    "prevalencia_realista": {
+      "n_muestras": 9964,
+      "f1_macro": 0.5835489759193556,
+      "f1_ponderado": 0.7292933081121175,
+      "recall_macro": 0.7269290441867639,
+      "pr_auc_macro": 0.7205363086245378,
+      "exactitud_global": 0.6826575672420715,
+      "f1_por_clase": {
+        "sano": 0.7536257207758169,
+        "condensador_sucio": 0.8868894601542416,
+        "incrustacion_evaporador": 0.5740740740740741,
+        "caudal_agua_bajo": 0.8356164383561644,
+        "carga_baja": 0.8934426229508197,
+        "sobrecarga": 0.22462203023758098,
+        "txv_restringida": 0.19827089337175793,
+        "txv_sobrealimenta": 0.2684563758389262,
+        "compresor_desgastado": 0.5157750342935528,
+        "incondensables": 0.8396946564885496,
+        "restriccion_linea_liquido": 0.42857142857142855
+      },
+      "recall_por_clase": {
+        "sano": 0.6396262791042563,
+        "condensador_sucio": 0.905511811023622,
+        "incrustacion_evaporador": 0.6966292134831461,
+        "caudal_agua_bajo": 0.8026315789473685,
+        "carga_baja": 0.9008264462809917,
+        "sobrecarga": 0.6753246753246753,
+        "txv_restringida": 0.5477707006369427,
+        "txv_sobrealimenta": 0.7142857142857143,
+        "compresor_desgastado": 0.7550200803212851,
+        "incondensables": 0.9016393442622951,
+        "restriccion_linea_liquido": 0.45695364238410596
+      },
+      "pr_auc_por_clase": {
+        "sano": 0.9231533310498021,
+        "condensador_sucio": 0.9540967344464082,
+        "incrustacion_evaporador": 0.7100608062494955,
+        "caudal_agua_bajo": 0.8863083323575796,
+        "carga_baja": 0.9576823429909664,
+        "sobrecarga": 0.3734298266722448,
+        "txv_restringida": 0.20564013473792161,
+        "txv_sobrealimenta": 0.7011040774180703,
+        "compresor_desgastado": 0.7565481164052952,
+        "incondensables": 0.9387111467751497,
+        "restriccion_linea_liquido": 0.5191645457669817
+      },
+      "matriz_confusion": [
+        [
+          4313,
+          93,
+          408,
+          58,
+          30,
+          275,
+          1139,
+          83,
+          240,
+          16,
+          88
+        ],
+        [
+          32,
+          690,
+          7,
+          0,
+          4,
+          2,
+          11,
+          0,
+          6,
+          10,
+          0
+        ],
+        [
+          116,
+          2,
+          434,
+          2,
+          7,
+          19,
+          20,
+          16,
+          5,
+          0,
+          2
+        ],
+        [
+          58,
+          1,
+          21,
+          427,
+          0,
+          3,
+          11,
+          0,
+          10,
+          0,
+          1
+        ],
+        [
+          18,
+          4,
+          0,
+          0,
+          327,
+          0,
+          13,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          14,
+          1,
+          0,
+          1,
+          0,
+          52,
+          3,
+          0,
+          2,
+          3,
+          1
+        ],
+        [
+          91,
+          1,
+          6,
+          1,
+          1,
+          12,
+          172,
+          0,
+          20,
+          1,
+          9
+        ],
+        [
+          2,
+          0,
+          6,
+          0,
+          0,
+          0,
+          0,
+          20,
+          0,
+          0,
+          0
+        ],
+        [
+          30,
+          2,
+          5,
+          1,
+          0,
+          5,
+          15,
+          2,
+          188,
+          0,
+          1
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          9,
+          1,
+          0,
+          1,
+          110,
+          0
+        ],
+        [
+          28,
+          0,
+          2,
+          0,
+          0,
+          9,
+          36,
+          0,
+          7,
+          0,
+          69
+        ]
+      ],
+      "intervalos_wilson": {
+        "sano": {
+          "soporte": 6743,
+          "predichos": 4703,
+          "recall_ic95": [
+            0.6280901709711575,
+            0.6510033829667325
+          ],
+          "precision_ic95": [
+            0.9088480468498976,
+            0.9246195591133028
+          ],
+          "soporte_pequeno": false
+        },
+        "condensador_sucio": {
+          "soporte": 762,
+          "predichos": 794,
+          "recall_ic95": [
+            0.8826612800226559,
+            0.9242941008289456
+          ],
+          "precision_ic95": [
+            0.8437625670048795,
+            0.8907190644367501
+          ],
+          "soporte_pequeno": false
+        },
+        "incrustacion_evaporador": {
+          "soporte": 623,
+          "predichos": 889,
+          "recall_ic95": [
+            0.6594154072545229,
+            0.7314329346551398
+          ],
+          "precision_ic95": [
+            0.4554515491445069,
+            0.5210280414122054
+          ],
+          "soporte_pequeno": false
+        },
+        "caudal_agua_bajo": {
+          "soporte": 532,
+          "predichos": 490,
+          "recall_ic95": [
+            0.7666917768870817,
+            0.8342320782223388
+          ],
+          "precision_ic95": [
+            0.8388758585536364,
+            0.8982025892725491
+          ],
+          "soporte_pequeno": false
+        },
+        "carga_baja": {
+          "soporte": 363,
+          "predichos": 369,
+          "recall_ic95": [
+            0.8657553951431526,
+            0.9275025123569783
+          ],
+          "precision_ic95": [
+            0.849717361015219,
+            0.914682319707104
+          ],
+          "soporte_pequeno": false
+        },
+        "sobrecarga": {
+          "soporte": 77,
+          "predichos": 386,
+          "recall_ic95": [
+            0.5645787430085915,
+            0.7694077194067986
+          ],
+          "precision_ic95": [
+            0.10423183519939822,
+            0.17239744192238665
+          ],
+          "soporte_pequeno": false
+        },
+        "txv_restringida": {
+          "soporte": 314,
+          "predichos": 1421,
+          "recall_ic95": [
+            0.492472369185024,
+            0.6019142686874256
+          ],
+          "precision_ic95": [
+            0.10509594279541296,
+            0.139030562213986
+          ],
+          "soporte_pequeno": false
+        },
+        "txv_sobrealimenta": {
+          "soporte": 28,
+          "predichos": 121,
+          "recall_ic95": [
+            0.529403642629825,
+            0.8474618415167003
+          ],
+          "precision_ic95": [
+            0.10962203759241997,
+            0.24155577493161046
+          ],
+          "soporte_pequeno": true
+        },
+        "compresor_desgastado": {
+          "soporte": 249,
+          "predichos": 480,
+          "recall_ic95": [
+            0.6979917098385267,
+            0.804299052441098
+          ],
+          "precision_ic95": [
+            0.34902388240750626,
+            0.43602973844692217
+          ],
+          "soporte_pequeno": false
+        },
+        "incondensables": {
+          "soporte": 122,
+          "predichos": 140,
+          "recall_ic95": [
+            0.8359212414818843,
+            0.9428355448272535
+          ],
+          "precision_ic95": [
+            0.7105941206983544,
+            0.8455732189307932
+          ],
+          "soporte_pequeno": false
+        },
+        "restriccion_linea_liquido": {
+          "soporte": 151,
+          "predichos": 171,
+          "recall_ic95": [
+            0.3795510128200621,
+            0.5364922210395724
+          ],
+          "precision_ic95": [
+            0.3328765728547405,
+            0.4783811598587556
+          ],
+          "soporte_pequeno": false
+        }
+      },
+      "origen": {
+        "archivo": "resultados/metricas.json",
+        "clave": "metricas.prevalencia_realista",
+        "funcion": "src.modelo.evaluar",
+        "commit_codigo": "8764236"
+      }
+    }
+  },
+  "deteccion_por_severidad": {
+    "valores": {
+      "carga_baja": {
+        "(0.149, 0.25]": 0.75,
+        "(0.25, 0.35]": 0.8181818181818182,
+        "(0.35, 0.45]": 1.0,
+        "(0.45, 0.55]": 1.0,
+        "(0.55, 0.65]": 1.0,
+        "(0.65, 0.75]": 1.0,
+        "(0.75, 0.85]": 1.0,
+        "(0.85, 0.95]": 1.0
+      },
+      "caudal_agua_bajo": {
+        "(0.149, 0.25]": 0.4375,
+        "(0.25, 0.35]": 0.6206896551724138,
+        "(0.35, 0.45]": 0.9090909090909091,
+        "(0.45, 0.55]": 0.9,
+        "(0.55, 0.65]": 0.9473684210526315,
+        "(0.65, 0.75]": 1.0,
+        "(0.75, 0.85]": 1.0,
+        "(0.85, 0.95]": 1.0
+      },
+      "compresor_desgastado": {
+        "(0.149, 0.25]": 0.2413793103448276,
+        "(0.25, 0.35]": 0.46875,
+        "(0.35, 0.45]": 0.7619047619047619,
+        "(0.45, 0.55]": 0.9166666666666666,
+        "(0.55, 0.65]": 0.9375,
+        "(0.65, 0.75]": 1.0,
+        "(0.75, 0.85]": 1.0,
+        "(0.85, 0.95]": 1.0
+      },
+      "condensador_sucio": {
+        "(0.149, 0.25]": 0.5483870967741935,
+        "(0.25, 0.35]": 0.9,
+        "(0.35, 0.45]": 1.0,
+        "(0.45, 0.55]": 1.0,
+        "(0.55, 0.65]": 1.0,
+        "(0.65, 0.75]": 1.0,
+        "(0.75, 0.85]": 1.0,
+        "(0.85, 0.95]": 1.0
+      },
+      "incondensables": {
+        "(0.149, 0.25]": 0.45161290322580644,
+        "(0.25, 0.35]": 0.9,
+        "(0.35, 0.45]": 1.0,
+        "(0.45, 0.55]": 1.0,
+        "(0.55, 0.65]": 1.0,
+        "(0.65, 0.75]": 1.0,
+        "(0.75, 0.85]": 1.0,
+        "(0.85, 0.95]": 1.0
+      },
+      "incrustacion_evaporador": {
+        "(0.149, 0.25]": 0.4375,
+        "(0.25, 0.35]": 0.5517241379310345,
+        "(0.35, 0.45]": 0.45,
+        "(0.45, 0.55]": 0.8333333333333334,
+        "(0.55, 0.65]": 0.9565217391304348,
+        "(0.65, 0.75]": 0.8421052631578947,
+        "(0.75, 0.85]": 1.0,
+        "(0.85, 0.95]": 1.0
+      },
+      "restriccion_linea_liquido": {
+        "(0.149, 0.25]": 0.03125,
+        "(0.25, 0.35]": 0.034482758620689655,
+        "(0.35, 0.45]": 0.0,
+        "(0.45, 0.55]": 0.3157894736842105,
+        "(0.55, 0.65]": 0.8888888888888888,
+        "(0.65, 0.75]": 1.0,
+        "(0.75, 0.85]": 1.0,
+        "(0.85, 0.95]": 1.0
+      },
+      "sobrecarga": {
+        "(0.149, 0.25]": 0.11764705882352941,
+        "(0.25, 0.35]": 0.4074074074074074,
+        "(0.35, 0.45]": 0.47058823529411764,
+        "(0.45, 0.55]": 0.9166666666666666,
+        "(0.55, 0.65]": 0.8,
+        "(0.65, 0.75]": 0.85,
+        "(0.75, 0.85]": 0.85,
+        "(0.85, 0.95]": 0.9047619047619048
+      },
+      "txv_restringida": {
+        "(0.149, 0.25]": 0.30303030303030304,
+        "(0.25, 0.35]": 0.42857142857142855,
+        "(0.35, 0.45]": 0.55,
+        "(0.45, 0.55]": 0.3888888888888889,
+        "(0.55, 0.65]": 0.6521739130434783,
+        "(0.65, 0.75]": 0.7222222222222222,
+        "(0.75, 0.85]": 0.7083333333333334,
+        "(0.85, 0.95]": 0.8947368421052632
+      },
+      "txv_sobrealimenta": {
+        "(0.149, 0.25]": 0.34615384615384615,
+        "(0.25, 0.35]": 0.7428571428571429,
+        "(0.35, 0.45]": 0.8421052631578947,
+        "(0.45, 0.55]": 0.9411764705882353,
+        "(0.55, 0.65]": 1.0,
+        "(0.65, 0.75]": 1.0,
+        "(0.75, 0.85]": 1.0,
+        "(0.85, 0.95]": 1.0
+      }
+    },
+    "origen": {
+      "archivo": "src/figuras_informe.py",
+      "funcion": "fig_deteccion",
+      "commit_codigo": "8764236",
+      "nota": "equivale a `deteccion_vs_severidad` de resultados/metricas.json, calculada por src.modelo.fig_deteccion_vs_severidad"
+    }
+  },
+  "figuras": {
+    "fig1_matriz_confusion_balanceada": "figuras/fig1_matriz_confusion_balanceada.png",
+    "fig2_matriz_confusion_prevalencia": "figuras/fig2_matriz_confusion_prevalencia.png",
+    "fig3a_curvas_pr_balanceada": "figuras/fig3a_curvas_pr_balanceada.png",
+    "fig3b_curvas_pr_prevalencia": "figuras/fig3b_curvas_pr_prevalencia.png",
+    "fig4_f1_por_clase": "figuras/fig4_f1_por_clase.png",
+    "fig5_deteccion_por_severidad": "figuras/fig5_deteccion_por_severidad.png"
+  },
+  "alarma_de_fuga": {
+    "umbral": 0.95,
+    "criterio": "exactitud o F1 macro por encima de 0,95 en datos no vistos",
+    "disparada": false,
+    "detalle": [
+      "ninguna métrica supera el umbral"
+    ],
+    "controles_estructurales": {
+      "lista_blanca_de_columnas": "src/features.py::construir_matriz_X",
+      "particion_por_grupos": "src/modelo.py::particionar (GroupShuffleSplit sobre cond_id)",
+      "condiciones_compartidas_entre_particiones": 0,
+      "aperturas_del_conjunto_de_prueba": {
+        "prueba_balanceada": 1,
+        "prevalencia_realista": 1
+      },
+      "corrida_valida": true
+    }
+  }
+}
