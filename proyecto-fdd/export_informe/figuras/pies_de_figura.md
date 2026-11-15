@@ -61,11 +61,14 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 ### Figura 4 — `fig4_f1_por_clase.png`
 
 > **Figura 4.** F1 por clase en los dos escenarios, ordenado de menor a mayor según la prueba
-> balanceada. Las líneas discontinuas marcan el F1 macro de cada escenario (0,7543 y 0,5835). La
-> figura resume el resultado del módulo en una imagen: cuatro fallas por encima de 0,87, dos por
-> debajo de 0,60, y la clase `sano` como la peor de la prueba balanceada. El contraste entre barras
-> de la misma clase mide cuánto castiga la prevalencia realista a las clases raras: `txv_sobrealimenta`
-> cae de 0,8844 a 0,2685.
+> balanceada. Las líneas discontinuas marcan el F1 macro de cada escenario (0,7543 y 0,5835).
+> Aplicando el criterio de la sección (g) —**«bien diagnosticada» = F1 ≥ 0,80 en los dos
+> escenarios**—, la figura separa tres grupos: **cuatro clases bien diagnosticadas**
+> (`carga_baja`, `condensador_sucio`, `incondensables`, `caudal_agua_bajo`), **dos que solo
+> funcionan en el balanceado** (`txv_sobrealimenta`, `compresor_desgastado`) y **cinco no
+> utilizables**, entre ellas la clase sana. El contraste entre las dos barras de una misma clase
+> mide cuánto castiga la prevalencia realista a las clases raras: `txv_sobrealimenta` cae de 0,8844
+> a 0,2685.
 >
 > *Origen:* `resultados/metricas.json` → `metricas.*.f1_por_clase`; función `src.modelo.evaluar`;
 > dibujada por `src.figuras_informe.fig_f1_por_clase` (commit `789bda7`). **Esta figura no existía en
@@ -79,8 +82,9 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > que solo sube al final significa que la falla se detecta cuando ya es grave.
 > `restriccion_linea_liquido` es el caso extremo —0,03 / 0,03 / 0,00 en los tres primeros tramos y
 > 1,00 desde 0,65—, con explicación física declarada: por debajo de ese umbral la caída de presión
-> no basta para que el líquido flashee. `carga_baja`, `condensador_sucio` e `incondensables`, en
-> cambio, superan el 90 % ya en severidad 0,25–0,35.
+> no basta para que el líquido flashee. En el otro extremo, tomando **≥ 0,80 de acierto en el tramo
+> 0,25–0,35** como umbral de «avisa temprano», lo cumplen tres clases: `condensador_sucio` (0,90),
+> `incondensables` (0,90) y `carga_baja` (0,82). Ninguna *supera* 0,90 en ese tramo.
 >
 > *Origen:* aciertos del conjunto sellado cruzados con `severidad_f`; equivale a
 > `resultados/metricas.json` → `deteccion_vs_severidad` (función

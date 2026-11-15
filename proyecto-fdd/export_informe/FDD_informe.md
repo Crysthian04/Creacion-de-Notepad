@@ -16,10 +16,11 @@ Fase 5, Monitoreo e Innovación
 > 15 de noviembre de 2026 reejecutando `python -m src.modelo --sin-informe` con la semilla
 > declarada, y se compararon uno a uno contra el artefacto guardado. Donde algo no existe en el
 > repositorio, se escribe **«no disponible»** en lugar de estimarlo.
-
-> **Nota de procedencia sobre el sitio.** El nombre «KFC San Francisco» **no aparece en ningún
-> archivo del módulo FDD**; procede del encargo, no del código ni de la documentación. Lo que el
-> módulo sí documenta es el equipo modelado, y no es el del local: ver la sección (c).
+>
+> El módulo FDD modela una **enfriadora de agua**, que **no es el equipo del local**: la sección (c)
+> explica por qué y qué costaría adaptarlo. Las notas de trazabilidad entre este documento y el
+> repositorio —correcciones de cifras, procedencia del nombre del sitio y estado de las premisas de
+> partida— están fuera de este anexo, en `export_informe/NOTAS_INTERNAS.md`.
 
 ---
 
@@ -255,12 +256,11 @@ Hipercubo latino sobre tres variables (`src/generador.py:105`, `muestrear_condic
 | Humedad relativa ambiente | 60 – 95 % | `config/params.py:206`–`207` |
 | **Fracción de carga `Q_load_frac`** | **0,40 – 1,00** | `config/params.py:208`–`209` |
 
-> ⚠ **Corrección a la premisa del encargo.** El encargo habla de «el hipercubo latino de **120**
-> puntos de operación». Ese número existe en el proyecto, pero **es otra cosa**: 120 es el número
-> de condiciones de los **estudios de sensibilidad** al ruido y a la discrepancia
-> (`src/modelo.py:517`, `:538`, `:566`, `n_cond=120`). El conjunto de entrenamiento usa
-> **400 condiciones** (`config/params.py:279`, `N_COND_ENTRENAMIENTO = 400`) y el de prevalencia
-> **10 000 muestras independientes** (`config/params.py:280`). Las cifras verificadas son:
+> **Atención a un número que se presta a confusión.** En el proyecto conviven dos tamaños de
+> muestreo. **120** es el número de condiciones de los **estudios de sensibilidad** al ruido y a la
+> discrepancia (`src/modelo.py:517`, `:538`, `:566`, `n_cond=120`). El **conjunto de entrenamiento**
+> usa **400 condiciones** (`config/params.py:279`, `N_COND_ENTRENAMIENTO = 400`) y el de prevalencia
+> **10 000 muestras independientes** (`config/params.py:280`). Las cifras del entrenamiento son:
 
 | Conjunto | Condiciones (hipercubo) | Intentos | Convergidos | Descartados |
 |---|---|---|---|---|
@@ -299,8 +299,17 @@ levantamiento y vale **exactitud / 2**, asumiendo que la exactitud declarada es 
 >    `V_agua_ev`—, que en un equipo de expansión directa no existen porque no hay circuito de agua.
 > 2. **Los fondos de escala son los de una enfriadora con R-134a.** El manómetro de succión está
 >    declarado a 300 psig de fondo de escala (`config/params.py:227`). Un congelador con R-404A a
->    −40 °C trabaja a **4,3 psig** de succión, y a −30 °C a 14,6 psig: un instrumento de 300 psig de
->    fondo daría, con su 0,25 % de clase, un error absoluto mayor que la propia lectura.
+>    −40 °C trabaja a **4,3 psig** de succión, y a −30 °C a **14,6 psig**: un instrumento de 300 psig
+>    de fondo daría, con su 0,25 % de clase (0,75 psig), un error absoluto del orden de la quinta
+>    parte de la lectura a −40 °C.
+>
+>    *Origen de esas dos presiones:* calculadas con **CoolProp 8.0.0**,
+>    `PropsSI('P', 'T', T, 'Q', 1, 'R404A')`, es decir **presión de ROCÍO** (Q = 1), convertida a
+>    manométrica restando 101 325 Pa. Se usa rocío y no burbuja porque el manómetro de succión lee
+>    a la salida del evaporador, donde el refrigerante es vapor saturado o recalentado. El R-404A es
+>    una mezcla zeotrópica y las dos no coinciden: a −40 °C la burbuja da 4,9 psig y el rocío 4,3,
+>    con un deslizamiento de 0,72 K; a −30 °C, 15,4 y 14,6 psig con 0,66 K. La conclusión no cambia
+>    con ninguna de las dos convenciones.
 >
 > **Conclusión para el informe: las σ de esta tabla corresponden al inventario del estudio de la
 > enfriadora, no al del KFC.** Si la Fase 1 levantó instrumentos en el local, hay que contrastarlos
@@ -484,28 +493,6 @@ de cada barrido.
 Origen: `resultados/metricas.json` → `metricas.prueba_balanceada` y `metricas.prevalencia_realista`,
 función `src.modelo.evaluar`, commit `d6d9628` del artefacto, commit `c9e3dd9` del código.
 
-### Comparación con los valores citados en el encargo
-
-> ⚠ **Los tres valores que el encargo da como «anteriores» no son los de este proyecto.**
-
-| | Encargo | Repositorio (10 nov) | Recalculado (15 nov) | Diferencia |
-|---|---|---|---|---|
-| F1 macro balanceado | 0,7554 | **0,7543** | **0,7543** | −0,0011 |
-| F1 macro prevalencia | 0,5866 | **0,5835** | **0,5835** | −0,0031 |
-| PR-AUC macro | 0,8076 | **0,8074** | **0,8074** | −0,0002 |
-
-**La diferencia no es de redondeo ni de versión de librería.** Se buscaron los tres valores en todos
-los artefactos del repositorio y **no aparecen en ninguno**: ni en `resultados/metricas.json`, ni en
-`metricas_sin_discrepancia.json`, ni en los `.js` exportados, ni en la documentación. Las cifras del
-proyecto son 0,7543 / 0,5835 / 0,8074 y hoy se han vuelto a obtener idénticas.
-
-**No sé de dónde salen 0,7554 / 0,5866 / 0,8076.** Las hipótesis que pude descartar: no son la
-corrida sin discrepancia (esa da 0,8270 / 0,6566 / 0,8618), no son el modelo sin `class_weight`
-(0,5851 en prevalencia), no son la validación (0,7608) ni el bosque de 300 árboles (0,7611). Lo que
-no puedo descartar leyendo el repositorio es que procedan de un borrador anterior del informe o de
-una corrida que no quedó versionada. **Recomendación: usar 0,7543 / 0,5835 / 0,8074, que son
-reproducibles y trazables, y corregir el borrador que lleve los otros.**
-
 ### F1 y PR-AUC por clase
 
 | Clase | F1 balanceada | F1 prevalencia | PR-AUC balanceada |
@@ -524,10 +511,20 @@ reproducibles y trazables, y corregir el borrador que lleve los otros.**
 
 Tres lecturas que el informe debe hacer y no esconder:
 
-1. **Hay dos grupos claros.** Las fallas que alteran el lado de alta presión o el inventario de
-   refrigerante —condensador sucio, incondensables, carga baja, caudal de agua bajo— se diagnostican
-   bien (F1 ≥ 0,87). Las dos que hambrean el evaporador —`txv_restringida` y
-   `restriccion_linea_liquido`— se confunden entre sí y con la máquina sana (F1 0,52 y 0,60).
+1. **Hay tres grupos, con un criterio explícito.** Se llama aquí **«bien diagnosticada»** a una
+   clase con **F1 ≥ 0,80 en los dos escenarios**, balanceado y prevalencia realista. Exigir los dos
+   es deliberado: una clase puede ir muy bien en el balanceado y hundirse en prevalencia, y en ese
+   caso no es utilizable en campo. Este mismo criterio se usa en el pie de la figura 4.
+
+   | Grupo | Criterio | Clases |
+   |---|---|---|
+   | **Bien diagnosticadas** | F1 ≥ 0,80 en **ambos** escenarios | `carga_baja` (0,9477 / 0,8934), `condensador_sucio` (0,9248 / 0,8869), `incondensables` (0,9157 / 0,8397), `caudal_agua_bajo` (0,8688 / 0,8356) |
+   | **Solo en balanceado** | F1 ≥ 0,80 en balanceado, < 0,80 en prevalencia | `txv_sobrealimenta` (0,8844 / 0,2685), `compresor_desgastado` (0,8218 / 0,5158) |
+   | **No utilizables** | F1 < 0,80 en balanceado | `incrustacion_evaporador` (0,7322 / 0,5741), `sobrecarga` (0,6533 / 0,2246), `restriccion_linea_liquido` (0,5986 / 0,4286), `txv_restringida` (0,5165 / 0,1983), `sano` (0,4333 / 0,7536) |
+
+   Las cuatro bien diagnosticadas alteran el lado de alta presión o el inventario de refrigerante.
+   Las dos que hambrean el evaporador —`txv_restringida` y `restriccion_linea_liquido`— se confunden
+   entre sí y con la máquina sana.
 2. **La clase `sano` es la peor de la prueba balanceada** (F1 0,4333, PR-AUC 0,3576). El modelo
    declara avería en máquinas sanas con frecuencia: precisión 0,33 con sensibilidad 0,64. Está
    regulado para no perder fallas, a costa de falsas alarmas. En un plan de mantenimiento eso es
@@ -556,9 +553,11 @@ Fracción diagnosticada correctamente, por tramo de severidad `f`, en la prueba 
 **Esta es la tabla que decide si el método sirve para mantenimiento predictivo**, y la respuesta es
 matizada:
 
-- **Seis clases avisan temprano.** `carga_baja`, `condensador_sucio` e `incondensables` superan el
-  90 % de acierto ya en severidad moderada baja (0,25–0,35). Para esas fallas el sistema sí da
-  antelación útil.
+- **Tres clases avisan temprano, con criterio explícito.** Tomando como umbral **≥ 0,80 de acierto
+  en el tramo 0,25–0,35**, lo cumplen `condensador_sucio` (**0,90**), `incondensables` (**0,90**) y
+  `carga_baja` (**0,82**). Ninguna de las tres *supera* 0,90 en ese tramo: dos lo alcanzan
+  exactamente y `carga_baja` se queda en 0,82; llega a 1,00 a partir de 0,35. Para esas tres el
+  sistema sí da antelación útil. Las otras siete quedan por debajo de 0,80 en ese tramo.
 - **`restriccion_linea_liquido` es prácticamente indetectable por debajo de f ≈ 0,45** (0,03, 0,03 y
   0,00 en los tres primeros tramos) y salta a 1,00 desde 0,65. No es un defecto del clasificador:
   por debajo de ese umbral la caída de presión en la línea no basta para que el líquido flashee, y
@@ -670,8 +669,7 @@ Colapsando las once clases a la decisión binaria «¿hay que ir a mirar o no?»
 | Fallas reales | 1 814 | 3 221 |
 | …perdidas (diagnosticadas como sanas) | 240 → 0,1323 | **390 → 0,1211** |
 
-**Las dos cifras del encargo quedan confirmadas exactamente: 2 430/6 743 = 0,3604 y
-2 831/5 261 = 0,5381.** Calculadas desde `resultados/metricas.json` →
+**Cifras exactas: 2 430/6 743 = 0,3604 y 2 831/5 261 = 0,5381.** Calculadas desde `resultados/metricas.json` →
 `metricas.prevalencia_realista.matriz_confusion`, colapsando la columna y la fila de `sano`.
 
 Lo que significan juntas: **más de un tercio de las lecturas de una máquina sana generan un aviso**,
@@ -683,6 +681,11 @@ este sistema no puede disparar una orden de trabajo por sí solo. De ahí el est
 Una política de mantenimiento no tiene por qué actuar con la primera lectura. Se simuló exigir que
 **N lecturas consecutivas de la misma máquina en el mismo punto de operación** coincidan antes de
 emitir un aviso (`src/persistencia.py`, salida en `resultados/persistencia.json`).
+
+**Qué modelo se usa.** El de `class_weight='balanced'` (`resultados/modelo_rf.joblib` →
+`modelo_balanceado`), que es el mismo con el que se evalúa el escenario de prevalencia realista en
+este informe (`src/modelo.py:674`–`679`, `:706`). Usar el modelo principal daría las cifras de
+`prevalencia_sin_class_weight`, que son otra fila distinta.
 
 **Cómo se simula, y qué no cambia entre lecturas.** Se resuelve el ciclo **una vez** por condición y
 se sortean N vectores de ruido de instrumento independientes sobre el mismo estado. Lo que **no**
@@ -715,13 +718,28 @@ sería sobre otros datos; el módulo aborta en ese caso.
 
 Tres conclusiones para el plan de mantenimiento:
 
-1. **La persistencia funciona, y mucho.** Exigir tres lecturas coincidentes sube la precisión de la
-   orden de trabajo de **0,47 a 0,94**: de cada veinte órdenes emitidas, diecinueve corresponden a
-   la falla que dicen. Es la diferencia entre un sistema inutilizable y uno utilizable.
-2. **Se paga en fallas perdidas**, y hay que decirlo: del 12,1 % con una lectura al 21,7 % con tres.
-   Y la cobertura cae del 77 % al 66 % de las fallas reales. **N = 3 es el punto donde la precisión
-   ya es alta y la pérdida todavía es tolerable**; N = 5 compra muy poca precisión adicional a
-   cambio de perder una falla más de cada veinte.
+1. **La persistencia funciona, y mucho.** De N = 1 a N = 3, la precisión de la orden pasa de **0,4731
+   a 0,9448**, con la cobertura sobre las fallas bajando de **0,7727 a 0,6594**. De N = 1 a N = 5,
+   **0,4731 → 0,9919** de precisión con **0,7727 → 0,6054** de cobertura. Las dos cifras hay que
+   leerlas siempre juntas: subir la precisión consiste, literalmente, en dejar de emitir órdenes.
+
+2. **Cuál N conviene depende de la razón de costos, y ese número no sale de aquí.** Llamando
+   **r = coste de una falla no detectada / coste de una inspección en vano**, el coste esperado por
+   condición es `C(N) = falsas_alarmas(N) + r · fallas_perdidas(N)`. Igualando políticas
+   consecutivas sobre las 6 743 condiciones sanas y las 3 221 con falla:
+
+   | Comparación | N mayor gana mientras… |
+   |---|---|
+   | N = 2 frente a N = 1 | **r < 6,63** |
+   | N = 3 frente a N = 2 | **r < 4,88** |
+   | N = 5 frente a N = 3 | **r < 2,17** |
+
+   Es decir: con **r < 2,17** conviene N = 5; entre **2,17 y 4,88**, N = 3; entre **4,88 y 6,63**,
+   N = 2; y con **r > 6,63** conviene actuar con una sola lectura. **Este informe no recomienda un
+   N:** fijar r es una decisión del plan de mantenimiento —cuánto cuesta un compresor perdido frente
+   a cuánto cuesta una visita en vano—, no del módulo FDD. Los umbrales viajan en
+   `resultados/persistencia.json` → `umbrales_de_decision`.
+
 3. **La persistencia ayuda bastante menos de lo que parece.** A N = 5 la tasa de falsa alarma
    observada es **0,0334**, frente al **0,0061** que predeciría suponer lecturas independientes:
    **5,5 veces peor**. La razón es física, no estadística: el error de calibración del gemelo es
@@ -737,7 +755,8 @@ Tres conclusiones para el plan de mantenimiento:
 
 ### Alarma de fuga de datos: NO disparada
 
-El encargo pide tratar como alarma cualquier métrica demasiado buena. Se comprobó explícitamente
+Una métrica demasiado buena sobre datos no vistos se trata como alarma, no como éxito. Se comprobó
+explícitamente
 (`src/figuras_informe.py`, bloque `alarma_de_fuga`, y queda registrado en
 `export_informe/metricas.json`):
 
@@ -848,11 +867,14 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 ### Figura 4 — `fig4_f1_por_clase.png`
 
 > **Figura 4.** F1 por clase en los dos escenarios, ordenado de menor a mayor según la prueba
-> balanceada. Las líneas discontinuas marcan el F1 macro de cada escenario (0,7543 y 0,5835). La
-> figura resume el resultado del módulo en una imagen: cuatro fallas por encima de 0,87, dos por
-> debajo de 0,60, y la clase `sano` como la peor de la prueba balanceada. El contraste entre barras
-> de la misma clase mide cuánto castiga la prevalencia realista a las clases raras: `txv_sobrealimenta`
-> cae de 0,8844 a 0,2685.
+> balanceada. Las líneas discontinuas marcan el F1 macro de cada escenario (0,7543 y 0,5835).
+> Aplicando el criterio de la sección (g) —**«bien diagnosticada» = F1 ≥ 0,80 en los dos
+> escenarios**—, la figura separa tres grupos: **cuatro clases bien diagnosticadas**
+> (`carga_baja`, `condensador_sucio`, `incondensables`, `caudal_agua_bajo`), **dos que solo
+> funcionan en el balanceado** (`txv_sobrealimenta`, `compresor_desgastado`) y **cinco no
+> utilizables**, entre ellas la clase sana. El contraste entre las dos barras de una misma clase
+> mide cuánto castiga la prevalencia realista a las clases raras: `txv_sobrealimenta` cae de 0,8844
+> a 0,2685.
 >
 > *Origen:* `resultados/metricas.json` → `metricas.*.f1_por_clase`; función `src.modelo.evaluar`;
 > dibujada por `src.figuras_informe.fig_f1_por_clase` (commit `789bda7`). **Esta figura no existía en
@@ -866,8 +888,9 @@ de 2026 con la semilla 20260902 y se contrastaron contra `resultados/metricas.js
 > que solo sube al final significa que la falla se detecta cuando ya es grave.
 > `restriccion_linea_liquido` es el caso extremo —0,03 / 0,03 / 0,00 en los tres primeros tramos y
 > 1,00 desde 0,65—, con explicación física declarada: por debajo de ese umbral la caída de presión
-> no basta para que el líquido flashee. `carga_baja`, `condensador_sucio` e `incondensables`, en
-> cambio, superan el 90 % ya en severidad 0,25–0,35.
+> no basta para que el líquido flashee. En el otro extremo, tomando **≥ 0,80 de acierto en el tramo
+> 0,25–0,35** como umbral de «avisa temprano», lo cumplen tres clases: `condensador_sucio` (0,90),
+> `incondensables` (0,90) y `carga_baja` (0,82). Ninguna *supera* 0,90 en ese tramo.
 >
 > *Origen:* aciertos del conjunto sellado cruzados con `severidad_f`; equivale a
 > `resultados/metricas.json` → `deteccion_vs_severidad` (función
@@ -914,8 +937,8 @@ que ninguno reciba clase.
 
 ### §7.1 — `buscarCelda` saturaba sin aviso de extrapolación  ✅ CORREGIDO
 
-> ⚠ **Corrección a la premisa del encargo.** El encargo lista este punto como defecto conocido
-> **abierto**. No lo está: se corrigió el 10 de noviembre.
+> **Estado: corregido el 10 de noviembre de 2026.** Se documenta aquí porque el defecto llegó a
+> afectar al visualizador y conviene que el historial quede en el anexo.
 
 **El hallazgo.** Cualquier consulta fuera del dominio de la malla se colapsaba sobre el nodo del
 borde y devolvía **exactamente la misma estructura** que un punto interior, sin bandera ni
@@ -932,7 +955,7 @@ escrito en el JavaScript. 16 pruebas, incluido el caso exacto de la auditoría.
 
 ### §7.2 — `diagnosticar()` usaba residuos deterministas  ✅ CORREGIDO
 
-> ⚠ **Corrección a la premisa del encargo.** También figura como abierto y tampoco lo está.
+> **Estado: corregido el 10 de noviembre de 2026.**
 
 **El hallazgo.** La malla se generaba **sin ruido de sensor y sin discrepancia modelo–planta**,
 mientras el clasificador se entrenó con ambos. El desacuerdo estaba declarado como dato en
@@ -975,7 +998,7 @@ Acierto recalculado restringiendo al dominio:
 
 ### No convergencia en carga baja  ❌ ABIERTO
 
-Es el único de los tres defectos que el encargo lista que **sigue abierto**, y en realidad son dos
+Es el único de los tres defectos del visualizador que **sigue abierto**, y en realidad son dos
 problemas distintos en la misma zona:
 
 **(1) Puntos sin estado estacionario.** El solver no encuentra solución por debajo de cierta carga.
@@ -1008,6 +1031,17 @@ tocó. **Para el informe: declarar la zona de carga baja como no utilizable.**
 
 ---
 
+### Nota sobre la procedencia de la lista blanca
+
+`export_informe/metricas.json` → `columnas_de_entrada.origen` cita el commit **`8764236`** para
+`src/features.py`. Es correcto en el sentido literal —es el último commit que tocó ese archivo— pero
+conviene precisarlo: **`8764236` no modificó la lista blanca**. Lo que añadió fueron 29 líneas con
+la tabla de unidades de los residuos, para las figuras de este informe. **La función
+`columnas_residuos`, que es la lista blanca propiamente dicha, no cambia desde `cd5f1db`**, y antes
+de eso venía de `e9a15f0`. Quien quiera auditar la lista blanca debe mirar `cd5f1db`, no `8764236`.
+
+---
+
 ## (i) Pruebas
 
 ### Suite completa
@@ -1018,11 +1052,11 @@ python -m pytest tests/ -q
 
 **Resultado del 15 de noviembre de 2026: 213 pruebas, 213 pasan, 0 fallan** (145 s).
 
-> ⚠ **Corrección a la premisa del encargo.** El encargo cita «213 pruebas, 208 pasan y 5 fallan por
-> el `.joblib`». Ese era el estado del 10 de noviembre y **ya no lo es**. Las 5 que fallaban
-> necesitaban `resultados/modelo_rf.joblib`, excluido del repositorio por tamaño (70 MB, frente al
-> límite de 100 MB de GitHub tras compresión; sin comprimir eran 244 MB). Al reentrenar hoy para la
-> sección (g), el artefacto existe y **las cinco pruebas corren y pasan**.
+> **Nota sobre un resultado anterior.** Hasta el 10 de noviembre la suite daba 208 pasadas y 5
+> errores. Las 5 que fallaban necesitaban `resultados/modelo_rf.joblib`, excluido del repositorio
+> por tamaño (70 MB, frente al límite de 100 MB de GitHub tras compresión; sin comprimir eran
+> 244 MB). Al reentrenar para la sección (g) el artefacto existe y **las cinco pruebas corren y
+> pasan**.
 
 Esto importa para el informe: significa que **la equivalencia Python–JavaScript está verificada en
 esta sesión**, no solo declarada en una corrida pasada.
@@ -1222,21 +1256,6 @@ hace; en la corrida reportada la diferencia máxima fue 0,00e+00 sobre 9 964 con
 partición con la misma semilla, vuelve a evaluar y **contrasta cada número contra
 `resultados/metricas.json` con tolerancia 1e-12**. Si alguno difiriera, aborta en lugar de publicar
 una figura que no cuadre con el informe.
-
----
-
-## Anexo — resumen de las correcciones a las premisas del encargo
-
-| # | El encargo dice | Lo que hay en el repositorio |
-|---|---|---|
-| 1 | Valores anteriores 0,7554 / 0,5866 / 0,8076 | **0,7543 / 0,5835 / 0,8074**; los tres citados no aparecen en ningún artefacto |
-| 2 | Hipercubo latino de **120** puntos de operación | **400** condiciones en el conjunto de entrenamiento; 120 es el tamaño de los **estudios de sensibilidad** |
-| 3 | Prevalencia realista **70 %** sano | objetivo **68 %**, obtenido **67,67 %** |
-| 4 | `buscarCelda` satura sin aviso — defecto conocido | **corregido** el 10 nov, commit `2619317` |
-| 5 | `diagnosticar()` usa residuos deterministas — defecto conocido | **corregido** el 10 nov, commit `a8e842c` |
-| 6 | No convergencia en carga baja — defecto conocido | **abierto**, confirmado; y hay un segundo defecto peor en la misma zona: la bandera `ciclado` |
-| 7 | 213 pruebas, 208 pasan, 5 fallan | **213 pasan, 0 fallan** hoy: al reentrenar aparece el `.joblib` que faltaba |
-| 8 | Sitio: KFC San Francisco | el nombre **no aparece en ningún archivo** del módulo; procede del encargo |
 
 ---
 

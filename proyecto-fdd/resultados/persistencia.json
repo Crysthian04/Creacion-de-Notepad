@@ -83,6 +83,37 @@
     "clases_identicas": true
   },
   "n_lecturas_simuladas": 5,
+  "modelo_usado": {
+    "clave_en_el_joblib": "modelo_balanceado",
+    "descripcion": "Random Forest con class_weight='balanced', el mismo que evalúa el escenario de prevalencia realista en el informe",
+    "origen": "resultados/modelo_rf.joblib, entrenado por src.modelo (src/modelo.py:674-679)",
+    "conjunto": "conjunto de prevalencia realista reconstruido con la misma semilla"
+  },
+  "umbrales_de_decision": {
+    "definicion_de_r": "coste de una falla no detectada / coste de una inspección en vano",
+    "formula": "C(N) = falsas_alarmas(N) + r · fallas_perdidas(N)",
+    "umbrales": [
+      {
+        "de_N": 1,
+        "a_N": 2,
+        "r_umbral": 6.631578947368421,
+        "lectura": "N=2 cuesta menos que N=1 mientras r sea MENOR que el umbral"
+      },
+      {
+        "de_N": 2,
+        "a_N": 3,
+        "r_umbral": 4.881188118811881,
+        "lectura": "N=3 cuesta menos que N=2 mientras r sea MENOR que el umbral"
+      },
+      {
+        "de_N": 3,
+        "a_N": 5,
+        "r_umbral": 2.1733333333333333,
+        "lectura": "N=5 cuesta menos que N=3 mientras r sea MENOR que el umbral"
+      }
+    ],
+    "nota": "Este módulo no recomienda un N. El óptimo depende de r, que es una decisión del plan de mantenimiento."
+  },
   "supuestos": [
     "Las N lecturas se toman en el mismo punto de operación; en campo la carga y el ambiente se mueven entre lecturas y eso no se modela.",
     "El ruido de instrumento es independiente entre lecturas, gaussiano y con las sigmas de config.params.SIGMA_RUIDO; un sesgo de instrumento sería sistemático y no se modela.",

@@ -3,7 +3,7 @@
   "generado": "2026-11-15",
   "procedencia": {
     "rama": "claude/fdd-random-forest-audit-gjehhl",
-    "commit_codigo": "c9e3dd9",
+    "commit_codigo": "043dee2",
     "arbol_git_limpio_al_generar": false,
     "commit_de_resultados_metricas_json": "d6d9628",
     "commit_de_los_datasets": "cd5f1db",
@@ -41,7 +41,7 @@
       "archivo": "resultados/metricas.json",
       "clave": "seleccion_de_modelo",
       "funcion": "src.modelo.seleccionar_modelo",
-      "commit_codigo": "c9e3dd9"
+      "commit_codigo": "043dee2"
     }
   },
   "particion": {
@@ -62,7 +62,7 @@
       "archivo": "resultados/metricas.json",
       "clave": "particion",
       "funcion": "src.modelo.particionar",
-      "commit_codigo": "c9e3dd9"
+      "commit_codigo": "043dee2"
     }
   },
   "columnas_de_entrada": {
@@ -426,7 +426,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prueba_balanceada",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "c9e3dd9"
+        "commit_codigo": "043dee2"
       }
     },
     "prevalencia_realista": {
@@ -769,7 +769,7 @@
         "archivo": "resultados/metricas.json",
         "clave": "metricas.prevalencia_realista",
         "funcion": "src.modelo.evaluar",
-        "commit_codigo": "c9e3dd9"
+        "commit_codigo": "043dee2"
       }
     }
   },
@@ -879,7 +879,7 @@
     "origen": {
       "archivo": "src/figuras_informe.py",
       "funcion": "fig_deteccion",
-      "commit_codigo": "c9e3dd9",
+      "commit_codigo": "043dee2",
       "nota": "equivale a `deteccion_vs_severidad` de resultados/metricas.json, calculada por src.modelo.fig_deteccion_vs_severidad"
     }
   },
@@ -890,6 +890,236 @@
     "fig3b_curvas_pr_prevalencia": "figuras/fig3b_curvas_pr_prevalencia.png",
     "fig4_f1_por_clase": "figuras/fig4_f1_por_clase.png",
     "fig5_deteccion_por_severidad": "figuras/fig5_deteccion_por_severidad.png"
+  },
+  "por_nivel_de_severidad": {
+    "definicion": {
+      "deteccion": "acuerdo en sano / no-sano; src.modelo.tasa_deteccion",
+      "diagnostico": "exactitud de la clase exacta; sklearn accuracy_score",
+      "nota": "sobre las filas de cada nivel, que por construcción son todas con falla: la clase sana lleva nivel `sano`, no `incipiente`"
+    },
+    "prueba_balanceada": {
+      "incipiente": {
+        "n": 610,
+        "deteccion": 0.6950819672131148,
+        "diagnostico": 0.47704918032786886
+      },
+      "moderada": {
+        "n": 610,
+        "deteccion": 0.9262295081967213,
+        "diagnostico": 0.8131147540983606
+      },
+      "severa": {
+        "n": 594,
+        "deteccion": 0.9848484848484849,
+        "diagnostico": 0.9579124579124579
+      }
+    },
+    "prevalencia_realista": {
+      "incipiente": {
+        "n": 1095,
+        "deteccion": 0.7214611872146118,
+        "diagnostico": 0.5141552511415525
+      },
+      "moderada": {
+        "n": 1082,
+        "deteccion": 0.9399260628465804,
+        "diagnostico": 0.866913123844732
+      },
+      "severa": {
+        "n": 1044,
+        "deteccion": 0.9808429118773946,
+        "diagnostico": 0.946360153256705
+      }
+    },
+    "origen": {
+      "archivo": "src/figuras_informe.py",
+      "funcion": "por_nivel_de_severidad",
+      "commit_codigo": "043dee2",
+      "modelo_usado": {
+        "prueba_balanceada": "paquete['modelo']",
+        "prevalencia_realista": "paquete['modelo_balanceado'] (class_weight='balanced')"
+      }
+    },
+    "aviso": "NO confundir con `sensibilidad_al_ruido[\"1.0\"]`, que trae deteccion_incipiente = 0.7882 y diagnostico_incipiente = 0.4824: esas se calculan sobre el split de VALIDACIÓN de un dataset de 120 condiciones generado dentro del estudio, con un bosque reentrenado dentro del estudio (src.modelo._entrenar_y_medir)."
+  },
+  "cotas_de_referencia": {
+    "sin_discrepancia_modelo_planta": {
+      "descripcion": "misma partición y misma semilla, con nivel de discrepancia 0 %: cota superior del método",
+      "prueba_balanceada": {
+        "f1_macro": 0.8269634294732229,
+        "pr_auc_macro": 0.8617644861799512,
+        "exactitud_global": 0.8212318477716575
+      },
+      "prevalencia_realista": {
+        "f1_macro": 0.6566461715284568
+      },
+      "origen": {
+        "archivo": "resultados/metricas_sin_discrepancia.json",
+        "clave": "metricas.prueba_balanceada",
+        "funcion": "src.modelo.evaluar",
+        "commit_codigo": "cd5f1db",
+        "comando": "python -m src.generador --discrepancia 0 --sufijo _sin_discrepancia  +  python -m src.modelo --sufijo _sin_discrepancia"
+      }
+    },
+    "prevalencia_sin_class_weight": {
+      "descripcion": "el escenario de prevalencia evaluado con el modelo PRINCIPAL, sin class_weight='balanced'; sirve para medir cuánto aporta la ponderación",
+      "f1_macro": 0.5850621841654832,
+      "exactitud_global": 0.6771376957045363,
+      "pr_auc_macro": 0.7241505110725771,
+      "comparacion_con_class_weight": {
+        "f1_macro_con": 0.5835489759193556,
+        "f1_macro_sin": 0.5850621841654832
+      },
+      "origen": {
+        "archivo": "resultados/metricas.json",
+        "clave": "metricas.prevalencia_sin_class_weight",
+        "funcion": "src.modelo.evaluar",
+        "commit_codigo": "043dee2"
+      }
+    }
+  },
+  "estudios_de_sensibilidad": {
+    "aviso": "Protocolo DISTINTO del de `resultados`: 120 condiciones generadas dentro del estudio, medición sobre su split de VALIDACIÓN y bosque reentrenado en cada fila. Caso base propio: F1 macro 0,7572. No son alternativas al 0,7543 de la prueba principal.",
+    "n_cond": 120,
+    "funcion": "src.modelo._entrenar_y_medir (src/modelo.py:502-514)",
+    "ruido_de_instrumentos": {
+      "valores": {
+        "0.5": {
+          "f1_macro": 0.8172096923199418,
+          "exactitud": 0.8118279569892473,
+          "diagnostico_incipiente": 0.6235294117647059,
+          "deteccion_incipiente": 0.788235294117647,
+          "n_filas": 3921
+        },
+        "1.0": {
+          "f1_macro": 0.7571982354968086,
+          "exactitud": 0.7455197132616488,
+          "diagnostico_incipiente": 0.4823529411764706,
+          "deteccion_incipiente": 0.788235294117647,
+          "n_filas": 3921
+        },
+        "2.0": {
+          "f1_macro": 0.6460273609250021,
+          "exactitud": 0.6308243727598566,
+          "diagnostico_incipiente": 0.36470588235294116,
+          "deteccion_incipiente": 0.8058823529411765,
+          "n_filas": 3921
+        }
+      },
+      "origen": {
+        "archivo": "resultados/metricas.json",
+        "clave": "sensibilidad_al_ruido",
+        "funcion": "src.modelo.estudio_ruido",
+        "commit_codigo": "043dee2"
+      }
+    },
+    "discrepancia_modelo_planta": {
+      "valores": {
+        "0.0": {
+          "f1_macro": 0.8198440920105189,
+          "exactitud": 0.8154121863799283,
+          "diagnostico_incipiente": 0.6411764705882353,
+          "deteccion_incipiente": 0.8294117647058824,
+          "n_filas": 3921
+        },
+        "0.03": {
+          "f1_macro": 0.7699564516268894,
+          "exactitud": 0.7616487455197133,
+          "diagnostico_incipiente": 0.5294117647058824,
+          "deteccion_incipiente": 0.7764705882352941,
+          "n_filas": 3921
+        },
+        "0.05": {
+          "f1_macro": 0.7571982354968086,
+          "exactitud": 0.7455197132616488,
+          "diagnostico_incipiente": 0.4823529411764706,
+          "deteccion_incipiente": 0.788235294117647,
+          "n_filas": 3921
+        },
+        "0.08": {
+          "f1_macro": 0.7490616609146535,
+          "exactitud": 0.7383512544802867,
+          "diagnostico_incipiente": 0.5117647058823529,
+          "deteccion_incipiente": 0.788235294117647,
+          "n_filas": 3921
+        },
+        "0.15": {
+          "f1_macro": 0.6638020119895689,
+          "exactitud": 0.6523297491039427,
+          "diagnostico_incipiente": 0.3941176470588235,
+          "deteccion_incipiente": 0.7705882352941177,
+          "n_filas": 3921
+        }
+      },
+      "origen": {
+        "archivo": "resultados/metricas.json",
+        "clave": "sensibilidad_a_la_discrepancia",
+        "funcion": "src.modelo.estudio_discrepancia",
+        "commit_codigo": "043dee2"
+      }
+    },
+    "repeticiones_por_corrida": {
+      "valores": {
+        "nivel_discrepancia": 0.05,
+        "n_repeticiones": 5,
+        "modo": "por_corrida",
+        "corridas": [
+          {
+            "f1_macro": 0.8023572745457247,
+            "exactitud": 0.7938517179023508,
+            "diagnostico_incipiente": 0.5941176470588235,
+            "deteccion_incipiente": 0.7470588235294118,
+            "n_filas": 3919,
+            "semilla": 20261902
+          },
+          {
+            "f1_macro": 0.7866555992659248,
+            "exactitud": 0.7827648114901257,
+            "diagnostico_incipiente": 0.5764705882352941,
+            "deteccion_incipiente": 0.7941176470588235,
+            "n_filas": 3920,
+            "semilla": 20262902
+          },
+          {
+            "f1_macro": 0.8006542062854041,
+            "exactitud": 0.7924865831842576,
+            "diagnostico_incipiente": 0.6058823529411764,
+            "deteccion_incipiente": 0.8294117647058824,
+            "n_filas": 3922,
+            "semilla": 20263902
+          },
+          {
+            "f1_macro": 0.7985349539093601,
+            "exactitud": 0.7920433996383364,
+            "diagnostico_incipiente": 0.6,
+            "deteccion_incipiente": 0.7588235294117647,
+            "n_filas": 3922,
+            "semilla": 20264902
+          },
+          {
+            "f1_macro": 0.7869023737059403,
+            "exactitud": 0.7765765765765765,
+            "diagnostico_incipiente": 0.5529411764705883,
+            "deteccion_incipiente": 0.7941176470588235,
+            "n_filas": 3920,
+            "semilla": 20265902
+          }
+        ],
+        "f1_macro_media": 0.7950208815424709,
+        "f1_macro_desv": 0.0076451591156655235,
+        "f1_macro_min": 0.7866555992659248,
+        "f1_macro_max": 0.8023572745457247,
+        "diagnostico_incipiente_media": 0.5858823529411765,
+        "diagnostico_incipiente_desv": 0.02145245003389465
+      },
+      "nota": "modo `por_corrida`: un único epsilon para todo el dataset, que es un sesgo coherente y no ruido estructural. Por eso 0,7950 supera al caso base `por_condicion` de 0,7572.",
+      "origen": {
+        "archivo": "resultados/metricas.json",
+        "clave": "repeticiones_por_corrida",
+        "funcion": "src.modelo.repeticiones_por_corrida",
+        "commit_codigo": "043dee2"
+      }
+    }
   },
   "persistencia": {
     "valores": {
@@ -977,6 +1207,37 @@
         "clases_identicas": true
       },
       "n_lecturas_simuladas": 5,
+      "modelo_usado": {
+        "clave_en_el_joblib": "modelo_balanceado",
+        "descripcion": "Random Forest con class_weight='balanced', el mismo que evalúa el escenario de prevalencia realista en el informe",
+        "origen": "resultados/modelo_rf.joblib, entrenado por src.modelo (src/modelo.py:674-679)",
+        "conjunto": "conjunto de prevalencia realista reconstruido con la misma semilla"
+      },
+      "umbrales_de_decision": {
+        "definicion_de_r": "coste de una falla no detectada / coste de una inspección en vano",
+        "formula": "C(N) = falsas_alarmas(N) + r · fallas_perdidas(N)",
+        "umbrales": [
+          {
+            "de_N": 1,
+            "a_N": 2,
+            "r_umbral": 6.631578947368421,
+            "lectura": "N=2 cuesta menos que N=1 mientras r sea MENOR que el umbral"
+          },
+          {
+            "de_N": 2,
+            "a_N": 3,
+            "r_umbral": 4.881188118811881,
+            "lectura": "N=3 cuesta menos que N=2 mientras r sea MENOR que el umbral"
+          },
+          {
+            "de_N": 3,
+            "a_N": 5,
+            "r_umbral": 2.1733333333333333,
+            "lectura": "N=5 cuesta menos que N=3 mientras r sea MENOR que el umbral"
+          }
+        ],
+        "nota": "Este módulo no recomienda un N. El óptimo depende de r, que es una decisión del plan de mantenimiento."
+      },
       "supuestos": [
         "Las N lecturas se toman en el mismo punto de operación; en campo la carga y el ambiente se mueven entre lecturas y eso no se modela.",
         "El ruido de instrumento es independiente entre lecturas, gaussiano y con las sigmas de config.params.SIGMA_RUIDO; un sesgo de instrumento sería sistemático y no se modela.",

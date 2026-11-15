@@ -213,6 +213,39 @@ def evaluar_politicas(df: pd.DataFrame, modelo, topo, politicas=POLITICAS) -> di
             "politicas": tabla}
 
 
+def _umbrales_de_coste(res: dict) -> dict:
+    """¿A partir de qué razón de costos conviene cada N?
+
+    Coste esperado por condición, en unidades de «una inspección en vano»:
+
+        C(N) = falsas_alarmas(N)  +  r · fallas_perdidas(N)
+
+    con r = coste de una falla no detectada / coste de una inspección en vano.
+    Entre dos políticas consecutivas, el N mayor gana mientras r esté por debajo
+    del umbral donde las dos se igualan. NO se recomienda un N: el que convenga
+    depende de r, y r lo fija el plan de mantenimiento, no este módulo.
+    """
+    pol = res["politicas"]
+    ns = sorted(pol, key=int)
+    umbrales = []
+    for a, b in zip(ns, ns[1:]):
+        fa_a, fn_a = pol[a]["deteccion"]["falsas_alarmas"], pol[a]["deteccion"]["fallas_perdidas"]
+        fa_b, fn_b = pol[b]["deteccion"]["falsas_alarmas"], pol[b]["deteccion"]["fallas_perdidas"]
+        d_fn = fn_b - fn_a
+        umbrales.append({
+            "de_N": int(a), "a_N": int(b),
+            "r_umbral": (fa_a - fa_b) / d_fn if d_fn else None,
+            "lectura": f"N={b} cuesta menos que N={a} mientras r sea MENOR que el umbral",
+        })
+    return {
+        "definicion_de_r": "coste de una falla no detectada / coste de una inspección en vano",
+        "formula": "C(N) = falsas_alarmas(N) + r · fallas_perdidas(N)",
+        "umbrales": umbrales,
+        "nota": "Este módulo no recomienda un N. El óptimo depende de r, que es una "
+                "decisión del plan de mantenimiento.",
+    }
+
+
 def ejecutar(n_muestras: int = 10000, n_lecturas: int = N_LECTURAS,
              verbose: bool = True) -> dict:
     import joblib
@@ -224,7 +257,11 @@ def ejecutar(n_muestras: int = 10000, n_lecturas: int = N_LECTURAS,
     ruta = DIR_RESULTADOS / "modelo_rf.joblib"
     if not ruta.exists():
         raise SystemExit(f"Falta {ruta.relative_to(RAIZ)}: `python -m src.modelo --sin-informe`.")
-    modelo = joblib.load(ruta)["modelo_balanceado"]   # el del escenario de prevalencia
+    # El conjunto de prevalencia se evalúa con el modelo que lleva
+    # `class_weight='balanced'` (src/modelo.py:674-679, :706), no con el
+    # principal. Usar el otro daría las cifras de `prevalencia_sin_class_weight`,
+    # que son otra fila del informe.
+    modelo = joblib.load(ruta)["modelo_balanceado"]
 
     if verbose:
         print("[1] Generando lecturas repetidas")
@@ -244,6 +281,14 @@ def ejecutar(n_muestras: int = 10000, n_lecturas: int = N_LECTURAS,
     res = evaluar_politicas(df, modelo, p.topologia)
     res["validacion_lectura_cero"] = chequeo
     res["n_lecturas_simuladas"] = n_lecturas
+    res["modelo_usado"] = {
+        "clave_en_el_joblib": "modelo_balanceado",
+        "descripcion": "Random Forest con class_weight='balanced', el mismo que "
+                       "evalúa el escenario de prevalencia realista en el informe",
+        "origen": "resultados/modelo_rf.joblib, entrenado por src.modelo (src/modelo.py:674-679)",
+        "conjunto": "conjunto de prevalencia realista reconstruido con la misma semilla",
+    }
+    res["umbrales_de_decision"] = _umbrales_de_coste(res)
     res["supuestos"] = [
         "Las N lecturas se toman en el mismo punto de operación; en campo la "
         "carga y el ambiente se mueven entre lecturas y eso no se modela.",

@@ -109,6 +109,27 @@ def _arbol_limpio() -> bool:
         return False
 
 
+# ---------------------------------------------------------------------------
+# Separador decimal
+# ---------------------------------------------------------------------------
+# El texto del informe escribe 0,7543 y las figuras escribían 0.7543. La
+# incoherencia se nota al maquetar, así que las figuras usan COMA. matplotlib y
+# scikit-learn no lo hacen solos: hay que formatear los ejes, las anotaciones de
+# la matriz y las etiquetas de leyenda uno a uno.
+def dec(x, n: int = 2) -> str:
+    """Número con coma decimal, para cualquier texto que vaya dentro de una figura."""
+    return f"{x:.{n}f}".replace(".", ",")
+
+
+def _eje_con_coma(ax, ejes: str = "x") -> None:
+    from matplotlib.ticker import FuncFormatter
+    f = FuncFormatter(lambda v, _pos: dec(v, 1))
+    if "x" in ejes:
+        ax.xaxis.set_major_formatter(f)
+    if "y" in ejes:
+        ax.yaxis.set_major_formatter(f)
+
+
 def _guardar(fig, nombre: str) -> Path:
     DIR_FIGURAS.mkdir(parents=True, exist_ok=True)
     ruta = DIR_FIGURAS / nombre
@@ -175,9 +196,47 @@ def reevaluar() -> dict:
     X_prev = construir_matriz_X(df_prev, topo)
     res_prev = evaluar(modelo_prev, X_prev, np.asarray(df_prev["clase_id"]),
                        "prevalencia_realista", nombres)
+    nivel_bal = por_nivel_de_severidad(modelo, X_te, y_te, extra_te, nombres)
+    nivel_prev = por_nivel_de_severidad(
+        modelo_prev, X_prev, np.asarray(df_prev["clase_id"]),
+        df_prev[["nivel", "clase", "severidad_f"]], nombres)
     return {"res_bal": res_bal, "res_prev": res_prev, "extra_te": extra_te,
             "nombres": nombres, "modelo": modelo, "modelo_prev": modelo_prev,
-            "paquete": paquete}
+            "paquete": paquete, "nivel_bal": nivel_bal, "nivel_prev": nivel_prev}
+
+
+def por_nivel_de_severidad(modelo, X, y, extra, nombres) -> dict:
+    """Detección sano/no-sano y diagnóstico de la clase, separados por nivel.
+
+    `deteccion` usa la MISMA definición que el pipeline (`src.modelo.tasa_deteccion`):
+    acuerdo en la pregunta binaria «¿es la máquina sana o no?». Sobre las filas de
+    un nivel de severidad, que por construcción son todas CON falla, equivale a la
+    tasa de detección propiamente dicha.
+
+    `diagnostico` es la exactitud de la clase exacta sobre esas mismas filas.
+
+    Se calcula aquí, y no en `src.modelo`, porque el pipeline solo guarda estas
+    dos cifras para los ESTUDIOS de sensibilidad —sobre su split de validación—
+    y no para el conjunto de prueba sellado. Son las que el informe necesita.
+    """
+    from sklearn.metrics import accuracy_score
+
+    from src.modelo import tasa_deteccion
+
+    y = np.asarray(y)
+    y_pred = modelo.predict(X)
+    salida = {}
+    for nivel in ("incipiente", "moderada", "severa"):
+        m = (extra["nivel"] == nivel).to_numpy()
+        if m.sum() == 0:
+            salida[nivel] = {"n": 0, "deteccion": None, "diagnostico": None}
+            continue
+        salida[nivel] = {
+            "n": int(m.sum()),
+            "deteccion": float(tasa_deteccion(y[m], y_pred[m])),
+            "diagnostico": float(accuracy_score(y[m], y_pred[m])),
+        }
+    return salida
 
 
 def comprobar_contra_metricas(res_bal, res_prev, guardadas: dict) -> list[str]:
@@ -203,11 +262,14 @@ def comprobar_contra_metricas(res_bal, res_prev, guardadas: dict) -> list[str]:
 def fig_matriz(res, titulo, archivo, nombres) -> Path:
     mc = np.array(res["matriz_confusion_normalizada"])
     leyenda = etiquetas(nombres)
+    anot = np.vectorize(lambda v: dec(v, 2))(mc)
     fig, ax = plt.subplots(figsize=(10.5, 8.5))
-    sns.heatmap(mc, annot=True, fmt=".2f", cmap="Blues", cbar=True, vmin=0, vmax=1,
-                xticklabels=leyenda, yticklabels=leyenda, ax=ax,
-                annot_kws={"size": 7})
-    ax.set_title(f"{titulo}\n(normalizada por fila; n = {res['n_muestras']})")
+    hm = sns.heatmap(mc, annot=anot, fmt="", cmap="Blues", cbar=True, vmin=0, vmax=1,
+                     xticklabels=leyenda, yticklabels=leyenda, ax=ax,
+                     annot_kws={"size": 7})
+    _eje_con_coma(hm.collections[0].colorbar.ax, "y")
+    n_fmt = f"{res['n_muestras']:,}".replace(",", " ")
+    ax.set_title(f"{titulo}\n(normalizada por fila; n = {n_fmt})")
     ax.set_xlabel("Predicción"); ax.set_ylabel("Realidad")
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
     return _guardar(fig, archivo)
@@ -223,10 +285,11 @@ def fig_pr(res, titulo, archivo, nombres) -> Path:
             continue
         prec, rec, _ = precision_recall_curve(y_bin[:, i], proba[:, i])
         ax.plot(rec, prec, color=colores[i], lw=1.6,
-                label=f"{ETIQUETAS_CLASE[c]} (AP={res['pr_auc_por_clase'][c]:.3f})")
+                label=f"{ETIQUETAS_CLASE[c]} (AP = {dec(res['pr_auc_por_clase'][c], 3)})")
     ax.set_xlabel("Sensibilidad (recall)"); ax.set_ylabel("Precisión")
     ax.set_title(f"Curvas precisión-sensibilidad por clase — {titulo}\n"
-                 f"PR-AUC macro = {res['pr_auc_macro']:.4f}")
+                 f"PR-AUC macro = {dec(res['pr_auc_macro'], 4)}")
+    _eje_con_coma(ax, "xy")
     ax.legend(fontsize=7, loc="lower left", framealpha=.92)
     ax.set_xlim(0, 1); ax.set_ylim(0, 1.02)
     return _guardar(fig, archivo)
@@ -240,10 +303,11 @@ def fig_f1_por_clase(res_bal, res_prev, nombres) -> Path:
     prev = [res_prev["f1_por_clase"][c] for c in orden]
     fig, ax = plt.subplots(figsize=(9, 6))
     h = 0.4
-    ax.barh(y + h / 2, bal, height=h, label=f"Prueba balanceada (macro {res_bal['f1_macro']:.4f})",
+    ax.barh(y + h / 2, bal, height=h,
+            label=f"Prueba balanceada (macro {dec(res_bal['f1_macro'], 4)})",
             color=sns.color_palette("Blues", 3)[2])
     ax.barh(y - h / 2, prev, height=h,
-            label=f"Prevalencia realista (macro {res_prev['f1_macro']:.4f})",
+            label=f"Prevalencia realista (macro {dec(res_prev['f1_macro'], 4)})",
             color=sns.color_palette("Oranges", 3)[1])
     ax.axvline(res_bal["f1_macro"], color="#1b5fa8", ls="--", lw=1)
     ax.axvline(res_prev["f1_macro"], color="#b8651b", ls="--", lw=1)
@@ -263,6 +327,7 @@ def fig_f1_por_clase(res_bal, res_prev, nombres) -> Path:
     ax.grid(axis="x", alpha=.25)
     ax.grid(axis="y", visible=False)
     ax.set_axisbelow(True)
+    _eje_con_coma(ax, "x")
     return _guardar(fig, "fig4_f1_por_clase.png")
 
 
@@ -288,6 +353,7 @@ def fig_deteccion(res_bal, extra_te) -> tuple[Path, dict]:
                  "(solo clases con falla; la clase sana no tiene severidad)")
     ax.set_ylim(-0.02, 1.05)
     ax.grid(alpha=.25)
+    _eje_con_coma(ax, "xy")
     ax.legend(fontsize=8, ncols=3, loc="upper center", bbox_to_anchor=(0.5, -0.1),
               frameon=False)
     return _guardar(fig, "fig5_deteccion_por_severidad.png"), tabla
@@ -389,6 +455,96 @@ def generar(verbose: bool = True) -> dict:
                                "resultados/metricas.json, calculada por src.modelo."
                                "fig_deteccion_vs_severidad"}},
         "figuras": {k: str(v.relative_to(DIR_SALIDA)) for k, v in figs.items()},
+    }
+
+    # --- detección y diagnóstico por nivel de severidad --------------------
+    salida["por_nivel_de_severidad"] = {
+        "definicion": {
+            "deteccion": "acuerdo en sano / no-sano; src.modelo.tasa_deteccion",
+            "diagnostico": "exactitud de la clase exacta; sklearn accuracy_score",
+            "nota": "sobre las filas de cada nivel, que por construcción son todas "
+                    "con falla: la clase sana lleva nivel `sano`, no `incipiente`",
+        },
+        "prueba_balanceada": r["nivel_bal"],
+        "prevalencia_realista": r["nivel_prev"],
+        "origen": {"archivo": "src/figuras_informe.py",
+                   "funcion": "por_nivel_de_severidad",
+                   "commit_codigo": _commit(),
+                   "modelo_usado": {
+                       "prueba_balanceada": "paquete['modelo']",
+                       "prevalencia_realista": "paquete['modelo_balanceado'] "
+                                               "(class_weight='balanced')"}},
+        "aviso": ("NO confundir con `sensibilidad_al_ruido[\"1.0\"]`, que trae "
+                  "deteccion_incipiente = 0.7882 y diagnostico_incipiente = 0.4824: "
+                  "esas se calculan sobre el split de VALIDACIÓN de un dataset de 120 "
+                  "condiciones generado dentro del estudio, con un bosque reentrenado "
+                  "dentro del estudio (src.modelo._entrenar_y_medir)."),
+    }
+
+    # --- cotas de referencia: sin discrepancia y sin class_weight ----------
+    cotas = {}
+    ruta_sd = DIR_RESULTADOS / "metricas_sin_discrepancia.json"
+    if ruta_sd.exists():
+        sd = json.loads(ruta_sd.read_text("utf-8"))
+        cotas["sin_discrepancia_modelo_planta"] = {
+            "descripcion": "misma partición y misma semilla, con nivel de "
+                           "discrepancia 0 %: cota superior del método",
+            "prueba_balanceada": {
+                "f1_macro": sd["metricas"]["prueba_balanceada"]["f1_macro"],
+                "pr_auc_macro": sd["metricas"]["prueba_balanceada"]["pr_auc_macro"],
+                "exactitud_global": sd["metricas"]["prueba_balanceada"]["exactitud_global"],
+            },
+            "prevalencia_realista": {
+                "f1_macro": sd["metricas"]["prevalencia_realista"]["f1_macro"],
+            },
+            "origen": {"archivo": "resultados/metricas_sin_discrepancia.json",
+                       "clave": "metricas.prueba_balanceada",
+                       "funcion": "src.modelo.evaluar",
+                       "commit_codigo": _commit("resultados/metricas_sin_discrepancia.json"),
+                       "comando": "python -m src.generador --discrepancia 0 "
+                                  "--sufijo _sin_discrepancia  +  python -m src.modelo "
+                                  "--sufijo _sin_discrepancia"},
+        }
+    else:
+        cotas["sin_discrepancia_modelo_planta"] = "no disponible"
+
+    cotas["prevalencia_sin_class_weight"] = {
+        "descripcion": "el escenario de prevalencia evaluado con el modelo PRINCIPAL, "
+                       "sin class_weight='balanced'; sirve para medir cuánto aporta "
+                       "la ponderación",
+        "f1_macro": guardadas["metricas"]["prevalencia_sin_class_weight"]["f1_macro"],
+        "exactitud_global": guardadas["metricas"]["prevalencia_sin_class_weight"]["exactitud_global"],
+        "pr_auc_macro": guardadas["metricas"]["prevalencia_sin_class_weight"]["pr_auc_macro"],
+        "comparacion_con_class_weight": {
+            "f1_macro_con": guardadas["metricas"]["prevalencia_realista"]["f1_macro"],
+            "f1_macro_sin": guardadas["metricas"]["prevalencia_sin_class_weight"]["f1_macro"],
+        },
+        "origen": origen("metricas.prevalencia_sin_class_weight", "src.modelo.evaluar"),
+    }
+    salida["cotas_de_referencia"] = cotas
+
+    # --- estudios de sensibilidad, con su aviso ----------------------------
+    salida["estudios_de_sensibilidad"] = {
+        "aviso": ("Protocolo DISTINTO del de `resultados`: 120 condiciones generadas "
+                  "dentro del estudio, medición sobre su split de VALIDACIÓN y bosque "
+                  "reentrenado en cada fila. Caso base propio: F1 macro 0,7572. No son "
+                  "alternativas al 0,7543 de la prueba principal."),
+        "n_cond": 120,
+        "funcion": "src.modelo._entrenar_y_medir (src/modelo.py:502-514)",
+        "ruido_de_instrumentos": {
+            "valores": guardadas["sensibilidad_al_ruido"],
+            "origen": origen("sensibilidad_al_ruido", "src.modelo.estudio_ruido")},
+        "discrepancia_modelo_planta": {
+            "valores": guardadas["sensibilidad_a_la_discrepancia"],
+            "origen": origen("sensibilidad_a_la_discrepancia",
+                             "src.modelo.estudio_discrepancia")},
+        "repeticiones_por_corrida": {
+            "valores": guardadas["repeticiones_por_corrida"],
+            "nota": ("modo `por_corrida`: un único epsilon para todo el dataset, que "
+                     "es un sesgo coherente y no ruido estructural. Por eso 0,7950 "
+                     "supera al caso base `por_condicion` de 0,7572."),
+            "origen": origen("repeticiones_por_corrida",
+                             "src.modelo.repeticiones_por_corrida")},
     }
 
     ruta_pers = DIR_RESULTADOS / "persistencia.json"
